@@ -1,3 +1,5 @@
+import pytest
+
 from fantasy_baseball_manager.domain.league_settings import (
     CategoryConfig,
     Direction,
@@ -585,3 +587,44 @@ class TestProjectionFallback:
         league = _league(pitcher_positions=_SP_RP_LEAGUE)
         result = service.get_pitcher_positions(2025, league, [99])
         assert result[99] == ["P"]
+
+    def test_raises_when_projection_has_ip_but_no_g_gs(self) -> None:
+        """Projections with IP but missing g/gs should raise, not silently default to P."""
+        projs = [
+            Projection(
+                player_id=99,
+                season=2026,
+                system="ensemble",
+                version="production",
+                player_type="pitcher",
+                stat_json={"ip": 190, "era": 2.80},
+            ),
+        ]
+        service = PlayerEligibilityService(
+            FakePositionAppearanceRepo(),
+            pitching_stats_repo=FakePitchingStatsRepo(),
+        )
+        league = _league(pitcher_positions=_SP_RP_LEAGUE)
+        with pytest.raises(ValueError, match="no g/gs"):
+            service.get_pitcher_positions(2026, league, [99], projections=projs)
+
+    def test_no_error_when_pitcher_has_historical_stats_but_projection_lacks_g_gs(self) -> None:
+        """If historical stats exist, missing g/gs in projection is fine."""
+        stats = [_pitching_stats(99, 2025, g=30, gs=30)]
+        projs = [
+            Projection(
+                player_id=99,
+                season=2026,
+                system="ensemble",
+                version="production",
+                player_type="pitcher",
+                stat_json={"ip": 190, "era": 2.80},
+            ),
+        ]
+        service = PlayerEligibilityService(
+            FakePositionAppearanceRepo(),
+            pitching_stats_repo=FakePitchingStatsRepo(stats),
+        )
+        league = _league(pitcher_positions=_SP_RP_LEAGUE)
+        result = service.get_pitcher_positions(2026, league, [99], projections=projs)
+        assert "SP" in result[99]

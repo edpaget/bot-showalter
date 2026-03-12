@@ -162,7 +162,7 @@ def _seed_data(provider: SingleConnectionProvider) -> None:
             system="steamer",
             version="2026",
             player_type="pitcher",
-            stat_json={"ip": 180, "w": 14, "k": 220},
+            stat_json={"ip": 180, "w": 14, "k": 220, "g": 32, "gs": 32},
         ),
     ]
     for proj in projections:

@@ -1043,8 +1043,11 @@ def yahoo_keeper_decisions(  # pragma: no cover
                         pitching_stats_repo=SqlitePitchingStatsRepo(SingleConnectionProvider(ctx.conn)),
                     )
                     batter_positions = eligibility.get_batter_positions(season, fbm_league)
-                    pitcher_ids = [p.player_id for p in projections if p.player_type == "pitcher"]
-                    pitcher_positions = eligibility.get_pitcher_positions(season, fbm_league, pitcher_ids)
+                    pitcher_projs = [p for p in projections if p.player_type == "pitcher"]
+                    pitcher_ids = [p.player_id for p in pitcher_projs]
+                    pitcher_positions = eligibility.get_pitcher_positions(
+                        season, fbm_league, pitcher_ids, projections=pitcher_projs
+                    )
 
                     original_valuations = valuations
                     valuations = adjust_valuations_for_league_keepers(

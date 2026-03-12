@@ -113,8 +113,9 @@ def _build_keeper_planner(ctx: AppContext, season: int, league_name: str) -> Kee
         pitching_stats_repo=ctx.container.pitching_stats_repo,
     )
     batter_positions = eligibility.get_batter_positions(season, ctx.league)
-    pitcher_ids = [p.player_id for p in projections if p.player_type == "pitcher"]
-    pitcher_positions = eligibility.get_pitcher_positions(season, ctx.league, pitcher_ids)
+    pitcher_projs = [p for p in projections if p.player_type == "pitcher"]
+    pitcher_ids = [p.player_id for p in pitcher_projs]
+    pitcher_positions = eligibility.get_pitcher_positions(season, ctx.league, pitcher_ids, projections=pitcher_projs)
     return KeeperPlannerService(
         keeper_costs=keeper_costs,
         valuations=valuations,

@@ -64,12 +64,24 @@ class PlayerEligibilityService:
         # Fill in pitchers missing from stats using projection G/GS
         if projections is not None:
             pid_set = set(pitcher_ids)
+            missing_g_gs: list[int] = []
             for proj in projections:
                 if proj.player_id in pid_set and proj.player_id not in aggregated:
                     g = proj.stat_json.get("g") or 0
                     gs = proj.stat_json.get("gs") or 0
-                    if isinstance(g, (int, float)) and isinstance(gs, (int, float)):
+                    if isinstance(g, (int, float)) and isinstance(gs, (int, float)) and (g or gs):
                         aggregated[proj.player_id] = (int(g), int(gs))
+                    else:
+                        ip = proj.stat_json.get("ip") or 0
+                        if isinstance(ip, (int, float)) and ip > 0:
+                            missing_g_gs.append(proj.player_id)
+            if missing_g_gs:
+                msg = (
+                    f"{len(missing_g_gs)} pitcher projection(s) have IP but no g/gs — "
+                    f"cannot classify SP/RP. First 5 player IDs: {missing_g_gs[:5]}. "
+                    f"Ensure the projection system includes g and gs columns."
+                )
+                raise ValueError(msg)
 
         return self._classify(
             aggregated,

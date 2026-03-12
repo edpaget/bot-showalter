@@ -253,8 +253,11 @@ def adjusted_rankings_cmd(
 
         projections = ctx.projection_repo.get_by_season(season, system=proj_system)
         batter_positions = ctx.eligibility_service.get_batter_positions(season, league_settings)
-        pitcher_ids = [p.player_id for p in projections if p.player_type == "pitcher"]
-        pitcher_positions = ctx.eligibility_service.get_pitcher_positions(season, league_settings, pitcher_ids)
+        pitcher_projs = [p for p in projections if p.player_type == "pitcher"]
+        pitcher_ids = [p.player_id for p in pitcher_projs]
+        pitcher_positions = ctx.eligibility_service.get_pitcher_positions(
+            season, league_settings, pitcher_ids, projections=pitcher_projs
+        )
 
         results = compute_adjusted_valuations(
             kept_player_ids=kept_player_ids,

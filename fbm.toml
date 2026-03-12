@@ -16,6 +16,10 @@ league_required = "steamer"
 batting_rate = "statcast-gbm-preseason"
 pitching_rate = "statcast-gbm-preseason"
 
+[models.ensemble.params.routes]
+g = "steamer"
+gs = "steamer"
+
 [models.ensemble.params.versions]
 "statcast-gbm-preseason" = "latest"
 

@@ -51,8 +51,9 @@ def _make_valuation_adjuster(
     def adjust(kept_ids: set[int], valuations: list[Valuation], season: int) -> list[Valuation]:
         projections = container.projection_repo.get_by_season(season)
         batter_positions = eligibility.get_batter_positions(season, league)
-        pitcher_ids = [p.player_id for p in projections if p.player_type == "pitcher"]
-        pitcher_positions = eligibility.get_pitcher_positions(season, league, pitcher_ids)
+        pitcher_projs = [p for p in projections if p.player_type == "pitcher"]
+        pitcher_ids = [p.player_id for p in pitcher_projs]
+        pitcher_positions = eligibility.get_pitcher_positions(season, league, pitcher_ids, projections=pitcher_projs)
         player_ids = {v.player_id for v in valuations}
         players = container.player_repo.get_by_ids(list(player_ids))
 
@@ -173,8 +174,11 @@ def web(  # pragma: no cover
     players_for_planner = container.player_repo.get_by_ids([v.player_id for v in valuations])
     projections_for_planner = container.projection_repo.get_by_season(season)
     batter_positions = eligibility.get_batter_positions(season, league)
-    pitcher_ids = [p.player_id for p in projections_for_planner if p.player_type == "pitcher"]
-    pitcher_positions = eligibility.get_pitcher_positions(season, league, pitcher_ids)
+    pitcher_projs_for_planner = [p for p in projections_for_planner if p.player_type == "pitcher"]
+    pitcher_ids = [p.player_id for p in pitcher_projs_for_planner]
+    pitcher_positions = eligibility.get_pitcher_positions(
+        season, league, pitcher_ids, projections=pitcher_projs_for_planner
+    )
     keeper_planner: KeeperPlannerService | None = None
     if keeper_costs:
         keeper_planner = KeeperPlannerService(
