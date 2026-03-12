@@ -7,6 +7,7 @@ from fantasy_baseball_manager.domain import (
     Direction,
     SgpDenominators,
     SgpSeasonDenominator,
+    StatType,
 )
 
 if TYPE_CHECKING:
@@ -116,3 +117,30 @@ def compute_sgp_denominators(
     averages = {cat: mean(vals) for cat, vals in cat_denoms.items()}
 
     return SgpDenominators(per_season=tuple(per_season), averages=averages)
+
+
+def compute_representative_team_totals(
+    standings: list[TeamSeasonStats],
+    categories: Sequence[CategoryConfig],
+) -> dict[str, tuple[float, float]]:
+    """Compute average team rate and volume for each rate-stat category.
+
+    For each RATE category, collects (rate, volume) pairs from all teams
+    where both ``cat.key`` and ``cat.denominator`` exist in standings.
+    Returns ``{cat.key: (mean_rate, mean_volume)}``.
+    """
+    result: dict[str, tuple[float, float]] = {}
+    for cat in categories:
+        if cat.stat_type is not StatType.RATE or not cat.denominator:
+            continue
+        rates: list[float] = []
+        volumes: list[float] = []
+        for team in standings:
+            rate_val = team.stat_values.get(cat.key)
+            vol_val = team.stat_values.get(cat.denominator)
+            if rate_val is not None and vol_val is not None:
+                rates.append(rate_val)
+                volumes.append(vol_val)
+        if rates:
+            result[cat.key] = (mean(rates), mean(volumes))
+    return result

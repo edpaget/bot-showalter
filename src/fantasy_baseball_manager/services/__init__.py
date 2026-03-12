@@ -232,7 +232,10 @@ from fantasy_baseball_manager.services.scenario_generator import (
     generate_scenarios,
     scale_projection_to_pt,
 )
-from fantasy_baseball_manager.services.sgp_denominator import compute_sgp_denominators
+from fantasy_baseball_manager.services.sgp_denominator import (
+    compute_representative_team_totals,
+    compute_sgp_denominators,
+)
 from fantasy_baseball_manager.services.stats_conversion import METADATA_FIELDS, stats_to_dict
 from fantasy_baseball_manager.services.tier_generator import (
     generate_tiers,
@@ -376,6 +379,7 @@ __all__ = [
     "blend_stat_line",
     "ReplacementPaddingService",
     "compute_replacement_profiles",
+    "compute_representative_team_totals",
     "compute_sgp_denominators",
     "compute_scarcity",
     "compute_scarcity_rankings",

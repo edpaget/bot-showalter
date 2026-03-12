@@ -1,5 +1,8 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import StrEnum
+
+# Maps category key → (avg_team_rate, avg_team_volume)
+RepresentativeTeamTotals = dict[str, tuple[float, float]]
 
 
 class DenominatorMethod(StrEnum):
@@ -19,3 +22,4 @@ class SgpSeasonDenominator:
 class SgpDenominators:
     per_season: tuple[SgpSeasonDenominator, ...]
     averages: dict[str, float]  # category → mean denominator across seasons
+    representative_team: RepresentativeTeamTotals = field(default_factory=dict)

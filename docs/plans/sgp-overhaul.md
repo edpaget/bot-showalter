@@ -17,7 +17,7 @@ Each fix is independently testable. The final phase runs a full holdout comparis
 | Phase | Status |
 |-------|--------|
 | 1 — Regression-slope denominators | done (2026-03-11) |
-| 2 — Team-impact rate-stat formula | not started |
+| 2 — Team-impact rate-stat formula | done (2026-03-11) |
 | 3 — Category weights and evaluation infrastructure | not started |
 | 4 — Holdout validation | not started |
 

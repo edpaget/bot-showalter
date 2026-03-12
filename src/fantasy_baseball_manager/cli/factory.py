@@ -17,6 +17,7 @@ from fantasy_baseball_manager.domain import (
     LabeledSeason,
     Ok,
     Result,
+    SgpDenominators,
 )
 from fantasy_baseball_manager.features import SqliteDatasetAssembler
 from fantasy_baseball_manager.ingest import (
@@ -86,6 +87,7 @@ from fantasy_baseball_manager.services import (
     StatcastColumnProfiler,
     StatsBasedPlayerUniverse,
     TemporalStabilityChecker,
+    compute_representative_team_totals,
     compute_sgp_denominators,
     find_league_lineage,
     generate_labels,
@@ -162,7 +164,13 @@ def _build_denominator_provider(conn: sqlite3.Connection) -> Any:  # pragma: no 
             all_standings.extend(team_stats)
 
         all_categories = list(league.batting_categories) + list(league.pitching_categories)
-        return compute_sgp_denominators(all_standings, all_categories)
+        sgp_denoms = compute_sgp_denominators(all_standings, all_categories)
+        team_totals = compute_representative_team_totals(all_standings, all_categories)
+        return SgpDenominators(
+            per_season=sgp_denoms.per_season,
+            averages=sgp_denoms.averages,
+            representative_team=team_totals,
+        )
 
     return provider
 

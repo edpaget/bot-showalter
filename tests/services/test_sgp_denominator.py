@@ -3,7 +3,10 @@ import pytest
 from fantasy_baseball_manager.domain.league_settings import CategoryConfig, Direction, StatType
 from fantasy_baseball_manager.domain.sgp import DenominatorMethod
 from fantasy_baseball_manager.domain.yahoo_team_stats import TeamSeasonStats
-from fantasy_baseball_manager.services.sgp_denominator import compute_sgp_denominators
+from fantasy_baseball_manager.services.sgp_denominator import (
+    compute_representative_team_totals,
+    compute_sgp_denominators,
+)
 
 
 def _team(season: int, team_key: str, stats: dict[str, float]) -> TeamSeasonStats:
@@ -263,3 +266,97 @@ class TestRegressionDenominators:
         for i in range(len(default_result.per_season)):
             assert default_result.per_season[i].denominator == mean_gap_result.per_season[i].denominator
         assert default_result.averages == mean_gap_result.averages
+
+
+class TestRepresentativeTeamTotals:
+    def test_rate_category_with_denom_in_standings(self) -> None:
+        """ERA with 'era' and 'ip' in standings → returns (avg_era, avg_ip)."""
+        standings = [
+            _team(2024, "a", {"era": 3.5, "ip": 1200.0}),
+            _team(2024, "b", {"era": 4.0, "ip": 1300.0}),
+            _team(2024, "c", {"era": 3.0, "ip": 1100.0}),
+        ]
+        cats = [
+            CategoryConfig(
+                key="era",
+                name="ERA",
+                stat_type=StatType.RATE,
+                direction=Direction.LOWER,
+                numerator="er",
+                denominator="ip",
+            )
+        ]
+        result = compute_representative_team_totals(standings, cats)
+        assert "era" in result
+        avg_era, avg_ip = result["era"]
+        assert avg_era == pytest.approx(3.5)  # mean(3.5, 4.0, 3.0)
+        assert avg_ip == pytest.approx(1200.0)  # mean(1200, 1300, 1100)
+
+    def test_rate_category_missing_denom_in_standings(self) -> None:
+        """OBP with 'obp' but no 'pa' in standings → category omitted."""
+        standings = [
+            _team(2024, "a", {"obp": 0.340}),
+            _team(2024, "b", {"obp": 0.320}),
+        ]
+        cats = [
+            CategoryConfig(
+                key="obp",
+                name="OBP",
+                stat_type=StatType.RATE,
+                direction=Direction.HIGHER,
+                numerator="obp_num",
+                denominator="pa",
+            )
+        ]
+        result = compute_representative_team_totals(standings, cats)
+        assert "obp" not in result
+
+    def test_counting_category_excluded(self) -> None:
+        """Counting stats (HR) are not included in representative team totals."""
+        standings = [
+            _team(2024, "a", {"HR": 200.0}),
+            _team(2024, "b", {"HR": 180.0}),
+        ]
+        cats = [_counting_cat("HR")]
+        result = compute_representative_team_totals(standings, cats)
+        assert result == {}
+
+    def test_multiple_seasons_averaged(self) -> None:
+        """Two seasons of data → averages across all teams and seasons."""
+        standings = [
+            _team(2023, "a", {"era": 3.0, "ip": 1000.0}),
+            _team(2023, "b", {"era": 4.0, "ip": 1200.0}),
+            _team(2024, "a", {"era": 3.5, "ip": 1100.0}),
+            _team(2024, "b", {"era": 4.5, "ip": 1300.0}),
+        ]
+        cats = [
+            CategoryConfig(
+                key="era",
+                name="ERA",
+                stat_type=StatType.RATE,
+                direction=Direction.LOWER,
+                numerator="er",
+                denominator="ip",
+            )
+        ]
+        result = compute_representative_team_totals(standings, cats)
+        avg_era, avg_ip = result["era"]
+        # mean(3.0, 4.0, 3.5, 4.5) = 3.75
+        assert avg_era == pytest.approx(3.75)
+        # mean(1000, 1200, 1100, 1300) = 1150
+        assert avg_ip == pytest.approx(1150.0)
+
+    def test_empty_standings(self) -> None:
+        """Empty input → empty dict."""
+        cats = [
+            CategoryConfig(
+                key="era",
+                name="ERA",
+                stat_type=StatType.RATE,
+                direction=Direction.LOWER,
+                numerator="er",
+                denominator="ip",
+            )
+        ]
+        result = compute_representative_team_totals([], cats)
+        assert result == {}

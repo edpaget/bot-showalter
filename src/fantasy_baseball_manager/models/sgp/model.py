@@ -1,7 +1,14 @@
 import dataclasses
 from typing import TYPE_CHECKING, Any, Protocol
 
-from fantasy_baseball_manager.domain import ArtifactType, EligibilityProvider, Position, SgpDenominators, Valuation
+from fantasy_baseball_manager.domain import (
+    ArtifactType,
+    EligibilityProvider,
+    Position,
+    SgpDenominators,
+    StatType,
+    Valuation,
+)
 from fantasy_baseball_manager.models.protocols import ModelConfig, PredictResult
 from fantasy_baseball_manager.models.registry import register
 from fantasy_baseball_manager.models.sgp.engine import run_sgp_pipeline
@@ -85,16 +92,22 @@ class SgpModel:
 
         # 1. Get SGP denominators (pre-computed or from DB via provider)
         denominators_input: SgpDenominators | dict[str, float] | None = config.model_params.get("denominators")
+        representative_team: dict[str, tuple[float, float]] = {}
         if denominators_input is None:
             if self._denominator_provider is None:
                 msg = "denominators must be provided in model_params or via denominator_provider"
                 raise TypeError(msg)
             sgp_denoms = self._denominator_provider(league)
             denominators = sgp_denoms.averages
+            representative_team = sgp_denoms.representative_team
         elif isinstance(denominators_input, dict):
             denominators = denominators_input
         else:
             denominators = denominators_input.averages
+            representative_team = denominators_input.representative_team
+        # Allow explicit override from model_params
+        if "representative_team" in config.model_params:
+            representative_team = config.model_params["representative_team"]
 
         # 2. Read projections
         projections: list[Projection] = config.model_params.get("projections") or []
@@ -120,6 +133,25 @@ class SgpModel:
         # 4. Budget split
         batter_budget, pitcher_budget = compute_budget_split(league)
 
+        # 4.5. Compute projection-based fallback for categories missing from standings
+        all_categories = list(league.batting_categories) + list(league.pitching_categories)
+        batter_stats = _extract_stats(batter_projs)
+        pitcher_stats = _extract_stats(pitcher_projs)
+        for cat in all_categories:
+            if cat.stat_type is StatType.RATE and cat.denominator and cat.key not in representative_team:
+                # Derive avg_volume from projections for this category
+                all_stats = batter_stats + pitcher_stats
+                vols = [s.get(cat.denominator, 0.0) for s in all_stats if s.get(cat.denominator, 0.0) > 0]
+                rates = [
+                    s.get(cat.key, 0.0)
+                    for s in all_stats
+                    if s.get(cat.key) is not None and s.get(cat.denominator, 0.0) > 0
+                ]
+                if vols and rates and league.teams > 0:
+                    avg_vol = sum(vols) / league.teams
+                    avg_rate = sum(r * v for r, v in zip(rates, vols, strict=True)) / sum(vols)
+                    representative_team[cat.key] = (avg_rate, avg_vol)
+
         # 5. Run SGP for batters
         batter_valuations = self._value_pool(
             batter_projs,
@@ -135,6 +167,7 @@ class SgpModel:
             use_direct_rates=use_direct_rates,
             use_optimal_assignment=use_optimal_assignment,
             volume_weighted=volume_weighted,
+            representative_team=representative_team or None,
         )
 
         # 6. Run SGP for pitchers
@@ -160,6 +193,7 @@ class SgpModel:
             use_direct_rates=use_direct_rates,
             use_optimal_assignment=use_optimal_assignment,
             volume_weighted=volume_weighted,
+            representative_team=representative_team or None,
         )
 
         # 7. Rank all valuations combined
@@ -210,6 +244,7 @@ class SgpModel:
         use_direct_rates: bool = False,
         use_optimal_assignment: bool = True,
         volume_weighted: bool = False,
+        representative_team: dict[str, tuple[float, float]] | None = None,
     ) -> list[Valuation]:
         """Run the full SGP pipeline for one player pool."""
         if not projections:
@@ -236,6 +271,7 @@ class SgpModel:
             use_direct_rates=use_direct_rates,
             use_optimal_assignment=use_optimal_assignment,
             volume_weighted=volume_weighted,
+            representative_team=representative_team,
         )
 
         valuations: list[Valuation] = []

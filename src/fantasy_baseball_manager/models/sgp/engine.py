@@ -38,6 +38,7 @@ def compute_sgp_scores(
     *,
     use_direct_rates: bool = False,
     volume_weighted: bool = False,
+    representative_team: dict[str, tuple[float, float]] | None = None,
 ) -> list[PlayerSgpScores]:
     """Compute per-category SGP scores for each player.
 
@@ -113,20 +114,33 @@ def compute_sgp_scores(
                 if denom_val <= 0.0:
                     category_sgp[cat.key] = 0.0
                     continue
-                if use_direct_rates and cat.key in stats:
-                    player_rate = stats[cat.key]
+
+                # Team-impact path: use marginal impact on representative team
+                if representative_team is not None and cat.key in representative_team:
+                    team_rate, team_vol = representative_team[cat.key]
+                    if use_direct_rates and cat.key in stats:
+                        player_rate = stats[cat.key]
+                    else:
+                        player_rate = resolve_numerator(cat.numerator, stats) / denom_val
+                    rate_with = (team_rate * team_vol + player_rate * denom_val) / (team_vol + denom_val)
+                    marginal = team_rate - rate_with if cat.direction is Direction.LOWER else rate_with - team_rate
+                    category_sgp[cat.key] = marginal / abs(denom)
                 else:
-                    player_rate = resolve_numerator(cat.numerator, stats) / denom_val
-                baseline = baselines[cat.key]
-                if cat.direction is Direction.LOWER:
-                    raw_sgp = (baseline - player_rate) / abs(denom)
-                else:
-                    raw_sgp = (player_rate - baseline) / denom
-                if volume_weighted:
-                    vol_weight = denom_val / avg_volumes.get(cat.key, 1.0)
-                    category_sgp[cat.key] = raw_sgp * vol_weight
-                else:
-                    category_sgp[cat.key] = raw_sgp
+                    # Existing baseline path (median or volume-weighted mean)
+                    if use_direct_rates and cat.key in stats:
+                        player_rate = stats[cat.key]
+                    else:
+                        player_rate = resolve_numerator(cat.numerator, stats) / denom_val
+                    baseline = baselines[cat.key]
+                    if cat.direction is Direction.LOWER:
+                        raw_sgp = (baseline - player_rate) / abs(denom)
+                    else:
+                        raw_sgp = (player_rate - baseline) / denom
+                    if volume_weighted:
+                        vol_weight = denom_val / avg_volumes.get(cat.key, 1.0)
+                        category_sgp[cat.key] = raw_sgp * vol_weight
+                    else:
+                        category_sgp[cat.key] = raw_sgp
 
         composite = sum(category_sgp.values())
         result.append(
@@ -151,13 +165,19 @@ def run_sgp_pipeline(
     use_direct_rates: bool = False,
     use_optimal_assignment: bool = True,
     volume_weighted: bool = False,
+    representative_team: dict[str, tuple[float, float]] | None = None,
 ) -> SgpPipelineResult:
     """Run the full SGP pipeline: SGP scores → replacement → VAR → dollars."""
     if not stats_list:
         return SgpPipelineResult(sgp_scores=[], replacement={}, dollar_values=[])
 
     sgp_scores = compute_sgp_scores(
-        stats_list, categories, denominators, use_direct_rates=use_direct_rates, volume_weighted=volume_weighted
+        stats_list,
+        categories,
+        denominators,
+        use_direct_rates=use_direct_rates,
+        volume_weighted=volume_weighted,
+        representative_team=representative_team,
     )
 
     if use_optimal_assignment:
