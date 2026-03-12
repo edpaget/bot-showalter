@@ -85,6 +85,7 @@ export function KeeperPlannerView() {
         teams: null,
         budget: null,
         keeperPlayerIds: selected.keeperIds,
+        leagueKey: null,
       },
     });
     if (result.data?.startSession?.sessionId) {

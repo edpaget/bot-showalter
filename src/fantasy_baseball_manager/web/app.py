@@ -11,7 +11,7 @@ from strawberry.fastapi import GraphQLRouter
 
 from fantasy_baseball_manager.config_toml import WebConfig, load_toml, load_web_config
 from fantasy_baseball_manager.web.event_bus import EventBus
-from fantasy_baseball_manager.web.schema import Mutation, Query, Subscription
+from fantasy_baseball_manager.web.schema import Mutation, Query, Subscription, _make_keeper_cost_deriver
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
@@ -130,6 +130,12 @@ def create_app(
         yahoo_team_stats_repo=yahoo_team_stats_repo,
         yahoo_roster_repo=yahoo_roster_repo,
     )
+
+    # Wire keeper cost deriver into session manager if Yahoo is configured
+    if session_manager is not None and yahoo_web_context is not None:
+        deriver = _make_keeper_cost_deriver(app_context)
+        if deriver is not None:
+            session_manager._keeper_cost_deriver = deriver  # type: ignore[attr-defined]
 
     schema = strawberry.Schema(query=Query, mutation=Mutation, subscription=Subscription)
 

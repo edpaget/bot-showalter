@@ -15,6 +15,7 @@ interface SessionControlsProps {
     userTeam: number;
     budget?: number;
     keeperPlayerIds?: number[];
+    leagueKey?: string;
   }) => void;
   onResume: (sessionId: number) => void;
   onUndo: () => void;
@@ -185,6 +186,7 @@ export function SessionControls({
               userTeam,
               budget: format === "auction" ? budget : undefined,
               keeperPlayerIds: keeperPlayerIds.length > 0 ? keeperPlayerIds : undefined,
+              leagueKey: yahooLeague?.leagueKey,
             })
           }
           className="px-4 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"

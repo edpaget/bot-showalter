@@ -1,4 +1,4 @@
-from collections.abc import AsyncGenerator  # noqa: TC003 — Strawberry resolves annotations at runtime
+from collections.abc import AsyncGenerator, Callable  # noqa: TC003 — Strawberry resolves annotations at runtime
 from typing import TYPE_CHECKING
 
 import strawberry
@@ -80,6 +80,16 @@ if TYPE_CHECKING:
 
 def _get_context(info: Info) -> AppContext:
     return info.context["app_context"]
+
+
+def _make_keeper_cost_deriver(ctx: AppContext) -> Callable[[int, str], None] | None:
+    if ctx.yahoo_web_context is None:
+        return None
+
+    def deriver(season: int, league_key: str) -> None:
+        _derive_keeper_costs_from_yahoo(ctx, season, league_key)
+
+    return deriver
 
 
 def _get_session_manager(info: Info) -> SessionManager:
@@ -866,6 +876,7 @@ class Mutation:
         format: str = "snake",
         budget: int | None = None,
         keeper_player_ids: list[int] | None = None,
+        league_key: str | None = None,
     ) -> DraftStateType:
         ctx = _get_context(info)
         system = system or ctx.default_system
@@ -880,6 +891,7 @@ class Mutation:
             fmt=format,
             budget=budget,
             keeper_player_ids=set(keeper_player_ids) if keeper_player_ids else None,
+            league_key=league_key,
         )
         await ctx.event_bus.publish(
             session_id,

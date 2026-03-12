@@ -43,6 +43,10 @@ class ValuationAdjuster(Protocol):
     def __call__(self, kept_ids: set[int], valuations: list[Valuation], season: int) -> list[Valuation]: ...
 
 
+class KeeperCostDeriver(Protocol):
+    def __call__(self, season: int, league_key: str) -> None: ...
+
+
 @dataclass(frozen=True)
 class DraftSessionSummary:
     record: DraftSessionRecord
@@ -63,6 +67,7 @@ class SessionManager:
         valuation_adjuster: ValuationAdjuster | None = None,
         league_keeper_repo: LeagueKeeperRepo | None = None,
         projection_repo: ProjectionRepo | None = None,
+        keeper_cost_deriver: KeeperCostDeriver | None = None,
     ) -> None:
         self._repo = session_repo
         self._valuation_repo = valuation_repo
@@ -74,6 +79,7 @@ class SessionManager:
         self._valuation_adjuster = valuation_adjuster
         self._league_keeper_repo = league_keeper_repo
         self._projection_repo = projection_repo
+        self._keeper_cost_deriver = keeper_cost_deriver
         self._engines: dict[int, DraftEngine] = {}
 
     def start_session(
@@ -87,6 +93,7 @@ class SessionManager:
         fmt: str = "snake",
         budget: int | None = None,
         keeper_player_ids: set[int] | None = None,
+        league_key: str | None = None,
     ) -> tuple[int, DraftEngine]:
         teams = teams or self._league.teams
         budget = budget if budget is not None else self._league.budget
@@ -96,6 +103,14 @@ class SessionManager:
             league_keepers = self._league_keeper_repo.find_by_season_league(season, self._league.name)
             if league_keepers:
                 keeper_player_ids = {k.player_id for k in league_keepers}
+
+        # Auto-derive keeper costs from Yahoo if none exist and league_key provided
+        if keeper_player_ids is None and league_key is not None and self._keeper_cost_deriver is not None:
+            self._keeper_cost_deriver(season, league_key)
+            if self._league_keeper_repo is not None:
+                league_keepers = self._league_keeper_repo.find_by_season_league(season, self._league.name)
+                if league_keepers:
+                    keeper_player_ids = {k.player_id for k in league_keepers}
 
         # Build keeper snapshot before filtering the pool
         keeper_snapshot = self._build_keeper_snapshot(season, keeper_player_ids) if keeper_player_ids else None

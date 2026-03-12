@@ -701,6 +701,209 @@ class TestTradePicksPersists:
         assert restored.team_for_pick(2) == 1
 
 
+class TestKeeperAutoDerivation:
+    """Tests for auto-deriving keeper costs when league_key is provided."""
+
+    def _make_manager_with_deriver(
+        self, *, pre_populate_keepers: bool = False
+    ) -> tuple[SessionManager, SqliteLeagueKeeperRepo, list[bool]]:
+        """Create a manager with a deriver that records whether it was called."""
+        conn = create_connection(":memory:", check_same_thread=False)
+        provider = SingleConnectionProvider(conn)
+
+        player_repo = SqlitePlayerRepo(provider)
+        valuation_repo = SqliteValuationRepo(provider)
+        league_keeper_repo = SqliteLeagueKeeperRepo(provider)
+
+        players = [
+            Player(name_first="Mike", name_last="Trout", id=1, mlbam_id=545361),
+            Player(name_first="Shohei", name_last="Ohtani", id=2, mlbam_id=660271),
+            Player(name_first="Gerrit", name_last="Cole", id=3, mlbam_id=543037),
+        ]
+        for p in players:
+            player_repo.upsert(p)
+
+        valuations = [
+            Valuation(
+                player_id=1,
+                season=2026,
+                system="zar",
+                version="1.0",
+                projection_system="steamer",
+                projection_version="2026",
+                player_type="batter",
+                position="OF",
+                value=35.0,
+                rank=1,
+                category_scores={"HR": 2.5, "RBI": 1.8},
+            ),
+            Valuation(
+                player_id=2,
+                season=2026,
+                system="zar",
+                version="1.0",
+                projection_system="steamer",
+                projection_version="2026",
+                player_type="batter",
+                position="OF",
+                value=30.0,
+                rank=2,
+                category_scores={"HR": 2.0, "RBI": 1.5},
+            ),
+            Valuation(
+                player_id=3,
+                season=2026,
+                system="zar",
+                version="1.0",
+                projection_system="steamer",
+                projection_version="2026",
+                player_type="pitcher",
+                position="SP",
+                value=25.0,
+                rank=3,
+                category_scores={"W": 1.5, "K": 2.0},
+            ),
+        ]
+        for v in valuations:
+            valuation_repo.upsert(v)
+
+        if pre_populate_keepers:
+            league_keeper_repo.upsert_batch(
+                [LeagueKeeper(player_id=1, season=2026, league="Test League", team_name="Team A", cost=35.0)]
+            )
+
+        with provider.connection() as c:
+            c.commit()
+
+        deriver_called: list[bool] = []
+
+        def fake_deriver(season: int, league_key: str) -> None:
+            deriver_called.append(True)
+            # Simulate deriving keeper costs by inserting into the repo
+            league_keeper_repo.upsert_batch(
+                [LeagueKeeper(player_id=1, season=season, league="Test League", team_name="Team A", cost=35.0)]
+            )
+            with provider.connection() as c:
+                c.commit()
+
+        def fake_adjuster(kept_ids: set[int], valuations: list[Valuation], season: int) -> list[Valuation]:
+            return [v for v in valuations if v.player_id not in kept_ids]
+
+        session_repo = SqliteDraftSessionRepo(provider)
+        adp_repo = SqliteADPRepo(provider)
+        profile_service = PlayerProfileService(player_repo)
+
+        mgr = SessionManager(
+            session_repo=session_repo,
+            valuation_repo=valuation_repo,
+            player_repo=player_repo,
+            adp_repo=adp_repo,
+            player_profile_service=profile_service,
+            league=_LEAGUE,
+            adp_provider="fantasypros",
+            valuation_adjuster=fake_adjuster,
+            league_keeper_repo=league_keeper_repo,
+            keeper_cost_deriver=fake_deriver,
+        )
+        return mgr, league_keeper_repo, deriver_called
+
+    def test_auto_derives_when_costs_missing(self) -> None:
+        mgr, _, deriver_called = self._make_manager_with_deriver()
+
+        sid, engine = mgr.start_session(2026, league_key="422.l.12345")
+        available_ids = {r.player_id for r in engine.available()}
+
+        assert len(deriver_called) == 1
+        assert 1 not in available_ids  # keeper excluded
+        assert 2 in available_ids
+
+    def test_skips_derivation_when_costs_exist(self) -> None:
+        mgr, _, deriver_called = self._make_manager_with_deriver(pre_populate_keepers=True)
+
+        sid, engine = mgr.start_session(2026, league_key="422.l.12345")
+        available_ids = {r.player_id for r in engine.available()}
+
+        assert len(deriver_called) == 0  # deriver NOT called
+        assert 1 not in available_ids  # keeper still excluded via DB lookup
+
+    def test_backward_compatible_without_league_key(self) -> None:
+        mgr, _, deriver_called = self._make_manager_with_deriver()
+
+        _, engine = mgr.start_session(2026)
+        available_ids = {r.player_id for r in engine.available()}
+
+        assert len(deriver_called) == 0
+        # All players available (no keepers derived)
+        assert 1 in available_ids
+        assert 2 in available_ids
+
+    def test_backward_compatible_without_deriver(self) -> None:
+        """league_key provided but no deriver injected — should not crash."""
+        conn = create_connection(":memory:", check_same_thread=False)
+        provider = SingleConnectionProvider(conn)
+
+        player_repo = SqlitePlayerRepo(provider)
+        valuation_repo = SqliteValuationRepo(provider)
+
+        players = [
+            Player(name_first="Mike", name_last="Trout", id=1, mlbam_id=545361),
+            Player(name_first="Shohei", name_last="Ohtani", id=2, mlbam_id=660271),
+        ]
+        for p in players:
+            player_repo.upsert(p)
+
+        valuations = [
+            Valuation(
+                player_id=1,
+                season=2026,
+                system="zar",
+                version="1.0",
+                projection_system="steamer",
+                projection_version="2026",
+                player_type="batter",
+                position="OF",
+                value=35.0,
+                rank=1,
+                category_scores={"HR": 2.5, "RBI": 1.8},
+            ),
+            Valuation(
+                player_id=2,
+                season=2026,
+                system="zar",
+                version="1.0",
+                projection_system="steamer",
+                projection_version="2026",
+                player_type="batter",
+                position="OF",
+                value=30.0,
+                rank=2,
+                category_scores={"HR": 2.0, "RBI": 1.5},
+            ),
+        ]
+        for v in valuations:
+            valuation_repo.upsert(v)
+
+        with provider.connection() as c:
+            c.commit()
+
+        mgr = SessionManager(
+            session_repo=SqliteDraftSessionRepo(provider),
+            valuation_repo=valuation_repo,
+            player_repo=player_repo,
+            adp_repo=SqliteADPRepo(provider),
+            player_profile_service=PlayerProfileService(player_repo),
+            league=_LEAGUE,
+            adp_provider="fantasypros",
+            # No keeper_cost_deriver
+        )
+
+        # Should not crash even with league_key
+        _, engine = mgr.start_session(2026, league_key="422.l.12345")
+        available_ids = {r.player_id for r in engine.available()}
+        assert 1 in available_ids
+        assert 2 in available_ids
+
+
 class TestEvaluateTrade:
     def test_evaluate_trade_returns_evaluation(self) -> None:
         mgr = _make_manager()
