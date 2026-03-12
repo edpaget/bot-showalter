@@ -411,6 +411,24 @@ export const YAHOO_STANDINGS_QUERY = gql`
   }
 `;
 
+export const YAHOO_ROSTERS_QUERY = gql`
+  query YahooRosters($leagueKey: String!) {
+    yahooRosters(leagueKey: $leagueKey) {
+      teamKey
+      season
+      week
+      asOf
+      entries {
+        yahooPlayerKey
+        playerName
+        position
+        acquisitionType
+        playerId
+      }
+    }
+  }
+`;
+
 export const PLAN_KEEPER_DRAFT_QUERY = gql`
   query PlanKeeperDraft(
     $season: Int!

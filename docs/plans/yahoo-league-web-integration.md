@@ -10,7 +10,7 @@ This roadmap threads Yahoo league context through AppContext and adds GraphQL qu
 |-------|--------|
 | 1 — League context in AppContext and WebConfig | done (2026-03-11) |
 | 2 — League metadata and standings queries | done (2026-03-11) |
-| 3 — Team rosters query and viewer | not started |
+| 3 — Team rosters query and viewer | done (2026-03-11) |
 | 4 — Yahoo-aware keeper planner | not started |
 
 ## Phase 1: League context in AppContext and WebConfig

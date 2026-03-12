@@ -12,7 +12,7 @@ Overview of all roadmaps, their status, and cross-roadmap dependencies.
 | [Schedule Matchup Analyzer](schedule-matchup-analyzer.md) | 4 | not started | none |
 | [Draft Pick Trades](draft-pick-trades.md) | 4 | phase 1 done | draft-pick-trade-evaluator (done) |
 | [Test Performance](test-performance.md) | 4 | phase 1 in progress | none |
-| [Yahoo League Web Integration](yahoo-league-web-integration.md) | 4 | phases 1-2 done | yahoo-fantasy-integration (done) |
+| [Yahoo League Web Integration](yahoo-league-web-integration.md) | 4 | phases 1-3 done | yahoo-fantasy-integration (done) |
 
 ## Completed Roadmaps
 

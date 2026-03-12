@@ -19,6 +19,7 @@ from fantasy_baseball_manager.repos import (
     SqliteDraftSessionRepo,
     SqliteYahooLeagueRepo,
     SqliteYahooPlayerMapRepo,
+    SqliteYahooRosterRepo,
     SqliteYahooTeamRepo,
     SqliteYahooTeamStatsRepo,
 )
@@ -187,6 +188,7 @@ def web(  # pragma: no cover
     yahoo_league_info = None
     yahoo_team_repo = None
     yahoo_team_stats_repo = None
+    yahoo_roster_repo = None
     if yahoo_config_dir is not None:
         yahoo_config = load_yahoo_config(Path(yahoo_config_dir))
         auth = YahooAuth(yahoo_config.client_id, yahoo_config.client_secret)
@@ -197,6 +199,7 @@ def web(  # pragma: no cover
         team_repo = SqliteYahooTeamRepo(provider)
         yahoo_team_repo = team_repo
         yahoo_team_stats_repo = SqliteYahooTeamStatsRepo(provider)
+        yahoo_roster_repo = SqliteYahooRosterRepo(provider)
 
         yahoo_poller_manager = YahooPollerManager(
             _draft_source=draft_source,
@@ -243,5 +246,6 @@ def web(  # pragma: no cover
         keeper_planner=keeper_planner,
         yahoo_team_repo=yahoo_team_repo,
         yahoo_team_stats_repo=yahoo_team_stats_repo,
+        yahoo_roster_repo=yahoo_roster_repo,
     )
     uvicorn.run(app, host=host, port=port)

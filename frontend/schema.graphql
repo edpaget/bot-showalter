@@ -305,6 +305,8 @@ type Query {
   yahooPollStatus(sessionId: Int!): YahooPollStatusType!
   yahooTeams(leagueKey: String!): [YahooTeamType!]!
   yahooStandings(leagueKey: String!, season: Int!): [YahooStandingsEntryType!]!
+  yahooRosters(leagueKey: String!): [YahooRosterType!]!
+  yahooRoster(teamKey: String!, leagueKey: String!): YahooRosterType
 }
 
 type ReachPickType {
@@ -383,6 +385,23 @@ type YahooPollStatusType {
   active: Boolean!
   lastPollAt: String
   picksIngested: Int!
+}
+
+type YahooRosterEntryType {
+  yahooPlayerKey: String!
+  playerName: String!
+  position: String!
+  acquisitionType: String!
+  playerId: Int
+}
+
+type YahooRosterType {
+  teamKey: String!
+  leagueKey: String!
+  season: Int!
+  week: Int!
+  asOf: String!
+  entries: [YahooRosterEntryType!]!
 }
 
 type YahooStandingsEntryType {

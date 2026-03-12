@@ -1,3 +1,5 @@
+import datetime
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -14,6 +16,8 @@ from fantasy_baseball_manager.domain import (
     Player,
     PositionAppearance,
     Projection,
+    Roster,
+    RosterEntry,
     RosterStint,
     StatType,
     Team,
@@ -30,6 +34,7 @@ from fantasy_baseball_manager.repos import (
     SqliteRosterStintRepo,
     SqliteTeamRepo,
     SqliteValuationRepo,
+    SqliteYahooRosterRepo,
     SqliteYahooTeamRepo,
     SqliteYahooTeamStatsRepo,
 )
@@ -304,18 +309,67 @@ def _seed_yahoo_data(provider: SingleConnectionProvider) -> None:
     for s in standings:
         stats_repo.upsert(s)
 
+    roster_repo = SqliteYahooRosterRepo(provider)
+    rosters = [
+        Roster(
+            team_key="449.l.12345.t.1",
+            league_key="449.l.12345",
+            season=2026,
+            week=1,
+            as_of=datetime.date(2026, 3, 28),
+            entries=(
+                RosterEntry(
+                    player_id=1,
+                    yahoo_player_key="449.p.10001",
+                    player_name="Mike Trout",
+                    position="OF",
+                    roster_status="A",
+                    acquisition_type="draft",
+                ),
+                RosterEntry(
+                    player_id=None,
+                    yahoo_player_key="449.p.10099",
+                    player_name="Unknown Prospect",
+                    position="BN",
+                    roster_status="A",
+                    acquisition_type="add",
+                ),
+            ),
+        ),
+        Roster(
+            team_key="449.l.12345.t.2",
+            league_key="449.l.12345",
+            season=2026,
+            week=1,
+            as_of=datetime.date(2026, 3, 28),
+            entries=(
+                RosterEntry(
+                    player_id=2,
+                    yahoo_player_key="449.p.10002",
+                    player_name="Shohei Ohtani",
+                    position="OF",
+                    roster_status="A",
+                    acquisition_type="draft",
+                ),
+            ),
+        ),
+    ]
+    for r in rosters:
+        roster_repo.save_snapshot(r)
+
     with provider.connection() as conn:
         conn.commit()
 
 
 @pytest.fixture
 def yahoo_client() -> TestClient:
-    """Create a test client with Yahoo team and standings repos configured."""
+    """Create a test client with Yahoo team, standings, and roster repos configured."""
     provider = _make_provider()
     _seed_yahoo_data(provider)
     container = AnalysisContainer(provider)
     yahoo_team_repo = SqliteYahooTeamRepo(provider)
     yahoo_team_stats_repo = SqliteYahooTeamStatsRepo(provider)
+    yahoo_roster_repo = SqliteYahooRosterRepo(provider)
     app = create_app(
         container,
         _LEAGUE,
@@ -324,6 +378,7 @@ def yahoo_client() -> TestClient:
         web_config=WebConfig(),
         yahoo_team_repo=yahoo_team_repo,
         yahoo_team_stats_repo=yahoo_team_stats_repo,
+        yahoo_roster_repo=yahoo_roster_repo,
     )
     return TestClient(app)
 

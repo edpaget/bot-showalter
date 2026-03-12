@@ -27,6 +27,8 @@ if TYPE_CHECKING:
         PositionScarcity,
         ReachPick,
         Recommendation,
+        Roster,
+        RosterEntry,
         TeamCategoryProjection,
         TeamSeasonStats,
         ValueOverADP,
@@ -768,4 +770,44 @@ class YahooStandingsEntryType:
             team_name=stats.team_name,
             final_rank=stats.final_rank,
             stat_values=cast("Any", dict(stats.stat_values)),
+        )
+
+
+@strawberry.type
+class YahooRosterEntryType:
+    yahoo_player_key: str
+    player_name: str
+    position: str
+    acquisition_type: str
+    player_id: int | None
+
+    @staticmethod
+    def from_domain(entry: RosterEntry) -> YahooRosterEntryType:
+        return YahooRosterEntryType(
+            yahoo_player_key=entry.yahoo_player_key,
+            player_name=entry.player_name,
+            position=entry.position,
+            acquisition_type=entry.acquisition_type,
+            player_id=entry.player_id,
+        )
+
+
+@strawberry.type
+class YahooRosterType:
+    team_key: str
+    league_key: str
+    season: int
+    week: int
+    as_of: str
+    entries: list[YahooRosterEntryType]
+
+    @staticmethod
+    def from_domain(roster: Roster) -> YahooRosterType:
+        return YahooRosterType(
+            team_key=roster.team_key,
+            league_key=roster.league_key,
+            season=roster.season,
+            week=roster.week,
+            as_of=roster.as_of.isoformat(),
+            entries=[YahooRosterEntryType.from_domain(e) for e in roster.entries],
         )
