@@ -6,7 +6,7 @@ When the web UI's draft dashboard is associated with a Yahoo league (via `webCon
 
 | Phase | Status |
 |-------|--------|
-| 1 — Yahoo draft-setup query | in progress |
+| 1 — Yahoo draft-setup query | done (2026-03-12) |
 | 2 — Frontend prefill UX | not started |
 | 3 — Keeper auto-import at draft init | not started |
 
