@@ -1,4 +1,16 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+
+
+@dataclass(frozen=True)
+class YahooDraftSetupInfo:
+    num_teams: int
+    draft_format: str
+    user_team_id: int
+    team_names: dict[int, str]
+    draft_order: list[int]
+    is_keeper: bool
+    max_keepers: int | None
+    keeper_player_ids: list[int] = field(default_factory=list)
 
 
 @dataclass(frozen=True)

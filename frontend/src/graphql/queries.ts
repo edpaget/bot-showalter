@@ -20,6 +20,7 @@ export {
   SessionsDocument as SESSIONS_QUERY,
   ValuationsDocument as VALUATIONS_QUERY,
   WebConfigDocument as WEB_CONFIG_QUERY,
+  YahooDraftSetupDocument as YAHOO_DRAFT_SETUP_QUERY,
   YahooKeeperOverviewDocument as YAHOO_KEEPER_OVERVIEW_QUERY,
   YahooPollStatusDocument as YAHOO_POLL_STATUS_QUERY,
   YahooRostersDocument as YAHOO_ROSTERS_QUERY,

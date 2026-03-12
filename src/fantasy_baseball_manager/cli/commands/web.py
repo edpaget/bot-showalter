@@ -193,6 +193,7 @@ def web(  # pragma: no cover
 
     yahoo_poller_manager = None
     yahoo_league_info = None
+    yahoo_league_repo = None
     yahoo_team_repo = None
     yahoo_team_stats_repo = None
     yahoo_roster_repo = None
@@ -217,9 +218,10 @@ def web(  # pragma: no cover
         )
 
         # Build league info snapshot from DB
+        league_repo = SqliteYahooLeagueRepo(provider)
+        yahoo_league_repo = league_repo
         league_config = yahoo_config.leagues.get(league_name)
         if league_config is not None:
-            league_repo = SqliteYahooLeagueRepo(provider)
             all_leagues = league_repo.get_all()
             matched = [
                 lg
@@ -264,6 +266,7 @@ def web(  # pragma: no cover
         default_version=version,
         keeper_planner_ref=keeper_planner_ref,
         yahoo_web_context=yahoo_web_context,
+        yahoo_league_repo=yahoo_league_repo,
         yahoo_team_repo=yahoo_team_repo,
         yahoo_team_stats_repo=yahoo_team_stats_repo,
         yahoo_roster_repo=yahoo_roster_repo,

@@ -4,7 +4,14 @@ from typing import TYPE_CHECKING
 import strawberry
 from strawberry.types import Info  # noqa: TC002 — Strawberry needs this at runtime
 
-from fantasy_baseball_manager.domain import ArbitrageReport, DraftBoard, Position, TierAssignment, position_from_raw
+from fantasy_baseball_manager.domain import (
+    ArbitrageReport,
+    DraftBoard,
+    Position,
+    TierAssignment,
+    YahooDraftSetupInfo,
+    position_from_raw,
+)
 from fantasy_baseball_manager.services import (
     DraftEngine,
     DraftFormat,
@@ -56,6 +63,7 @@ from fantasy_baseball_manager.web.types import (
     UndoEvent,
     ValuationType,
     WebConfigType,
+    YahooDraftSetupInfoType,
     YahooPollStatusType,
     YahooRosterType,
     YahooStandingsEntryType,
@@ -732,6 +740,63 @@ class Query:
         if roster is None:
             return None
         return YahooRosterType.from_domain(roster)
+
+    @strawberry.field
+    def yahoo_draft_setup(self, info: Info, league_key: str, season: int) -> YahooDraftSetupInfoType:
+        ctx = _get_context(info)
+        league_repo = ctx.yahoo_league_repo
+        team_repo = ctx.yahoo_team_repo
+        if league_repo is None or team_repo is None:
+            msg = "Yahoo league is not configured"
+            raise ValueError(msg)
+
+        league = league_repo.get_by_league_key(league_key)
+        if league is None:
+            msg = f"League {league_key} has not been synced"
+            raise ValueError(msg)
+
+        teams = team_repo.get_by_league_key(league_key)
+        if not teams:
+            msg = f"No teams found for league {league_key}"
+            raise ValueError(msg)
+
+        user_team = next((t for t in teams if t.is_owned_by_user), None)
+        if user_team is None:
+            msg = f"No user team found for league {league_key}"
+            raise ValueError(msg)
+
+        team_names = {t.team_id: t.name for t in teams}
+
+        # Determine draft format from stored draft_type
+        draft_type_lower = league.draft_type.lower()
+        if "auction" in draft_type_lower:
+            draft_format = "auction"
+        elif "snake" in draft_type_lower:
+            draft_format = "snake"
+        else:
+            draft_format = "live"
+
+        # Look up keeper data
+        keeper_player_ids: list[int] = []
+        max_keepers: int | None = None
+        if league.is_keeper:
+            yahoo_ctx = ctx.yahoo_web_context
+            if yahoo_ctx is not None and yahoo_ctx.league_config.max_keepers is not None:
+                max_keepers = yahoo_ctx.league_config.max_keepers
+            costs = ctx.container.keeper_cost_repo.find_by_season_league(season, league.name)
+            keeper_player_ids = [c.player_id for c in costs]
+
+        setup = YahooDraftSetupInfo(
+            num_teams=league.num_teams,
+            draft_format=draft_format,
+            user_team_id=user_team.team_id,
+            team_names=team_names,
+            draft_order=[],
+            is_keeper=league.is_keeper,
+            max_keepers=max_keepers,
+            keeper_player_ids=keeper_player_ids,
+        )
+        return YahooDraftSetupInfoType.from_domain(setup)
 
     @strawberry.field
     def yahoo_keeper_overview(

@@ -485,6 +485,21 @@ export const EVALUATE_TRADE_QUERY = gql`
   }
 `;
 
+export const YAHOO_DRAFT_SETUP_QUERY = gql`
+  query YahooDraftSetup($leagueKey: String!, $season: Int!) {
+    yahooDraftSetup(leagueKey: $leagueKey, season: $season) {
+      numTeams
+      draftFormat
+      userTeamId
+      teamNames
+      draftOrder
+      isKeeper
+      maxKeepers
+      keeperPlayerIds
+    }
+  }
+`;
+
 export const PLAN_KEEPER_DRAFT_QUERY = gql`
   query PlanKeeperDraft(
     $season: Int!

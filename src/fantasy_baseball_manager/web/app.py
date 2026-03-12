@@ -74,6 +74,7 @@ class AppContext:
     breakout_predictions: list[BreakoutPrediction] | None = None
     keeper_planner_ref: KeeperPlannerRef = field(default_factory=KeeperPlannerRef)
     yahoo_web_context: YahooWebContext | None = None
+    yahoo_league_repo: YahooLeagueRepo | None = None
     yahoo_team_repo: YahooTeamRepo | None = None
     yahoo_team_stats_repo: YahooTeamStatsRepo | None = None
     yahoo_roster_repo: YahooRosterRepo | None = None
@@ -94,6 +95,7 @@ def create_app(
     web_config: WebConfig | None = None,
     keeper_planner_ref: KeeperPlannerRef | None = None,
     yahoo_web_context: YahooWebContext | None = None,
+    yahoo_league_repo: YahooLeagueRepo | None = None,
     yahoo_team_repo: YahooTeamRepo | None = None,
     yahoo_team_stats_repo: YahooTeamStatsRepo | None = None,
     yahoo_roster_repo: YahooRosterRepo | None = None,
@@ -123,6 +125,7 @@ def create_app(
         breakout_predictions=breakout_predictions,
         keeper_planner_ref=keeper_planner_ref or KeeperPlannerRef(),
         yahoo_web_context=yahoo_web_context,
+        yahoo_league_repo=yahoo_league_repo,
         yahoo_team_repo=yahoo_team_repo,
         yahoo_team_stats_repo=yahoo_team_stats_repo,
         yahoo_roster_repo=yahoo_roster_repo,

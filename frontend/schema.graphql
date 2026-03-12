@@ -346,6 +346,7 @@ type Query {
   yahooStandings(leagueKey: String!, season: Int!): [YahooStandingsEntryType!]!
   yahooRosters(leagueKey: String!): [YahooRosterType!]!
   yahooRoster(teamKey: String!, leagueKey: String!): YahooRosterType
+  yahooDraftSetup(leagueKey: String!, season: Int!): YahooDraftSetupInfoType!
   yahooKeeperOverview(leagueKey: String!, season: Int!, maxKeepers: Int!): LeagueKeeperOverviewType!
   evaluateTrade(sessionId: Int!, gives: [Int!]!, receives: [Int!]!): PickTradeEvaluationType!
 }
@@ -436,6 +437,17 @@ type WebConfigType {
   projections: [SystemVersionType!]!
   valuations: [SystemVersionType!]!
   yahooLeague: YahooLeagueInfoType
+}
+
+type YahooDraftSetupInfoType {
+  numTeams: Int!
+  draftFormat: String!
+  userTeamId: Int!
+  teamNames: JSON!
+  draftOrder: [Int!]!
+  isKeeper: Boolean!
+  maxKeepers: Int
+  keeperPlayerIds: [Int!]!
 }
 
 type YahooLeagueInfoType {

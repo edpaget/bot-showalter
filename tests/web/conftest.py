@@ -372,6 +372,7 @@ def yahoo_client() -> TestClient:
     provider = _make_provider()
     _seed_yahoo_data(provider)
     container = AnalysisContainer(provider)
+    yahoo_league_repo = SqliteYahooLeagueRepo(provider)
     yahoo_team_repo = SqliteYahooTeamRepo(provider)
     yahoo_team_stats_repo = SqliteYahooTeamStatsRepo(provider)
     yahoo_roster_repo = SqliteYahooRosterRepo(provider)
@@ -381,6 +382,7 @@ def yahoo_client() -> TestClient:
         default_system="zar",
         default_version="1.0",
         web_config=WebConfig(),
+        yahoo_league_repo=yahoo_league_repo,
         yahoo_team_repo=yahoo_team_repo,
         yahoo_team_stats_repo=yahoo_team_stats_repo,
         yahoo_roster_repo=yahoo_roster_repo,
@@ -647,6 +649,7 @@ def yahoo_keeper_client() -> TestClient:
         default_version="1.0",
         web_config=WebConfig(),
         yahoo_web_context=yahoo_web_context,
+        yahoo_league_repo=league_repo,
         yahoo_team_repo=yahoo_team_repo,
         yahoo_roster_repo=yahoo_roster_repo,
         yahoo_league_info=yahoo_league_info,

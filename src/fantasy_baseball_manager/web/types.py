@@ -40,6 +40,7 @@ if TYPE_CHECKING:
         TradeTarget,
         ValueOverADP,
         ValueOverADPReport,
+        YahooDraftSetupInfo,
         YahooLeagueInfo,
         YahooTeam,
     )
@@ -884,6 +885,31 @@ class YahooRosterType:
             week=roster.week,
             as_of=roster.as_of.isoformat(),
             entries=[YahooRosterEntryType.from_domain(e) for e in roster.entries],
+        )
+
+
+@strawberry.type
+class YahooDraftSetupInfoType:
+    num_teams: int
+    draft_format: str
+    user_team_id: int
+    team_names: strawberry.scalars.JSON
+    draft_order: list[int]
+    is_keeper: bool
+    max_keepers: int | None
+    keeper_player_ids: list[int]
+
+    @staticmethod
+    def from_domain(info: YahooDraftSetupInfo) -> YahooDraftSetupInfoType:
+        return YahooDraftSetupInfoType(
+            num_teams=info.num_teams,
+            draft_format=info.draft_format,
+            user_team_id=info.user_team_id,
+            team_names=cast("Any", info.team_names),
+            draft_order=list(info.draft_order),
+            is_keeper=info.is_keeper,
+            max_keepers=info.max_keepers,
+            keeper_player_ids=list(info.keeper_player_ids),
         )
 
 

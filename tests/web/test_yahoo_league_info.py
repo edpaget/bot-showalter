@@ -1,8 +1,8 @@
 from typing import TYPE_CHECKING
 
 from fantasy_baseball_manager.config_toml import WebConfig
-from fantasy_baseball_manager.domain.yahoo_league import YahooLeagueInfo
-from fantasy_baseball_manager.web.types import WebConfigType, YahooLeagueInfoType
+from fantasy_baseball_manager.domain.yahoo_league import YahooDraftSetupInfo, YahooLeagueInfo
+from fantasy_baseball_manager.web.types import WebConfigType, YahooDraftSetupInfoType, YahooLeagueInfoType
 
 if TYPE_CHECKING:
     from fastapi.testclient import TestClient
@@ -448,3 +448,117 @@ class TestWebConfigQueryYahooLeague:
         assert response.status_code == 200
         data = response.json()["data"]["webConfig"]
         assert data["yahooLeague"] is None
+
+
+class TestYahooDraftSetupInfoType:
+    def test_from_domain_round_trip(self) -> None:
+        info = YahooDraftSetupInfo(
+            num_teams=10,
+            draft_format="auction",
+            user_team_id=3,
+            team_names={1: "Team A", 2: "Team B", 3: "Team C"},
+            draft_order=[],
+            is_keeper=False,
+            max_keepers=None,
+            keeper_player_ids=[],
+        )
+        result = YahooDraftSetupInfoType.from_domain(info)
+        assert result.num_teams == 10
+        assert result.draft_format == "auction"
+        assert result.user_team_id == 3
+        assert result.is_keeper is False
+        assert result.max_keepers is None
+        assert result.keeper_player_ids == []
+        assert result.draft_order == []
+
+    def test_with_keeper_data(self) -> None:
+        info = YahooDraftSetupInfo(
+            num_teams=12,
+            draft_format="snake",
+            user_team_id=1,
+            team_names={1: "My Team", 2: "Other"},
+            draft_order=[2, 1],
+            is_keeper=True,
+            max_keepers=5,
+            keeper_player_ids=[100, 200, 300],
+        )
+        result = YahooDraftSetupInfoType.from_domain(info)
+        assert result.is_keeper is True
+        assert result.max_keepers == 5
+        assert result.keeper_player_ids == [100, 200, 300]
+        assert result.draft_order == [2, 1]
+
+
+class TestYahooDraftSetupQuery:
+    _QUERY = """
+        query YahooDraftSetup($leagueKey: String!, $season: Int!) {
+            yahooDraftSetup(leagueKey: $leagueKey, season: $season) {
+                numTeams
+                draftFormat
+                userTeamId
+                teamNames
+                draftOrder
+                isKeeper
+                maxKeepers
+                keeperPlayerIds
+            }
+        }
+    """
+
+    def test_returns_setup_for_synced_league(self, yahoo_client: TestClient) -> None:
+        response = yahoo_client.post(
+            "/graphql",
+            json={"query": self._QUERY, "variables": {"leagueKey": "449.l.12345", "season": 2026}},
+        )
+        assert response.status_code == 200
+        body = response.json()
+        assert "errors" not in body, body.get("errors")
+        data = body["data"]["yahooDraftSetup"]
+        assert data["numTeams"] == 12
+        assert data["draftFormat"] == "live"
+        assert data["userTeamId"] == 1
+        assert data["teamNames"] == {"1": "Dynasty Kings", "2": "Rival Squad"}
+        assert data["draftOrder"] == []
+        assert data["isKeeper"] is True
+        assert data["keeperPlayerIds"] == []
+
+    def test_returns_keeper_ids_when_costs_exist(self, yahoo_keeper_client: TestClient) -> None:
+        response = yahoo_keeper_client.post(
+            "/graphql",
+            json={"query": self._QUERY, "variables": {"leagueKey": "449.l.12345", "season": 2026}},
+        )
+        assert response.status_code == 200
+        body = response.json()
+        assert "errors" not in body, body.get("errors")
+        data = body["data"]["yahooDraftSetup"]
+        assert data["isKeeper"] is True
+        assert data["maxKeepers"] == 5
+
+    def test_returns_empty_keepers_for_non_keeper_league(self, yahoo_client: TestClient) -> None:
+        response = yahoo_client.post(
+            "/graphql",
+            json={"query": self._QUERY, "variables": {"leagueKey": "449.l.12345", "season": 2026}},
+        )
+        assert response.status_code == 200
+        data = response.json()["data"]["yahooDraftSetup"]
+        assert data["keeperPlayerIds"] == []
+
+    def test_errors_when_not_configured(self, client: TestClient) -> None:
+        response = client.post(
+            "/graphql",
+            json={"query": self._QUERY, "variables": {"leagueKey": "449.l.12345", "season": 2026}},
+        )
+        assert response.status_code == 200
+        body = response.json()
+        assert "errors" in body
+        assert "Yahoo league is not configured" in body["errors"][0]["message"]
+
+    def test_errors_when_league_not_synced(self, yahoo_client: TestClient) -> None:
+        response = yahoo_client.post(
+            "/graphql",
+            json={"query": self._QUERY, "variables": {"leagueKey": "999.l.99999", "season": 2026}},
+        )
+        assert response.status_code == 200
+        body = response.json()
+        assert "errors" in body
+        assert "not been synced" in body["errors"][0]["message"]
