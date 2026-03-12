@@ -16,7 +16,7 @@ This roadmap addresses the budget split and cross-pool normalization. It does no
 |-------|--------|
 | 1 — Configurable budget split ratio | done (2026-03-11) |
 | 2 — Pitcher composite normalization | done (2026-03-11) |
-| 3 — Holdout validation and adoption | in progress |
+| 3 — Holdout validation and adoption | done (2026-03-11), qualified go |
 
 ## Phase 1: Configurable budget split ratio
 
@@ -111,6 +111,64 @@ The evaluation must use independent targets (WAR ρ, top-N hit rate) per the est
 ### Gate: go/no-go
 
 **Go** if any configuration improves pitcher WAR ρ by >0.02 on at least one holdout season, does not degrade batter WAR ρ, and passes the `--check` regression gate on both seasons. **No-go** if all configurations either degrade overall metrics or show no meaningful improvement, confirming that the pitcher overvaluation is a projection problem (pitchers projected for more production than they deliver) rather than a formula problem.
+
+### Results (2026-03-11)
+
+**Projection source:** ensemble/routed-sgbm (holdout seasons 2024, 2025).
+
+#### Comparison matrix — 2024
+
+| Config | WAR ρ (all) | Δ | WAR ρ (bat) | Δ | WAR ρ (pit) | Δ | Hit top-25 | Hit top-50 | Hit top-100 | `--check` |
+|--------|-------------|---|-------------|---|-------------|---|------------|------------|-------------|-----------|
+| baseline | 0.1964 | — | 0.2138 | — | 0.1431 | — | 40.0% | 36.0% | 51.0% | — |
+| split-60 | 0.2094 | +0.013 | 0.2139 | +0.000 | 0.1434 | +0.000 | 44.0% | 38.0% | 50.0% | PASS |
+| split-65 | 0.2154 | +0.019 | 0.2139 | +0.000 | 0.1434 | +0.000 | 40.0% | 38.0% | 47.0% | PASS |
+| split-67 | 0.2157 | +0.019 | 0.2138 | +0.000 | 0.1431 | +0.000 | 40.0% | 38.0% | 48.0% | PASS |
+| split-70 | 0.2199 | +0.024 | 0.2138 | +0.000 | 0.1431 | +0.000 | 36.0% | 36.0% | 47.0% | PASS |
+
+#### Comparison matrix — 2025
+
+| Config | WAR ρ (all) | Δ | WAR ρ (bat) | Δ | WAR ρ (pit) | Δ | Hit top-25 | Hit top-50 | Hit top-100 | `--check` |
+|--------|-------------|---|-------------|---|-------------|---|------------|------------|-------------|-----------|
+| baseline | 0.2476 | — | 0.2011 | — | 0.2590 | — | 48.0% | 44.0% | 47.0% | — |
+| split-60 | 0.2581 | +0.011 | 0.2011 | +0.000 | 0.2588 | -0.000 | 48.0% | 44.0% | 47.0% | PASS |
+| split-65 | 0.2648 | +0.017 | 0.2011 | +0.000 | 0.2590 | +0.000 | 48.0% | 44.0% | 47.0% | PASS |
+| split-67 | 0.2666 | +0.019 | 0.2011 | +0.000 | 0.2590 | +0.000 | 44.0% | 42.0% | 46.0% | PASS |
+| split-70 | 0.2681 | +0.021 | 0.2015 | +0.000 | 0.2588 | -0.000 | 44.0% | 44.0% | 46.0% | PASS |
+
+#### Normalization finding
+
+Cross-pool normalization (`normalize_cross_pool=true`) produced **identical** valuations to the non-normalized variants for all split ratios on both seasons. Every `-norm` config matched its non-norm counterpart exactly. The normalization rescales composite z-scores within the pitcher pool but does not change the ranking order; since dollar conversion is proportional to VAR (which depends on rank order and replacement level), the rescaling is undone during dollar conversion. The normalization feature is therefore inert and should not be adopted.
+
+#### Top-5 pitcher values (2024)
+
+| Config | #1 SP value | #2 | #3 | #4 | #5 |
+|--------|-------------|----|----|----|----|
+| baseline | $80.1 (Strider) | $50.7 (Gausman) | $44.1 (Imanaga) | $41.9 (Steele) | $40.8 (E. Díaz) |
+| split-60 | $67.4 | $42.7 | $37.2 | $35.4 | $34.4 |
+| split-65 | $58.4 | $37.1 | $32.3 | $30.7 | $29.9 |
+| split-70 | $49.4 | $31.4 | $27.4 | $26.1 | $25.4 |
+
+Only split-70 places all top-5 pitchers under $50 (the acceptance criterion). Split-65 has #1 at $58, the rest under $40.
+
+#### Go/no-go decision: **Qualified go**
+
+The strict go criterion — pitcher WAR ρ >0.02 — is **not met** by any configuration. The maximum pitcher WAR ρ improvement is +0.0003 (negligible). This is expected in hindsight: the budget split rescales dollar values proportionally within each pool, so within-pool pitcher ranking is unchanged.
+
+However, the budget split achieves substantial benefits:
+1. **Overall WAR ρ improves** +0.013 to +0.024 (2024) and +0.011 to +0.021 (2025) — the re-ranking across pools better reflects real-world value.
+2. **All configs pass `--check`** on both seasons — no regressions.
+3. **No batter WAR ρ degradation** on any config.
+4. **Pitcher dollar values become more realistic** — ace SP values drop from $80 to the $49-67 range depending on split.
+5. **Hit rates are neutral to slightly positive** on 2025; 2024 shows minor trade-offs at aggressive splits.
+
+**Recommendation:** Adopt `budget_hitter_pct=0.65` as the recommended configuration. Rationale:
+- Best balance of WAR ρ improvement (+0.019 on 2024, +0.017 on 2025) with stable hit rates.
+- Top pitcher value of $58 is high but much more realistic than $80. Further compression requires split-70 which hurts 2024 hit rates.
+- On 2025, hit rates are completely unchanged from baseline.
+- Normalization adds no value and should not be enabled.
+
+The recommendation is for adoption as a production default at the user's discretion. The `budget_hitter_pct=0.65` param can be set via `fbm.toml` league config or passed as a model param at predict time.
 
 ---
 

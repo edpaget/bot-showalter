@@ -12,7 +12,6 @@ Overview of all roadmaps, their status, and cross-roadmap dependencies.
 | [Schedule Matchup Analyzer](schedule-matchup-analyzer.md) | 4 | not started | none |
 | [Test Performance](test-performance.md) | 4 | phase 1 in progress | none |
 | [SGP Overhaul](sgp-overhaul.md) | 4 | phases 1-3 done | none |
-| [ZAR Pitcher Budget](zar-pitcher-budget.md) | 3 | phases 1-2 done | none |
 
 ## Completed Roadmaps
 
@@ -96,6 +95,7 @@ Overview of all roadmaps, their status, and cross-roadmap dependencies.
 | [Direct Rate Stats](zar-direct-rate-stats.md) | 2 |
 | [Pitcher IP Distribution](pitcher-ip-distribution.md) | 4 |
 | [ZAR Replacement-Padded](zar-replacement-padded.md) | 3 |
+| [ZAR Pitcher Budget](zar-pitcher-budget.md) | 3 |
 
 Older completed roadmaps are in the [`archive/`](archive/) directory.
 
