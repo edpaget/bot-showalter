@@ -107,12 +107,14 @@ export const TRADE_PICKS = gql`
     $gives: [Int!]!
     $receives: [Int!]!
     $partnerTeam: Int!
+    $teamA: Int
   ) {
     tradePicks(
       sessionId: $sessionId
       gives: $gives
       receives: $receives
       partnerTeam: $partnerTeam
+      teamA: $teamA
     ) {
       sessionId
       currentPick

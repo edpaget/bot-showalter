@@ -209,7 +209,7 @@ type Mutation {
   pick(sessionId: Int!, playerId: Int!, position: Position!, price: Int = null, team: Int = null): PickResultType!
   undo(sessionId: Int!): PickResultType!
   endSession(sessionId: Int!): Boolean!
-  tradePicks(sessionId: Int!, gives: [Int!]!, receives: [Int!]!, partnerTeam: Int!): DraftStateType!
+  tradePicks(sessionId: Int!, gives: [Int!]!, receives: [Int!]!, partnerTeam: Int!, teamA: Int = null): DraftStateType!
   undoTrade(sessionId: Int!): DraftStateType!
   startYahooPoll(sessionId: Int!, leagueKey: String!): Boolean!
   stopYahooPoll(sessionId: Int!): Boolean!

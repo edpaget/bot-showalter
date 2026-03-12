@@ -912,10 +912,11 @@ class Mutation:
         gives: list[int],
         receives: list[int],
         partner_team: int,
+        team_a: int | None = None,
     ) -> DraftStateType:
         ctx = _get_context(info)
         mgr = _get_session_manager(info)
-        trade = mgr.trade_picks(session_id, gives, receives, partner_team)
+        trade = mgr.trade_picks(session_id, gives, receives, partner_team, team_a=team_a)
         engine = mgr.get_engine(session_id)
         keeper_count = _get_keeper_count(mgr, session_id)
         state = DraftStateType.from_state(session_id, engine.state, keeper_count=keeper_count, trades=engine.trades)

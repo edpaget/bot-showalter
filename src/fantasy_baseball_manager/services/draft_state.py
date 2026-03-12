@@ -218,10 +218,24 @@ class DraftEngine:
             return state.pick_overrides[pick_number]
         return self._snake_team(pick_number, state.config.teams)
 
-    def trade_picks(self, gives: list[int], receives: list[int], partner_team: int) -> DraftTrade:
-        """Execute a pick trade between the user team and a partner team."""
+    def trade_picks(
+        self,
+        gives: list[int],
+        receives: list[int],
+        partner_team: int,
+        *,
+        team_a: int | None = None,
+    ) -> DraftTrade:
+        """Execute a pick trade between two teams.
+
+        Args:
+            gives: Pick numbers that team_a gives away.
+            receives: Pick numbers that team_a receives from partner_team.
+            partner_team: The other team in the trade.
+            team_a: The team giving picks. Defaults to user_team if not specified.
+        """
         state = self._require_state()
-        user_team = state.config.user_team
+        trading_team = team_a if team_a is not None else state.config.user_team
 
         if not gives:
             msg = "gives must not be empty"
@@ -236,8 +250,8 @@ class DraftEngine:
                 msg = f"Pick {pick_num} has already been used"
                 raise DraftError(msg)
             owner = self.team_for_pick(pick_num)
-            if owner != user_team:
-                msg = f"Pick {pick_num} belongs to team {owner}, not user team {user_team}"
+            if owner != trading_team:
+                msg = f"Pick {pick_num} belongs to team {owner}, not team {trading_team}"
                 raise DraftError(msg)
 
         for pick_num in receives:
@@ -253,10 +267,10 @@ class DraftEngine:
         for pick_num in gives:
             state.pick_overrides[pick_num] = partner_team
         for pick_num in receives:
-            state.pick_overrides[pick_num] = user_team
+            state.pick_overrides[pick_num] = trading_team
 
         trade = DraftTrade(
-            team_a=user_team,
+            team_a=trading_team,
             team_b=partner_team,
             team_a_gives=list(gives),
             team_b_gives=list(receives),

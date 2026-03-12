@@ -185,9 +185,17 @@ class SessionManager:
         self._repo.update_timestamp(session_id, now)
         return undone
 
-    def trade_picks(self, session_id: int, gives: list[int], receives: list[int], partner_team: int) -> DraftTrade:
+    def trade_picks(
+        self,
+        session_id: int,
+        gives: list[int],
+        receives: list[int],
+        partner_team: int,
+        *,
+        team_a: int | None = None,
+    ) -> DraftTrade:
         engine = self.get_engine(session_id)
-        trade = engine.trade_picks(gives, receives, partner_team)
+        trade = engine.trade_picks(gives, receives, partner_team, team_a=team_a)
         now = datetime.now(tz=UTC).isoformat()
         db_trade = DraftSessionTrade(
             session_id=session_id,

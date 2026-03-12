@@ -983,7 +983,7 @@ class TestPickTrades:
         engine = DraftEngine()
         engine.start(PLAYERS, SNAKE_CONFIG)
         # Pick 2 belongs to team 2, not user team 1
-        with pytest.raises(DraftError, match="not user team"):
+        with pytest.raises(DraftError, match="not team"):
             engine.trade_picks(gives=[2], receives=[3], partner_team=3)
 
     def test_trade_picks_rejects_wrong_ownership_receives(self) -> None:
@@ -1068,3 +1068,15 @@ class TestPickTrades:
         trade = engine.trade_picks(gives=[1], receives=[2], partner_team=2)
         removed = engine.undo_trade()
         assert removed == trade
+
+    def test_trade_between_non_user_teams(self) -> None:
+        """team_a parameter allows trades between any two teams."""
+        engine = DraftEngine()
+        engine.start(PLAYERS, SNAKE_CONFIG)
+        # Trade between team 2 and team 3 (user is team 1)
+        # Pick 2 belongs to team 2, pick 3 belongs to team 3
+        trade = engine.trade_picks(gives=[2], receives=[3], partner_team=3, team_a=2)
+        assert trade.team_a == 2
+        assert trade.team_b == 3
+        assert engine.team_for_pick(2) == 3
+        assert engine.team_for_pick(3) == 2

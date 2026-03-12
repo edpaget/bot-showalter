@@ -27,7 +27,7 @@ const defaultProps = {
 function renderDialog(mocks: MockedResponse[] = [], overrides = {}) {
   const props = { ...defaultProps, ...overrides };
   return render(
-    <MockedProvider mocks={mocks} addTypename={false}>
+    <MockedProvider mocks={mocks}>
       <TradeDialog {...props} />
     </MockedProvider>,
   );
@@ -39,20 +39,24 @@ describe("TradeDialog", () => {
     vi.restoreAllMocks();
   });
 
-  it("renders partner team options excluding user team", () => {
+  it("renders two team selectors excluding each other", () => {
     renderDialog();
-    const select = screen.getByRole("combobox");
-    const options = within(select).getAllByRole("option");
-    expect(options).toHaveLength(3);
-    expect(options.map((o) => o.textContent)).toEqual(["Team 2", "Team 3", "Team 4"]);
+    const selects = screen.getAllByRole("combobox");
+    expect(selects).toHaveLength(2);
+    // Team A defaults to userTeam (1), so excludes team 1 from Team B options
+    const teamBOptions = within(selects[1]!).getAllByRole("option");
+    expect(teamBOptions.map((o) => o.textContent)).not.toContain("Team 1");
+    // Team B defaults to 2, so excludes team 2 from Team A options
+    const teamAOptions = within(selects[0]!).getAllByRole("option");
+    expect(teamAOptions.map((o) => o.textContent)).not.toContain("Team 2");
   });
 
   it("shows correct remaining picks per team", () => {
     renderDialog();
-    // User team 1 has picks 1, 8 in a 4-team 8-pick draft
+    // Team A (team 1) has picks 1, 8 in a 4-team 8-pick draft
     expect(screen.getByText("Pick #1 (Rd 1)")).toBeInTheDocument();
     expect(screen.getByText("Pick #8 (Rd 2)")).toBeInTheDocument();
-    // Partner team 2 (default) has picks 2, 7
+    // Team B (team 2, default) has picks 2, 7
     expect(screen.getByText("Pick #2 (Rd 1)")).toBeInTheDocument();
     expect(screen.getByText("Pick #7 (Rd 2)")).toBeInTheDocument();
   });
@@ -86,10 +90,10 @@ describe("TradeDialog", () => {
     renderDialog([evalMock]);
     const user = userEvent.setup();
 
-    // Select pick #1 to give
+    // Select pick #1 to give (team A) and pick #2 to receive (team B)
     const checkboxes = screen.getAllByRole("checkbox");
-    await user.click(checkboxes[0]!); // Pick #1 (give)
-    await user.click(checkboxes[2]!); // Pick #2 (receive)
+    await user.click(checkboxes[0]!); // Pick #1 (team A gives)
+    await user.click(checkboxes[2]!); // Pick #2 (team B gives)
 
     await user.click(screen.getByText("Evaluate"));
     await tick();
@@ -100,7 +104,7 @@ describe("TradeDialog", () => {
     expect(screen.getByText("Unfavorable trade")).toBeInTheDocument();
   });
 
-  it("execute calls mutation and invokes onTradeComplete", async () => {
+  it("execute calls mutation with teamA and invokes onTradeComplete", async () => {
     const onTradeComplete = vi.fn();
     const onClose = vi.fn();
     const newState = {
@@ -117,7 +121,7 @@ describe("TradeDialog", () => {
     const tradeMock: MockedResponse = {
       request: {
         query: TRADE_PICKS,
-        variables: { sessionId: 1, gives: [1], receives: [2], partnerTeam: 2 },
+        variables: { sessionId: 1, gives: [1], receives: [2], partnerTeam: 2, teamA: 1 },
       },
       result: { data: { tradePicks: newState } },
     };
@@ -126,8 +130,8 @@ describe("TradeDialog", () => {
     const user = userEvent.setup();
 
     const checkboxes = screen.getAllByRole("checkbox");
-    await user.click(checkboxes[0]!); // Pick #1 (give)
-    await user.click(checkboxes[2]!); // Pick #2 (receive)
+    await user.click(checkboxes[0]!); // Pick #1 (team A gives)
+    await user.click(checkboxes[2]!); // Pick #2 (team B gives)
 
     await user.click(screen.getByText("Execute Trade"));
     await tick();
@@ -136,23 +140,66 @@ describe("TradeDialog", () => {
     expect(onClose).toHaveBeenCalled();
   });
 
-  it("changing partner team clears receive selections", async () => {
+  it("changing team B clears its selections", async () => {
     renderDialog();
     const user = userEvent.setup();
 
-    // Select a receive pick
+    // Select a team B pick
     const checkboxes = screen.getAllByRole("checkbox");
-    await user.click(checkboxes[2]!); // Pick #2 (receive for team 2)
+    await user.click(checkboxes[2]!); // Pick #2 (team B gives)
     expect(checkboxes[2]).toBeChecked();
 
-    // Change partner to team 3
-    await user.selectOptions(screen.getByRole("combobox"), "3");
+    // Change team B to team 3
+    const selects = screen.getAllByRole("combobox");
+    await user.selectOptions(selects[1]!, "3");
 
-    // New receive checkboxes should be unchecked
+    // New checkboxes should be unchecked
     const newCheckboxes = screen.getAllByRole("checkbox");
     for (const cb of newCheckboxes.slice(2)) {
       expect(cb).not.toBeChecked();
     }
+  });
+
+  it("supports trades between non-user teams", async () => {
+    const onTradeComplete = vi.fn();
+    const onClose = vi.fn();
+    const newState = {
+      sessionId: 1,
+      currentPick: 1,
+      picks: [],
+      format: "snake",
+      teams: 4,
+      userTeam: 1,
+      budgetRemaining: null,
+      keeperCount: 0,
+      trades: [{ teamA: 3, teamB: 4, teamAGives: [3], teamBGives: [4] }],
+    };
+    const tradeMock: MockedResponse = {
+      request: {
+        query: TRADE_PICKS,
+        variables: { sessionId: 1, gives: [3], receives: [4], partnerTeam: 4, teamA: 3 },
+      },
+      result: { data: { tradePicks: newState } },
+    };
+
+    renderDialog([tradeMock], { onTradeComplete, onClose });
+    const user = userEvent.setup();
+
+    // Change Team A to team 3
+    const selects = screen.getAllByRole("combobox");
+    await user.selectOptions(selects[0]!, "3");
+    // Change Team B to team 4
+    await user.selectOptions(selects[1]!, "4");
+
+    const checkboxes = screen.getAllByRole("checkbox");
+    await user.click(checkboxes[0]!); // Pick #3 (team 3 gives)
+    await user.click(checkboxes[2]!); // Pick #4 (team 4 gives)
+
+    await user.click(screen.getByText("Execute Trade"));
+    await tick();
+
+    expect(onTradeComplete).toHaveBeenCalledWith(newState);
+    expect(onClose).toHaveBeenCalled();
   });
 
   it("cancel calls onClose", async () => {

@@ -27,18 +27,26 @@ export function TradeDialog({
   onTradeComplete,
   onClose,
 }: TradeDialogProps) {
-  const [partnerTeam, setPartnerTeam] = useState<number>(userTeam === 1 ? 2 : 1);
+  const [teamA, setTeamA] = useState<number>(userTeam);
+  const [teamB, setTeamB] = useState<number>(userTeam === 1 ? 2 : 1);
   const [selectedGives, setSelectedGives] = useState<Set<number>>(new Set());
   const [selectedReceives, setSelectedReceives] = useState<Set<number>>(new Set());
 
   const [evaluate, { data: evalData, loading: evaluating }] = useLazyQuery<EvaluateTradeQuery>(EVALUATE_TRADE_QUERY);
   const [executeTrade, { loading: executing }] = useMutation<TradePicksMutation>(TRADE_PICKS);
 
-  const userPicks = remainingPicksForTeam(userTeam, currentPick, totalPicks, teams, trades);
-  const partnerPicks = remainingPicksForTeam(partnerTeam, currentPick, totalPicks, teams, trades);
+  const teamAPicks = remainingPicksForTeam(teamA, currentPick, totalPicks, teams, trades);
+  const teamBPicks = remainingPicksForTeam(teamB, currentPick, totalPicks, teams, trades);
 
-  const handlePartnerChange = useCallback((newPartner: number) => {
-    setPartnerTeam(newPartner);
+  const allTeams = Array.from({ length: teams }, (_, i) => i + 1);
+
+  const handleTeamAChange = useCallback((newTeam: number) => {
+    setTeamA(newTeam);
+    setSelectedGives(new Set());
+  }, []);
+
+  const handleTeamBChange = useCallback((newTeam: number) => {
+    setTeamB(newTeam);
     setSelectedReceives(new Set());
   }, []);
 
@@ -80,14 +88,15 @@ export function TradeDialog({
         sessionId,
         gives: [...selectedGives],
         receives: [...selectedReceives],
-        partnerTeam,
+        partnerTeam: teamB,
+        teamA,
       },
     });
     if (result.data) {
       onTradeComplete(result.data.tradePicks);
       onClose();
     }
-  }, [sessionId, selectedGives, selectedReceives, partnerTeam, hasSelection, executeTrade, onTradeComplete, onClose]);
+  }, [sessionId, selectedGives, selectedReceives, teamA, teamB, hasSelection, executeTrade, onTradeComplete, onClose]);
 
   const evaluation = evalData?.evaluateTrade;
 
@@ -102,28 +111,25 @@ export function TradeDialog({
           </button>
         </div>
 
-        <div className="mb-4">
-          <label className="block text-xs text-gray-500 mb-1">Trade with</label>
-          <select
-            value={partnerTeam}
-            onChange={(e) => handlePartnerChange(Number(e.target.value))}
-            className="border border-gray-300 rounded px-2 py-1 text-sm"
-          >
-            {Array.from({ length: teams }, (_, i) => i + 1)
-              .filter((t) => t !== userTeam)
-              .map((t) => (
-                <option key={t} value={t}>
-                  Team {t}
-                </option>
-              ))}
-          </select>
-        </div>
-
         <div className="grid grid-cols-2 gap-4 mb-4">
           <div>
-            <h3 className="text-sm font-medium mb-2">You Give</h3>
+            <label className="block text-xs text-gray-500 mb-1">Team A</label>
+            <select
+              value={teamA}
+              onChange={(e) => handleTeamAChange(Number(e.target.value))}
+              className="border border-gray-300 rounded px-2 py-1 text-sm w-full"
+            >
+              {allTeams
+                .filter((t) => t !== teamB)
+                .map((t) => (
+                  <option key={t} value={t}>
+                    Team {t}
+                  </option>
+                ))}
+            </select>
+            <h3 className="text-sm font-medium mt-2 mb-1">Gives</h3>
             <div className="space-y-1 max-h-48 overflow-auto">
-              {userPicks.map((pick) => (
+              {teamAPicks.map((pick) => (
                 <label key={pick} className="flex items-center gap-2 text-sm cursor-pointer">
                   <input type="checkbox" checked={selectedGives.has(pick)} onChange={() => toggleGive(pick)} />
                   Pick #{pick} (Rd {Math.ceil(pick / teams)})
@@ -132,9 +138,23 @@ export function TradeDialog({
             </div>
           </div>
           <div>
-            <h3 className="text-sm font-medium mb-2">You Receive</h3>
+            <label className="block text-xs text-gray-500 mb-1">Team B</label>
+            <select
+              value={teamB}
+              onChange={(e) => handleTeamBChange(Number(e.target.value))}
+              className="border border-gray-300 rounded px-2 py-1 text-sm w-full"
+            >
+              {allTeams
+                .filter((t) => t !== teamA)
+                .map((t) => (
+                  <option key={t} value={t}>
+                    Team {t}
+                  </option>
+                ))}
+            </select>
+            <h3 className="text-sm font-medium mt-2 mb-1">Gives</h3>
             <div className="space-y-1 max-h-48 overflow-auto">
-              {partnerPicks.map((pick) => (
+              {teamBPicks.map((pick) => (
                 <label key={pick} className="flex items-center gap-2 text-sm cursor-pointer">
                   <input type="checkbox" checked={selectedReceives.has(pick)} onChange={() => toggleReceive(pick)} />
                   Pick #{pick} (Rd {Math.ceil(pick / teams)})
@@ -152,15 +172,15 @@ export function TradeDialog({
           >
             <div className="grid grid-cols-3 gap-2 mb-2">
               <div>
-                <span className="text-xs text-gray-500">Gives</span>
+                <span className="text-xs text-gray-500">Team A gives</span>
                 <p className="font-medium">{evaluation.givesValue.toFixed(1)}</p>
               </div>
               <div>
-                <span className="text-xs text-gray-500">Receives</span>
+                <span className="text-xs text-gray-500">Team B gives</span>
                 <p className="font-medium">{evaluation.receivesValue.toFixed(1)}</p>
               </div>
               <div>
-                <span className="text-xs text-gray-500">Net</span>
+                <span className="text-xs text-gray-500">Net (Team A)</span>
                 <p className={`font-medium ${evaluation.netValue >= 0 ? "text-green-700" : "text-red-700"}`}>
                   {evaluation.netValue >= 0 ? "+" : ""}
                   {evaluation.netValue.toFixed(1)}
