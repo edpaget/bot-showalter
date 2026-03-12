@@ -7,6 +7,7 @@ from fantasy_baseball_manager.yahoo.player_parsing import extract_player_data
 if TYPE_CHECKING:
     import datetime
 
+    from fantasy_baseball_manager.repos import YahooRosterRepo
     from fantasy_baseball_manager.yahoo.client import YahooFantasyClient
     from fantasy_baseball_manager.yahoo.player_map import YahooPlayerMapper
 
@@ -22,9 +23,15 @@ _STATUS_MAP = {
 
 
 class YahooRosterSource:
-    def __init__(self, client: YahooFantasyClient, mapper: YahooPlayerMapper) -> None:
+    def __init__(
+        self,
+        client: YahooFantasyClient,
+        mapper: YahooPlayerMapper,
+        roster_repo: YahooRosterRepo | None = None,
+    ) -> None:
         self._client = client
         self._mapper = mapper
+        self._roster_repo = roster_repo
 
     def fetch_team_roster(
         self,
@@ -35,6 +42,12 @@ class YahooRosterSource:
         week: int | None = None,
         as_of: datetime.date,
     ) -> Roster:
+        # Return cached roster if available
+        if self._roster_repo is not None:
+            cached = self._roster_repo.get_latest_by_team(team_key, league_key)
+            if cached is not None:
+                return cached
+
         data = self._client.get_roster(team_key, week=week)
         entries = self._parse_roster_entries(data)
         logger.debug("Fetched roster for %s: %d entries (week=%s)", team_key, len(entries), week)

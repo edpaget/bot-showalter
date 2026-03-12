@@ -317,47 +317,29 @@ def yahoo_rosters(  # pragma: no cover
     data_dir: _DataDirOpt = "./data",
     config_dir: Annotated[str, typer.Option("--config-dir", help="Config directory")] = ".",
 ) -> None:
-    """Fetch and display all teams' rosters from Yahoo Fantasy."""
+    """Display cached rosters. Use 'yahoo refresh' to fetch latest from Yahoo."""
     if season is None:
         season = current_season()
     league, league_config, _config = _resolve_league_context(league, config_dir)
 
     with build_yahoo_context(data_dir, Path(config_dir)) as ctx:
         league_key = resolve_league_key(ctx, league_config.league_id, season)
-        game_key = ctx.client.get_game_key(season)
 
         teams = ctx.yahoo_team_repo.get_by_league_key(league_key)
-        if not teams:
-            # Auto-sync metadata for this league key
-            console.print("[yellow]No teams found. Running sync...[/yellow]")
-            league_source = YahooLeagueSource(ctx.client)
-            sync_league_metadata(
-                league_source=league_source,
-                league_repo=ctx.yahoo_league_repo,
-                team_repo=ctx.yahoo_team_repo,
-                league_key=league_key,
-                game_key=game_key,
-            )
-            teams = ctx.yahoo_team_repo.get_by_league_key(league_key)
-
         if not teams:
             print_error(f"No teams found for league '{league}'. Run 'fbm yahoo sync' first.")
             raise typer.Exit(code=1)
 
-        mapper = YahooPlayerMapper(ctx.yahoo_player_map_repo, ctx.player_repo)
-        source = YahooRosterSource(ctx.client, mapper)
-        today = datetime.date.today()
+        rosters = ctx.yahoo_roster_repo.get_by_league_latest(league_key)
+        if not rosters:
+            print_error(f"No cached rosters for league '{league}' (season {season}). Run 'fbm yahoo refresh' first.")
+            raise typer.Exit(code=1)
+
+        roster_by_team = {r.team_key: r for r in rosters}
+        team_count = 0
 
         for team in teams:
-            roster = source.fetch_team_roster(
-                team_key=team.team_key,
-                league_key=league_key,
-                season=season,
-                week=1,
-                as_of=today,
-            )
-            ctx.yahoo_roster_repo.save_snapshot(roster)
-
+            roster = roster_by_team.get(team.team_key)
             marker = " (you)" if team.is_owned_by_user else ""
             console.print(f"\n[bold]{team.name}[/bold]{marker}")
 
@@ -368,20 +350,20 @@ def yahoo_rosters(  # pragma: no cover
             table.add_column("Acquired")
             table.add_column("Mapped")
 
-            for entry in roster.entries:
-                mapped = "[green]yes[/green]" if entry.player_id is not None else "[red]no[/red]"
-                table.add_row(
-                    entry.position,
-                    entry.player_name,
-                    entry.roster_status,
-                    entry.acquisition_type,
-                    mapped,
-                )
+            if roster:
+                team_count += 1
+                for entry in roster.entries:
+                    mapped = "[green]yes[/green]" if entry.player_id is not None else "[red]no[/red]"
+                    table.add_row(
+                        entry.position,
+                        entry.player_name,
+                        entry.roster_status,
+                        entry.acquisition_type,
+                        mapped,
+                    )
             console.print(table)
 
-        ctx.conn.commit()
-
-    console.print(f"\n[bold green]Fetched rosters for {len(teams)} teams.[/bold green]")
+    console.print(f"\n[bold green]Showing cached rosters for {team_count} teams.[/bold green]")
 
 
 @yahoo_app.command("my-roster")
@@ -405,7 +387,7 @@ def yahoo_my_roster(  # pragma: no cover
             raise typer.Exit(code=1)
 
         mapper = YahooPlayerMapper(ctx.yahoo_player_map_repo, ctx.player_repo)
-        source = YahooRosterSource(ctx.client, mapper)
+        source = YahooRosterSource(ctx.client, mapper, roster_repo=ctx.yahoo_roster_repo)
         today = datetime.date.today()
 
         roster = source.fetch_team_roster(
@@ -849,7 +831,7 @@ def yahoo_keeper_costs(  # pragma: no cover
             raise typer.Exit(code=1) from None
 
         mapper = YahooPlayerMapper(ctx.yahoo_player_map_repo, ctx.player_repo)
-        roster_source = YahooRosterSource(ctx.client, mapper)
+        roster_source = YahooRosterSource(ctx.client, mapper, roster_repo=ctx.yahoo_roster_repo)
         try:
             if league_config.keeper_format == "best_n":
                 derive_best_n_keeper_costs(
@@ -966,7 +948,7 @@ def yahoo_keeper_decisions(  # pragma: no cover
             raise typer.Exit(code=1) from None
 
         mapper = YahooPlayerMapper(ctx.yahoo_player_map_repo, ctx.player_repo)
-        roster_source = YahooRosterSource(ctx.client, mapper)
+        roster_source = YahooRosterSource(ctx.client, mapper, roster_repo=ctx.yahoo_roster_repo)
         try:
             if league_config.keeper_format == "best_n":
                 derive_best_n_keeper_costs(

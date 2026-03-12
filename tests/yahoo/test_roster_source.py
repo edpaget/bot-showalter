@@ -2,6 +2,7 @@ import datetime
 from typing import TYPE_CHECKING, Any
 
 from fantasy_baseball_manager.db.pool import SingleConnectionProvider
+from fantasy_baseball_manager.domain import Roster, RosterEntry
 from fantasy_baseball_manager.domain.player import Player
 from fantasy_baseball_manager.repos.player_repo import SqlitePlayerRepo
 from fantasy_baseball_manager.repos.yahoo_player_map_repo import SqliteYahooPlayerMapRepo
@@ -10,6 +11,14 @@ from fantasy_baseball_manager.yahoo.roster_source import YahooRosterSource
 
 if TYPE_CHECKING:
     import sqlite3
+
+
+class FakeRosterRepo:
+    def __init__(self, roster: Roster | None = None) -> None:
+        self._roster = roster
+
+    def get_latest_by_team(self, team_key: str, league_key: str) -> Roster | None:
+        return self._roster
 
 
 class FakeClient:
@@ -327,3 +336,58 @@ class TestYahooRosterSource:
 
         assert roster.entries == ()
         assert roster.team_key == "449.l.12345.t.1"
+
+    def test_cached_roster_returned_when_available(self, conn: sqlite3.Connection) -> None:
+        cached_roster = Roster(
+            team_key="449.l.12345.t.1",
+            league_key="449.l.12345",
+            season=2026,
+            week=1,
+            as_of=datetime.date(2026, 3, 27),
+            entries=(
+                RosterEntry(
+                    player_id=1,
+                    yahoo_player_key="449.p.99999",
+                    player_name="Cached Player",
+                    position="CF",
+                    roster_status="active",
+                    acquisition_type="draft",
+                ),
+            ),
+        )
+        player_repo = SqlitePlayerRepo(SingleConnectionProvider(conn))
+        map_repo = SqliteYahooPlayerMapRepo(SingleConnectionProvider(conn))
+        mapper = YahooPlayerMapper(map_repo, player_repo)
+        fake_client = FakeClient()
+        source = YahooRosterSource(fake_client, mapper, roster_repo=FakeRosterRepo(cached_roster))  # type: ignore[arg-type]
+
+        roster = source.fetch_team_roster(
+            team_key="449.l.12345.t.1",
+            league_key="449.l.12345",
+            season=2026,
+            week=1,
+            as_of=datetime.date(2026, 3, 27),
+        )
+
+        assert roster is cached_roster
+        # Client should not have been called
+        assert fake_client.last_week is None
+
+    def test_cache_miss_falls_through_to_client(self, conn: sqlite3.Connection) -> None:
+        player_repo = SqlitePlayerRepo(SingleConnectionProvider(conn))
+        map_repo = SqliteYahooPlayerMapRepo(SingleConnectionProvider(conn))
+        mapper = YahooPlayerMapper(map_repo, player_repo)
+        fake_client = FakeClient()
+        source = YahooRosterSource(fake_client, mapper, roster_repo=FakeRosterRepo(None))  # type: ignore[arg-type]
+
+        roster = source.fetch_team_roster(
+            team_key="449.l.12345.t.1",
+            league_key="449.l.12345",
+            season=2026,
+            week=1,
+            as_of=datetime.date(2026, 3, 27),
+        )
+
+        # Should have fetched from client
+        assert fake_client.last_week == 1
+        assert len(roster.entries) == 4
