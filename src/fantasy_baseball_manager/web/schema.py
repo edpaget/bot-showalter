@@ -126,6 +126,19 @@ def _build_keeper_planner(ctx: AppContext, season: int, league_name: str) -> Kee
     )
 
 
+def _resolve_prior_league_key(ctx: AppContext, league_key: str, season: int) -> str:
+    """Resolve the prior-season league key from DB or by convention."""
+    yahoo = ctx.yahoo_web_context
+    assert yahoo is not None  # noqa: S101
+    prior_season = season - 1
+    stored_league = yahoo.league_repo.get_by_league_key(league_key)
+    if stored_league is not None and stored_league.renew is not None:
+        return stored_league.renew.replace("_", ".l.", 1)
+    prior_game_key = yahoo.client.get_game_key(prior_season)
+    league_id = league_key.split(".l.")[1]
+    return f"{prior_game_key}.l.{league_id}"
+
+
 def _derive_keeper_costs_from_yahoo(
     ctx: AppContext, season: int, league_key: str | None = None, cost_floor: float = 1.0
 ) -> None:
@@ -142,14 +155,8 @@ def _derive_keeper_costs_from_yahoo(
     if league_key is None:
         return
 
+    prior_league_key = _resolve_prior_league_key(ctx, league_key, season)
     prior_season = season - 1
-    stored_league = yahoo.league_repo.get_by_league_key(league_key)
-    if stored_league is not None and stored_league.renew is not None:
-        prior_league_key = stored_league.renew.replace("_", ".l.", 1)
-    else:
-        prior_game_key = yahoo.client.get_game_key(prior_season)
-        league_id = league_key.split(".l.")[1]
-        prior_league_key = f"{prior_game_key}.l.{league_id}"
 
     roster_source = YahooRosterSource(yahoo.client, yahoo.player_mapper, roster_repo=ctx.yahoo_roster_repo)
     if yahoo.league_config.keeper_format == "best_n":
@@ -720,7 +727,10 @@ class Query:
             msg = "Yahoo league is not configured"
             raise ValueError(msg)
 
-        rosters = repo.get_by_league_latest(league_key)
+        # Rosters and teams are stored under the prior-season league key
+        prior_league_key = _resolve_prior_league_key(ctx, league_key, season)
+
+        rosters = repo.get_by_league_latest(prior_league_key)
         valuations = ctx.container.valuation_repo.get_by_season(
             season,
             system=ctx.default_system,
@@ -729,7 +739,7 @@ class Query:
         players = ctx.container.player_repo.all()
 
         team_repo = ctx.yahoo_team_repo
-        teams = team_repo.get_by_league_key(league_key) if team_repo else []
+        teams = team_repo.get_by_league_key(prior_league_key) if team_repo else []
         team_names = {t.team_key: t.name for t in teams}
         user_team = next((t for t in teams if t.is_owned_by_user), None)
         user_team_key = user_team.team_key if user_team else ""

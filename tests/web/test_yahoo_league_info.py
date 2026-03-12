@@ -360,9 +360,9 @@ class TestYahooKeeperOverviewQuery:
         assert "errors" not in body, body.get("errors")
         overview = body["data"]["yahooKeeperOverview"]
         assert len(overview["teamProjections"]) == 2
-        # Both teams should have keepers with valuations
+        # Rosters come from prior season, so team keys are 448.*
         for proj in overview["teamProjections"]:
-            assert proj["teamKey"] in ("449.l.12345.t.1", "449.l.12345.t.2")
+            assert proj["teamKey"] in ("448.l.12345.t.1", "448.l.12345.t.2")
             assert len(proj["keepers"]) >= 1
 
     def test_identifies_user_team(self, yahoo_keeper_client: TestClient) -> None:
@@ -375,7 +375,7 @@ class TestYahooKeeperOverviewQuery:
         )
         overview = response.json()["data"]["yahooKeeperOverview"]
         user_proj = next(p for p in overview["teamProjections"] if p["isUser"])
-        assert user_proj["teamKey"] == "449.l.12345.t.1"
+        assert user_proj["teamKey"] == "448.l.12345.t.1"
 
     def test_errors_when_not_configured(self, client: TestClient) -> None:
         response = client.post(
