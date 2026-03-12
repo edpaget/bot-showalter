@@ -137,10 +137,17 @@ def assign_positions(
         else:
             replacement[position] = 0.0
 
-    # Step 7: Compute VAR
+    # Step 7: Compute VAR — value flex-assigned players against their most
+    # scarce specific position, not the flex slot's replacement level.
     var_values = [0.0] * len(composite_scores)
     for idx, pos in assignments.items():
-        var_values[idx] = composite_scores[idx] - replacement[pos]
+        specific = [p for p in player_positions[idx] if p not in _FLEX_POSITIONS]
+        if specific:
+            eligible_repls = [replacement[p] for p in specific if p in replacement]
+            repl = max(eligible_repls) if eligible_repls else replacement[pos]
+        else:
+            repl = replacement[pos]
+        var_values[idx] = composite_scores[idx] - repl
 
     return AssignmentResult(
         assignments=assignments,

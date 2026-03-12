@@ -218,15 +218,16 @@ class TestAssignPositionsInvariants:
         total_slots = sum(v * num_teams for v in roster_spots.values())  # 8
         assert len(result.assignments) == total_slots
 
-    def test_all_assigned_have_nonneg_var(self) -> None:
-        """Every assigned player has VAR >= 0."""
+    def test_specific_only_assigned_have_nonneg_var(self) -> None:
+        """Players assigned to their specific (non-flex) position have VAR >= 0."""
         scores = [10.0, 8.0, 6.0, 4.0, 2.0]
         positions = [["SP", "P"]] * 5
         roster_spots = {"SP": 1, "P": 1}
         result = assign_positions(scores, positions, roster_spots, num_teams=1)
 
-        for idx in result.assignments:
-            assert result.var_values[idx] >= -1e-9
+        for idx, pos in result.assignments.items():
+            if pos == "SP":
+                assert result.var_values[idx] >= -1e-9
 
     def test_replacement_player_has_zero_var(self) -> None:
         """Worst player at each position has VAR = 0."""
@@ -240,6 +241,65 @@ class TestAssignPositionsInvariants:
         worst_score = min(scores[i] for i in c_assigned)
         worst_idx = next(i for i in c_assigned if scores[i] == worst_score)
         assert result.var_values[worst_idx] == pytest.approx(0.0)
+
+
+class TestFlexVarScarcity:
+    """Flex-assigned players are valued against their most scarce specific position."""
+
+    def test_flex_assigned_sp_uses_sp_replacement(self) -> None:
+        """SP-eligible pitcher assigned to P gets VAR against SP replacement."""
+        # 3 SP/P pitchers, 1 SP slot + 1 P slot, 1 team
+        scores = [10.0, 8.0, 4.0]
+        positions = [["SP", "P"]] * 3
+        roster_spots = {"SP": 1, "P": 1}
+        result = assign_positions(scores, positions, roster_spots, num_teams=1)
+
+        # Player 0 → SP (score 10), Player 1 → P (score 8)
+        assert result.assignments[0] == "SP"
+        assert result.assignments[1] == "P"
+        # SP replacement = 10.0 (only one SP slot)
+        assert result.replacement["SP"] == pytest.approx(10.0)
+        # Player 1 in P should use SP replacement (10.0), not P replacement (8.0)
+        assert result.var_values[1] == pytest.approx(8.0 - 10.0)
+
+    def test_p_only_player_uses_flex_replacement(self) -> None:
+        """Player eligible only for P uses P replacement level."""
+        scores = [10.0, 8.0, 6.0]
+        positions = [["SP", "P"], ["P"], ["SP", "P"]]
+        roster_spots = {"SP": 1, "P": 1}
+        result = assign_positions(scores, positions, roster_spots, num_teams=1)
+
+        # Player 1 is P-only, should use P replacement
+        assert result.assignments[1] == "P"
+        assert result.var_values[1] == pytest.approx(8.0 - result.replacement["P"])
+
+    def test_multi_specific_uses_highest_replacement(self) -> None:
+        """Player eligible for SP + RP + P uses max(SP_repl, RP_repl)."""
+        # 4 players: 2 SP-only, 1 RP-only, 1 SP/RP/P eligible
+        scores = [12.0, 10.0, 7.0, 9.0]
+        positions = [["SP"], ["SP"], ["RP"], ["SP", "RP", "P"]]
+        roster_spots = {"SP": 1, "RP": 1, "P": 1}
+        result = assign_positions(scores, positions, roster_spots, num_teams=1)
+
+        # Player 3 (score 9, SP/RP/P) likely assigned to P
+        if result.assignments[3] == "P":
+            sp_repl = result.replacement["SP"]
+            rp_repl = result.replacement["RP"]
+            expected_repl = max(sp_repl, rp_repl)
+            assert result.var_values[3] == pytest.approx(9.0 - expected_repl)
+
+    def test_util_assigned_batter_uses_specific_replacement(self) -> None:
+        """SS-eligible batter assigned to UTIL gets VAR against SS replacement."""
+        # 3 SS/UTIL batters, 1 SS slot + 1 UTIL slot, 1 team
+        scores = [10.0, 8.0, 4.0]
+        positions = [["SS", "UTIL"]] * 3
+        roster_spots = {"SS": 1, "UTIL": 1}
+        result = assign_positions(scores, positions, roster_spots, num_teams=1)
+
+        assert result.assignments[0] == "SS"
+        assert result.assignments[1] == "UTIL"
+        # Player 1 in UTIL should use SS replacement (10.0)
+        assert result.var_values[1] == pytest.approx(8.0 - 10.0)
 
 
 class TestAssignPositionsPerformance:
