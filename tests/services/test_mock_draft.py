@@ -841,3 +841,72 @@ class TestMockDraftWithBench:
         # Verify bench slots are actually used
         all_positions = [p.position for p in result.picks]
         assert "BN" in all_positions
+
+
+class TestPoolExhaustion:
+    """Draft completes gracefully when the player pool is smaller than total roster slots."""
+
+    def test_draft_ends_early_when_pool_exhausted(self) -> None:
+        league = LeagueSettings(
+            name="Exhaustion Test",
+            format=LeagueFormat.H2H_CATEGORIES,
+            teams=2,
+            budget=260,
+            roster_batters=2,
+            roster_pitchers=1,
+            roster_bench=2,
+            batting_categories=(_BATTING_CAT,),
+            pitching_categories=(_PITCHING_CAT,),
+            positions={"OF": 2},
+            roster_util=0,
+        )
+        # 2 teams × 5 slots = 10 picks needed, but only 7 players
+        rows = [
+            _make_row(1, "OF1", "OF", 10.0),
+            _make_row(2, "OF2", "OF", 9.0),
+            _make_row(3, "OF3", "OF", 8.0),
+            _make_row(4, "OF4", "OF", 7.0),
+            _make_row(5, "SP1", "SP", 6.0),
+            _make_row(6, "SP2", "SP", 5.0),
+            _make_row(7, "OF5", "OF", 4.0),
+        ]
+        board = DraftBoard(rows=rows, batting_categories=("HR",), pitching_categories=("K",))
+        bots = [BestValueBot(rng=random.Random(i)) for i in range(2)]
+
+        result = run_mock_draft(board, league, bots, seed=42)
+
+        assert len(result.picks) < 10
+        assert len(result.picks) == 7
+        # No duplicate players
+        player_ids = [p.player_id for p in result.picks]
+        assert len(player_ids) == len(set(player_ids))
+
+    def test_draft_skips_team_with_no_assignable_players(self) -> None:
+        """When one team has no positional needs that match remaining players, it's skipped."""
+        league = LeagueSettings(
+            name="Skip Test",
+            format=LeagueFormat.H2H_CATEGORIES,
+            teams=2,
+            budget=260,
+            roster_batters=1,
+            roster_pitchers=1,
+            batting_categories=(_BATTING_CAT,),
+            pitching_categories=(_PITCHING_CAT,),
+            positions={"C": 1},
+            roster_util=0,
+        )
+        # 2 teams × 2 slots = 4 picks, but only 1 catcher and 2 pitchers
+        rows = [
+            _make_row(1, "C1", "C", 10.0),
+            _make_row(2, "SP1", "SP", 9.0),
+            _make_row(3, "SP2", "SP", 8.0),
+        ]
+        board = DraftBoard(rows=rows, batting_categories=("HR",), pitching_categories=("K",))
+        bots = [BestValueBot(rng=random.Random(i)) for i in range(2)]
+
+        result = run_mock_draft(board, league, bots, seed=42)
+
+        # Team 0 gets C1 + SP1, team 1 gets only SP2 (no catcher available)
+        assert len(result.picks) == 3
+        player_ids = [p.player_id for p in result.picks]
+        assert len(player_ids) == len(set(player_ids))

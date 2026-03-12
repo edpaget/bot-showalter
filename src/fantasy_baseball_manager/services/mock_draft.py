@@ -143,6 +143,9 @@ def run_mock_draft(
     picks: list[DraftPick] = []
 
     for pick_num in range(1, total_picks + 1):
+        if not pool:
+            break
+
         team_idx = _snake_team(pick_num, num_teams) if snake else (pick_num - 1) % num_teams
 
         round_num = (pick_num - 1) // num_teams + 1
@@ -150,8 +153,7 @@ def run_mock_draft(
         available = _available_for_team(pool, needs)
 
         if not available:
-            msg = f"No assignable players for team {team_idx} at pick {pick_num} (round {round_num}). Needs: {needs}"
-            raise RuntimeError(msg)
+            continue
 
         # Let the bot choose
         bot = strategies[team_idx]
