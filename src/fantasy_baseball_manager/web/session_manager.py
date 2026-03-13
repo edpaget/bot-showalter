@@ -64,10 +64,12 @@ def _keeper_picks_from_snapshot(
     Only includes keepers belonging to the user's team (matched by team_name).
     """
     user_team_name = team_names.get(user_team) if team_names else None
+    if user_team_name is None:
+        return []
     picks: list[DraftPick] = []
     for k in snapshot:
         # Skip keepers that belong to other teams
-        if user_team_name is not None and str(k.get("team_name", "")) != user_team_name:
+        if str(k.get("team_name", "")) != user_team_name:
             continue
         cost = k.get("cost")
         picks.append(
