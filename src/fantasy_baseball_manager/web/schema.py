@@ -799,7 +799,7 @@ class Query:
             yahoo_ctx = ctx.yahoo_web_context
             if yahoo_ctx is not None and yahoo_ctx.league_config.max_keepers is not None:
                 max_keepers = yahoo_ctx.league_config.max_keepers
-            league_keepers = ctx.container.league_keeper_repo.find_by_season_league(season, league.name)
+            league_keepers = ctx.container.league_keeper_repo.find_by_season_league(season, ctx.league.name)
             keeper_player_ids = [lk.player_id for lk in league_keepers]
 
         setup = YahooDraftSetupInfo(
