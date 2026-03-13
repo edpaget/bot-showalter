@@ -381,6 +381,34 @@ class TestAutoDetectPosition:
         result = auto_detect_position(player, needs, SNAKE_CONFIG.roster_slots)
         assert result == "C"
 
+    def test_bench_fallback_for_batter(self) -> None:
+        """If primary and UTIL are full, overflow to BN."""
+        player = _make_player(1, "Mike Trout", "OF", 30.0)
+        needs = {"C": 1, "BN": 3}  # OF and UTIL not in needs
+        result = auto_detect_position(player, needs, SNAKE_CONFIG.roster_slots)
+        assert result == "BN"
+
+    def test_bench_fallback_for_pitcher(self) -> None:
+        """If primary and P are full, overflow to BN."""
+        player = _make_player(2, "Shohei Ohtani", "SP", 28.0, player_type="pitcher")
+        needs = {"BN": 2}
+        result = auto_detect_position(player, needs, SNAKE_CONFIG.roster_slots)
+        assert result == "BN"
+
+    def test_flex_preferred_over_bench(self) -> None:
+        """UTIL should be chosen before BN."""
+        player = _make_player(1, "Mike Trout", "OF", 30.0)
+        needs = {"UTIL": 1, "BN": 3}  # OF full, UTIL and BN open
+        result = auto_detect_position(player, needs, SNAKE_CONFIG.roster_slots)
+        assert result == "UTIL"
+
+    def test_no_slot_at_all_returns_none(self) -> None:
+        """If no position fits and no BN, return None."""
+        player = _make_player(1, "Mike Trout", "OF", 30.0)
+        needs = {"C": 1, "1B": 1}  # No OF, no UTIL, no BN
+        result = auto_detect_position(player, needs, SNAKE_CONFIG.roster_slots)
+        assert result is None
+
 
 # ---------------------------------------------------------------------------
 # Step 7: DraftSession REPL

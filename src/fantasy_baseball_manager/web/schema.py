@@ -128,6 +128,18 @@ def _get_keeper_count(mgr: SessionManager, session_id: int) -> int:
     return len(mgr.get_keepers(session_id))
 
 
+def _team_needs(engine: DraftEngine, team: int) -> dict[str, int]:
+    """Compute remaining roster slot needs for a specific team."""
+    state = engine.state
+    needs: dict[str, int] = {}
+    for pos, total in state.config.roster_slots.items():
+        filled = sum(1 for p in state.team_rosters[team] if p.position == pos)
+        remaining = total - filled
+        if remaining > 0:
+            needs[pos] = remaining
+    return needs
+
+
 def _compute_arbitrage_cat_scores(
     info: Info,
     session_id: int,
@@ -983,19 +995,21 @@ class Mutation:
 
         pos_str = position.value
 
-        if pos_str not in engine.state.config.roster_slots:
-            # Try auto-detecting from the player's data (e.g., "P" → "SP"/"RP")
-            player = engine.state.available_pool.get(player_id)
-            if player is not None:
-                detected = auto_detect_position(player, engine.my_needs(), engine.state.config.roster_slots)
-                if detected is not None:
-                    pos_str = detected
-
         if team is None:
             if engine.state.config.format == DraftFormat.SNAKE:
                 team = engine.team_on_clock()
             else:
                 team = engine.state.config.user_team
+
+        # Auto-detect best slot: handles invalid positions (e.g. "P" → "SP"),
+        # full slots (overflow to UTIL/P/BN), and normal placement.
+        player = engine.state.available_pool.get(player_id)
+        if player is not None:
+            needs = _team_needs(engine, team)
+            if pos_str not in needs:
+                detected = auto_detect_position(player, needs, engine.state.config.roster_slots)
+                if detected is not None:
+                    pos_str = detected
 
         draft_pick = mgr.pick(session_id, player_id, team, pos_str, price=price)
         pick_type = DraftPickType.from_domain(draft_pick)

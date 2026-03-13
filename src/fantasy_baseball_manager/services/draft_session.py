@@ -368,34 +368,27 @@ def auto_detect_position(
     needs: dict[str, int],
     roster_slots: dict[str, int],
 ) -> str | None:
-    """Determine the roster position for a player, or None if ambiguous.
+    """Determine the best roster position for a player, with overflow to flex/BN.
 
-    Logic:
-    1. If primary position has an open slot, return it.
-    2. If not, check flex (UTIL for batters, P for pitchers).
-    3. If exactly one option, return it. Otherwise None.
+    Priority order:
+    1. Primary position (if open).
+    2. Flex slot — UTIL for batters, P for pitchers (if open).
+    3. BN (bench) as a last resort (if open).
+    Returns None only when no slot is available at all.
     """
-    candidates: list[str] = []
-
-    # Primary position
+    # Primary position — always preferred
     if player.position in needs:
-        candidates.append(player.position)
+        return player.position
 
     # Flex slots
     if player.player_type == "batter" and "UTIL" in needs:
-        candidates.append("UTIL")
-    elif player.player_type == "pitcher" and "P" in needs:
-        candidates.append("P")
+        return "UTIL"
+    if player.player_type == "pitcher" and "P" in needs:
+        return "P"
 
-    if not candidates:
-        return None
-
-    # Prefer primary position
-    if player.position in candidates:
-        return player.position
-
-    if len(candidates) == 1:
-        return candidates[0]
+    # Bench — last resort
+    if "BN" in needs:
+        return "BN"
 
     return None
 
