@@ -9,7 +9,7 @@ function TestConsumer() {
   return (
     <div>
       <span data-testid="session-id">{ctx.sessionId ?? "none"}</span>
-      <span data-testid="drafted-count">{ctx.draftedPlayerIds.size}</span>
+      <span data-testid="drafted-count">{ctx.draftedPlayerKeys.size}</span>
       <span data-testid="recs-count">{ctx.recommendations.length}</span>
       <span data-testid="roster-count">{ctx.roster.length}</span>
       <span data-testid="needs-count">{ctx.needs.length}</span>
@@ -133,7 +133,7 @@ describe("DraftSessionContext", () => {
     expect(screen.getByTestId("session-id")).toHaveTextContent("42");
   });
 
-  it("derives draftedPlayerIds from state picks", async () => {
+  it("derives draftedPlayerKeys from state picks", async () => {
     render(
       <DraftSessionProvider>
         <TestConsumer />
@@ -158,7 +158,7 @@ describe("DraftSessionContext", () => {
     expect(screen.getByTestId("needs-count")).toHaveTextContent("1");
   });
 
-  it("includes keeper player IDs in draftedPlayerIds", async () => {
+  it("includes keeper player IDs in draftedPlayerKeys", async () => {
     render(
       <DraftSessionProvider>
         <TestConsumer />

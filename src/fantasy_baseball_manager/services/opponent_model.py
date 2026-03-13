@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from fantasy_baseball_manager.domain import LeagueNeeds, PositionRun, TeamNeeds, ThreatAssessment
-from fantasy_baseball_manager.services.draft_state import DraftEngine, DraftFormat, build_draft_roster_slots
+from fantasy_baseball_manager.services.draft_state import DraftEngine, DraftFormat, PoolKey, build_draft_roster_slots
 
 if TYPE_CHECKING:
     from fantasy_baseball_manager.domain import DraftBoardRow, LeagueSettings
@@ -17,7 +17,7 @@ _COMPOSITE_POSITIONS: dict[str, list[str]] = {
 
 
 def _count_supply(
-    pool: dict[int, DraftBoardRow],
+    pool: dict[PoolKey, DraftBoardRow],
     slot: str,
 ) -> int:
     """Count available players eligible for a roster slot."""

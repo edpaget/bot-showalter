@@ -212,7 +212,7 @@ export function DraftDashboard({ season = 2026 }: { season?: number }) {
     async (playerId: number, position: string) => {
       if (!ctx.sessionId) return;
       // Optimistically mark player as drafted so the board updates instantly
-      ctx.addOptimisticPick(playerId);
+      ctx.addOptimisticPick(playerId, position);
       const result = await pickMutation({
         variables: { sessionId: ctx.sessionId, playerId, position },
       });
@@ -291,7 +291,7 @@ export function DraftDashboard({ season = 2026 }: { season?: number }) {
         <div className="flex-1 min-w-0 min-h-0">
           <DraftBoardTable
             season={season}
-            draftedPlayerIds={sessionActive ? ctx.draftedPlayerIds : undefined}
+            draftedPlayerKeys={sessionActive ? ctx.draftedPlayerKeys : undefined}
             onDraft={sessionActive ? handleDraft : undefined}
             onPlayerClick={openPlayer}
             sessionActive={sessionActive}

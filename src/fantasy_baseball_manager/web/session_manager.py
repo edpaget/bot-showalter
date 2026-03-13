@@ -239,10 +239,11 @@ class SessionManager:
         team: int,
         position: str,
         *,
+        player_type: str | None = None,
         price: int | None = None,
     ) -> DraftPick:
         engine = self.get_engine(session_id)
-        draft_pick = engine.pick(player_id, team, position, price=price)
+        draft_pick = engine.pick(player_id, team, position, player_type=player_type, price=price)
 
         now = datetime.now(tz=UTC).isoformat()
         db_pick = DraftSessionPick(

@@ -286,11 +286,11 @@ class TestStart:
         engine.start(PLAYERS, SNAKE_CONFIG)
         assert len(engine.available()) == len(PLAYERS)
 
-    def test_pool_keyed_by_player_id(self) -> None:
+    def test_pool_keyed_by_player_id_and_type(self) -> None:
         engine = DraftEngine()
         state = engine.start(PLAYERS, SNAKE_CONFIG)
-        assert 1 in state.available_pool
-        assert state.available_pool[1].player_name == "Player A"
+        assert (1, "B") in state.available_pool
+        assert state.available_pool[(1, "B")].player_name == "Player A"
 
     def test_empty_rosters(self) -> None:
         engine = DraftEngine()
@@ -622,9 +622,9 @@ class TestUndo:
         engine = DraftEngine()
         state = engine.start(PLAYERS, SNAKE_CONFIG)
         engine.pick(player_id=1, team=1, position="C")
-        assert 1 not in state.available_pool
+        assert (1, "B") not in state.available_pool
         engine.undo()
-        assert 1 in state.available_pool
+        assert (1, "B") in state.available_pool
 
     def test_undo_restores_roster(self) -> None:
         engine = DraftEngine()
@@ -669,8 +669,8 @@ class TestUndo:
         engine.undo()
         assert state.current_pick == 1
         assert len(state.picks) == 0
-        assert 1 in state.available_pool
-        assert 2 in state.available_pool
+        assert (1, "B") in state.available_pool
+        assert (2, "B") in state.available_pool
 
     def test_undo_restores_auction_budget(self) -> None:
         engine = DraftEngine()
@@ -856,7 +856,7 @@ class TestLiveFormat:
         engine = DraftEngine()
         engine.start(PLAYERS, LIVE_CONFIG)
         engine.pick(player_id=1, team=2, position="C")
-        assert 1 not in engine.state.available_pool
+        assert (1, "B") not in engine.state.available_pool
         assert len(engine.state.team_rosters[2]) == 1
 
     def test_team_on_clock_raises(self) -> None:
@@ -871,7 +871,7 @@ class TestLiveFormat:
         engine.start(PLAYERS, LIVE_CONFIG)
         engine.pick(player_id=1, team=3, position="C")
         engine.undo()
-        assert 1 in engine.state.available_pool
+        assert (1, "B") in engine.state.available_pool
         assert engine.state.current_pick == 1
 
     def test_budget_zero_for_live(self) -> None:

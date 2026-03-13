@@ -87,7 +87,7 @@ export interface DraftBoardTableProps {
   season: number;
   system?: string;
   version?: string;
-  draftedPlayerIds?: Set<number>;
+  draftedPlayerKeys?: Set<string>;
   onDraft?: (playerId: number, position: string) => void;
   onPlayerClick?: (playerId: number, playerName: string, playerType: string) => void;
   sessionActive?: boolean;
@@ -102,7 +102,7 @@ export function DraftBoardTable({
   season,
   system,
   version,
-  draftedPlayerIds,
+  draftedPlayerKeys,
   onDraft,
   onPlayerClick,
   sessionActive = false,
@@ -136,7 +136,7 @@ export function DraftBoardTable({
     return { batting: battingCategories, pitching: pitchingCategories };
   }, [data, playerTypeFilter]);
 
-  // Expensive sort + filter — does NOT depend on draftedPlayerIds
+  // Expensive sort + filter — does NOT depend on draftedPlayerKeys
   const sortedRows = useMemo(() => {
     if (!data) return [];
     let filtered = data.board.rows;
@@ -163,12 +163,13 @@ export function DraftBoardTable({
     });
   }, [data, sortKey, sortDir, positionFilter, playerTypeFilter, searchQuery]);
 
-  // Cheap filter — only re-runs when draftedPlayerIds or statusFilter changes
+  // Cheap filter — only re-runs when draftedPlayerKeys or statusFilter changes
   const rows = useMemo(() => {
-    if (!draftedPlayerIds || statusFilter === "all") return sortedRows;
-    if (statusFilter === "available") return sortedRows.filter((r) => !draftedPlayerIds.has(r.playerId));
-    return sortedRows.filter((r) => draftedPlayerIds.has(r.playerId));
-  }, [sortedRows, draftedPlayerIds, statusFilter]);
+    if (!draftedPlayerKeys || statusFilter === "all") return sortedRows;
+    if (statusFilter === "available")
+      return sortedRows.filter((r) => !draftedPlayerKeys.has(`${r.playerId}-${r.playerType}`));
+    return sortedRows.filter((r) => draftedPlayerKeys.has(`${r.playerId}-${r.playerType}`));
+  }, [sortedRows, draftedPlayerKeys, statusFilter]);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const virtualizer = useVirtualizer({
@@ -196,7 +197,7 @@ export function DraftBoardTable({
           onPositionChange={setPositionFilter}
         />
         <div className="flex gap-2 items-center">
-          {draftedPlayerIds && (
+          {draftedPlayerKeys && (
             <div className="flex gap-1">
               {(["all", "available", "drafted"] as StatusFilter[]).map((s) => (
                 <button
@@ -279,7 +280,7 @@ export function DraftBoardTable({
             rows={rows}
             virtualizer={useVirtual ? virtualizer : null}
             virtualItems={useVirtual ? virtualItems : null}
-            draftedPlayerIds={draftedPlayerIds}
+            draftedPlayerKeys={draftedPlayerKeys}
             sessionActive={sessionActive}
             pickLoading={pickLoading}
             onDraft={onDraft}
@@ -299,7 +300,7 @@ interface VirtualBodyProps {
   rows: DraftBoardRowType[];
   virtualizer: BoardVirtualizer | null;
   virtualItems: ReturnType<BoardVirtualizer["getVirtualItems"]> | null;
-  draftedPlayerIds?: Set<number>;
+  draftedPlayerKeys?: Set<string>;
   sessionActive: boolean;
   pickLoading?: boolean;
   onDraft?: (playerId: number, position: string) => void;
@@ -312,7 +313,7 @@ function VirtualBody({
   rows,
   virtualizer,
   virtualItems,
-  draftedPlayerIds,
+  draftedPlayerKeys,
   sessionActive,
   pickLoading,
   onDraft,
@@ -328,7 +329,7 @@ function VirtualBody({
           <BoardRow
             key={`${row.playerId}-${row.playerType}`}
             row={row}
-            isDrafted={draftedPlayerIds?.has(row.playerId) ?? false}
+            isDrafted={draftedPlayerKeys?.has(`${row.playerId}-${row.playerType}`) ?? false}
             sessionActive={sessionActive}
             pickLoading={pickLoading}
             onDraft={onDraft}
@@ -361,7 +362,7 @@ function VirtualBody({
           <BoardRow
             key={`${row.playerId}-${row.playerType}`}
             row={row}
-            isDrafted={draftedPlayerIds?.has(row.playerId) ?? false}
+            isDrafted={draftedPlayerKeys?.has(`${row.playerId}-${row.playerType}`) ?? false}
             sessionActive={sessionActive}
             pickLoading={pickLoading}
             onDraft={onDraft}

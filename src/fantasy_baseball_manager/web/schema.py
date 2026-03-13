@@ -151,7 +151,7 @@ def _compute_arbitrage_cat_scores(
     if cat_bal_fn is None:
         return None
     roster_ids = [p.player_id for p in engine.my_roster()]
-    available_ids = list(engine.state.available_pool.keys())
+    available_ids = [pid for pid, _ in engine.state.available_pool]
     return cat_bal_fn(roster_ids, available_ids)
 
 
@@ -839,7 +839,8 @@ class Query:
             league_keepers = ctx.container.league_keeper_repo.find_by_season_league(season, ctx.league.name)
             keeper_player_ids = [[lk.player_id, lk.player_type] for lk in league_keepers]
 
-        # Derive draft order from previous-season standings (last place picks first)
+        # Derive draft order from previous-season standings (last place picks first).
+        # Team IDs can change between seasons, so map via manager_name.
         draft_order: list[int] = []
         if league.is_keeper:
             stats_repo = ctx.yahoo_team_stats_repo
@@ -848,10 +849,25 @@ class Query:
                     prior_league_key, _prior_game_key = _resolve_prior_league_key(ctx, league_key, season)
                     prior_stats = stats_repo.get_by_league_season(prior_league_key, season - 1)
                     if prior_stats:
+                        # Build manager_name → current team_id mapping
+                        current_by_manager = {t.manager_name: t.team_id for t in teams}
+                        prior_teams = team_repo.get_by_league_key(prior_league_key)
+                        prior_id_to_manager = {t.team_id: t.manager_name for t in prior_teams}
+
                         # Reverse standings: last place picks first
-                        draft_order = [int(s.team_key.rsplit(".", 1)[1]) for s in reversed(prior_stats)]
-                except ValueError, AssertionError:
+                        for s in reversed(prior_stats):
+                            prior_id = int(s.team_key.rsplit(".", 1)[1])
+                            manager = prior_id_to_manager.get(prior_id)
+                            current_id = current_by_manager.get(manager) if manager else None
+                            if current_id is not None:
+                                draft_order.append(current_id)
+                            else:
+                                # Fallback: use prior ID directly (best effort)
+                                draft_order.append(prior_id)
+                except ValueError:
                     pass  # No prior league data available — fall back to empty
+                except AssertionError:
+                    pass
 
         setup = YahooDraftSetupInfo(
             num_teams=league.num_teams,
@@ -1003,7 +1019,11 @@ class Mutation:
 
         # Auto-detect best slot: handles invalid positions (e.g. "P" → "SP"),
         # full slots (overflow to UTIL/P/BN), and normal placement.
-        player = engine.state.available_pool.get(player_id)
+        # Look up player by (player_id, player_type) — derive player_type from position.
+        pitcher_positions = {"SP", "RP", "P"}
+        player_type = "pitcher" if pos_str in pitcher_positions else "batter"
+        pool_key = (player_id, player_type)
+        player = engine.state.available_pool.get(pool_key)
         if player is not None:
             needs = _team_needs(engine, team)
             if pos_str not in needs:
@@ -1011,7 +1031,7 @@ class Mutation:
                 if detected is not None:
                     pos_str = detected
 
-        draft_pick = mgr.pick(session_id, player_id, team, pos_str, price=price)
+        draft_pick = mgr.pick(session_id, player_id, team, pos_str, player_type=player_type, price=price)
         pick_type = DraftPickType.from_domain(draft_pick)
         await ctx.event_bus.publish(
             session_id,

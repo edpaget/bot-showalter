@@ -200,7 +200,7 @@ describe("DraftBoardTable", () => {
   });
 
   it("shows Action column when session is active", async () => {
-    await renderAndWait({ sessionActive: true, onDraft: vi.fn(), draftedPlayerIds: new Set() });
+    await renderAndWait({ sessionActive: true, onDraft: vi.fn(), draftedPlayerKeys: new Set() });
     expect(screen.getByText("Action")).toBeInTheDocument();
   });
 
@@ -210,13 +210,13 @@ describe("DraftBoardTable", () => {
   });
 
   it("shows Draft buttons for undrafted players", async () => {
-    await renderAndWait({ sessionActive: true, onDraft: vi.fn(), draftedPlayerIds: new Set() });
+    await renderAndWait({ sessionActive: true, onDraft: vi.fn(), draftedPlayerKeys: new Set() });
     const draftButtons = screen.getAllByRole("button", { name: "Draft" });
     expect(draftButtons.length).toBe(4);
   });
 
   it("hides Draft button for drafted players", async () => {
-    await renderAndWait({ sessionActive: true, onDraft: vi.fn(), draftedPlayerIds: new Set([1]) });
+    await renderAndWait({ sessionActive: true, onDraft: vi.fn(), draftedPlayerKeys: new Set(["1-batter"]) });
     // Trout (id=1) is drafted, so only 3 Draft buttons
     const draftButtons = screen.getAllByRole("button", { name: "Draft" });
     expect(draftButtons.length).toBe(3);
@@ -224,7 +224,7 @@ describe("DraftBoardTable", () => {
 
   it("calls onDraft when Draft button clicked", async () => {
     const onDraft = vi.fn();
-    await renderAndWait({ sessionActive: true, onDraft, draftedPlayerIds: new Set() });
+    await renderAndWait({ sessionActive: true, onDraft, draftedPlayerKeys: new Set() });
     const user = userEvent.setup();
     const draftButtons = screen.getAllByRole("button", { name: "Draft" });
     await user.click(draftButtons[0]!);
@@ -232,13 +232,13 @@ describe("DraftBoardTable", () => {
   });
 
   it("grays out drafted players", async () => {
-    await renderAndWait({ sessionActive: true, onDraft: vi.fn(), draftedPlayerIds: new Set([1]) });
+    await renderAndWait({ sessionActive: true, onDraft: vi.fn(), draftedPlayerKeys: new Set(["1-batter"]) });
     const troutRow = screen.getByText("Mike Trout").closest("tr")!;
     expect(troutRow.className).toContain("opacity-40");
   });
 
   it("filters by status (Available)", async () => {
-    await renderAndWait({ sessionActive: true, onDraft: vi.fn(), draftedPlayerIds: new Set([1]) });
+    await renderAndWait({ sessionActive: true, onDraft: vi.fn(), draftedPlayerKeys: new Set(["1-batter"]) });
     const user = userEvent.setup();
     await user.click(screen.getByRole("button", { name: "Available" }));
     expect(screen.queryByText("Mike Trout")).not.toBeInTheDocument();
@@ -246,7 +246,7 @@ describe("DraftBoardTable", () => {
   });
 
   it("filters by status (Drafted)", async () => {
-    await renderAndWait({ sessionActive: true, onDraft: vi.fn(), draftedPlayerIds: new Set([1]) });
+    await renderAndWait({ sessionActive: true, onDraft: vi.fn(), draftedPlayerKeys: new Set(["1-batter"]) });
     const user = userEvent.setup();
     await user.click(screen.getByRole("button", { name: "Drafted" }));
     expect(screen.getByText("Mike Trout")).toBeInTheDocument();

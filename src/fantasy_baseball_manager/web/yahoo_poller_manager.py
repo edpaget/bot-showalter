@@ -135,7 +135,7 @@ class YahooPollerManager:
             engine = self._session_manager.get_engine(session_id)
             draft_pick = ingest_yahoo_pick(
                 engine.pick,
-                set(engine.state.available_pool),
+                {pid for pid, _ in engine.state.available_pool},
                 yahoo_pick,
                 team_map,
                 id_aliases=id_aliases,

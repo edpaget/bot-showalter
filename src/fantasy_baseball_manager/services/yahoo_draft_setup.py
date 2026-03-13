@@ -110,7 +110,7 @@ def build_yahoo_draft_setup(
         draft_repo.upsert(pick)
         ingest_yahoo_pick(
             engine.pick,
-            set(engine.state.available_pool),
+            {pid for pid, _ in engine.state.available_pool},
             pick,
             team_map,
             id_aliases=aliases,

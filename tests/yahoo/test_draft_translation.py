@@ -92,7 +92,7 @@ class TestIngestYahooPick:
         engine.start(players, _SNAKE_CONFIG)
 
         yahoo_pick = _make_yahoo_pick(team_key="449.l.12345.t.1")
-        result = ingest_yahoo_pick(engine.pick, set(engine.state.available_pool), yahoo_pick, _TEAM_MAP)
+        result = ingest_yahoo_pick(engine.pick, {pid for pid, _ in engine.state.available_pool}, yahoo_pick, _TEAM_MAP)
 
         assert result is not None
         assert result.player_id == 100
@@ -105,7 +105,7 @@ class TestIngestYahooPick:
         engine.start(players, _AUCTION_CONFIG)
 
         yahoo_pick = _make_yahoo_pick(team_key="449.l.12345.t.1", cost=55)
-        result = ingest_yahoo_pick(engine.pick, set(engine.state.available_pool), yahoo_pick, _TEAM_MAP)
+        result = ingest_yahoo_pick(engine.pick, {pid for pid, _ in engine.state.available_pool}, yahoo_pick, _TEAM_MAP)
 
         assert result is not None
         assert result.price == 55
@@ -138,7 +138,7 @@ class TestIngestYahooPick:
         engine.start(players, _SNAKE_CONFIG)
 
         yahoo_pick = _make_yahoo_pick(team_key="449.l.12345.t.1", position="OF")
-        result = ingest_yahoo_pick(engine.pick, set(engine.state.available_pool), yahoo_pick, _TEAM_MAP)
+        result = ingest_yahoo_pick(engine.pick, {pid for pid, _ in engine.state.available_pool}, yahoo_pick, _TEAM_MAP)
 
         assert result is not None
         assert result.position == "OF"
@@ -170,7 +170,7 @@ class TestIngestYahooPick:
         yahoo_pick = _make_yahoo_pick(team_key="449.l.12345.t.1", position="SP")
         result = ingest_yahoo_pick(
             engine.pick,
-            set(engine.state.available_pool),
+            {pid for pid, _ in engine.state.available_pool},
             yahoo_pick,
             _TEAM_MAP,
             roster_slots=config.roster_slots,
@@ -200,7 +200,7 @@ class TestIngestYahooPick:
         pick1 = _make_yahoo_pick(player_id=100, player_name="Player A", team_key="449.l.12345.t.1", position="SS")
         r1 = ingest_yahoo_pick(
             engine.pick,
-            set(engine.state.available_pool),
+            {pid for pid, _ in engine.state.available_pool},
             pick1,
             _TEAM_MAP,
             roster_slots=config.roster_slots,
@@ -213,7 +213,7 @@ class TestIngestYahooPick:
         pick2 = _make_yahoo_pick(player_id=101, player_name="Player B", team_key="449.l.12345.t.1", position="SS")
         r2 = ingest_yahoo_pick(
             engine.pick,
-            set(engine.state.available_pool),
+            {pid for pid, _ in engine.state.available_pool},
             pick2,
             _TEAM_MAP,
             roster_slots=config.roster_slots,
@@ -244,7 +244,7 @@ class TestIngestYahooPick:
             pick = _make_yahoo_pick(player_id=pid, player_name=name, team_key="449.l.12345.t.1", position="SS")
             ingest_yahoo_pick(
                 engine.pick,
-                set(engine.state.available_pool),
+                {pid for pid, _ in engine.state.available_pool},
                 pick,
                 _TEAM_MAP,
                 roster_slots=config.roster_slots,
@@ -255,7 +255,7 @@ class TestIngestYahooPick:
         pick3 = _make_yahoo_pick(player_id=102, player_name="Player C", team_key="449.l.12345.t.1", position="SS")
         r3 = ingest_yahoo_pick(
             engine.pick,
-            set(engine.state.available_pool),
+            {pid for pid, _ in engine.state.available_pool},
             pick3,
             _TEAM_MAP,
             roster_slots=config.roster_slots,
@@ -312,7 +312,7 @@ class TestIngestYahooPick:
             )
             result = ingest_yahoo_pick(
                 engine.pick,
-                set(engine.state.available_pool),
+                {pid for pid, _ in engine.state.available_pool},
                 yahoo_pick,
                 _TEAM_MAP,
                 roster_slots=config.roster_slots,
@@ -329,7 +329,7 @@ class TestIngestYahooPick:
         )
         result_25 = ingest_yahoo_pick(
             engine.pick,
-            set(engine.state.available_pool),
+            {pid for pid, _ in engine.state.available_pool},
             yahoo_pick_25,
             _TEAM_MAP,
             roster_slots=config.roster_slots,
@@ -347,7 +347,7 @@ class TestIngestYahooPick:
         yahoo_pick = _make_yahoo_pick(player_id=9007, player_name="José Ramírez", position="OF")
         aliases = {9007: 22036}
         result = ingest_yahoo_pick(
-            engine.pick, set(engine.state.available_pool), yahoo_pick, _TEAM_MAP, id_aliases=aliases
+            engine.pick, {pid for pid, _ in engine.state.available_pool}, yahoo_pick, _TEAM_MAP, id_aliases=aliases
         )
 
         assert result is not None
@@ -362,7 +362,7 @@ class TestIngestYahooPick:
         yahoo_pick = _make_yahoo_pick(player_id=100, player_name="Mike Trout", position="OF")
         aliases = {100: 200}  # alias exists but shouldn't be used
         result = ingest_yahoo_pick(
-            engine.pick, set(engine.state.available_pool), yahoo_pick, _TEAM_MAP, id_aliases=aliases
+            engine.pick, {pid for pid, _ in engine.state.available_pool}, yahoo_pick, _TEAM_MAP, id_aliases=aliases
         )
 
         assert result is not None

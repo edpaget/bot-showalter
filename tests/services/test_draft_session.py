@@ -892,8 +892,8 @@ class TestLoadDraftFromDB:
         state = engine.state
         assert len(state.picks) == 2
         assert state.current_pick == 3
-        assert 1 not in state.available_pool
-        assert 5 not in state.available_pool
+        assert (1, "batter") not in state.available_pool
+        assert (5, "batter") not in state.available_pool
 
     def test_not_found_raises(self) -> None:
         repo = SqliteDraftSessionRepo(_InMemoryProvider())

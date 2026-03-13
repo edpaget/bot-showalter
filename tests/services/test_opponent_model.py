@@ -12,6 +12,7 @@ from fantasy_baseball_manager.services.draft_state import (
     DraftFormat,
     DraftPick,
     DraftState,
+    PoolKey,
 )
 from fantasy_baseball_manager.services.opponent_model import (
     assess_threats,
@@ -66,8 +67,8 @@ def _config(teams: int = 4) -> DraftConfig:
     )
 
 
-def _make_pool(*rows: DraftBoardRow) -> dict[int, DraftBoardRow]:
-    return {r.player_id: r for r in rows}
+def _make_pool(*rows: DraftBoardRow) -> dict[PoolKey, DraftBoardRow]:
+    return {(r.player_id, r.player_type): r for r in rows}
 
 
 class TestEmptyDraft:

@@ -14,6 +14,16 @@ import type {
 
 export type { KeeperInfoType as KeeperInfo } from "../generated/graphql";
 
+const PITCHER_POSITIONS = new Set(["SP", "RP", "P"]);
+
+function playerKey(playerId: number, playerType: string): string {
+  return `${playerId}-${playerType}`;
+}
+
+function pickPlayerType(position: string): string {
+  return PITCHER_POSITIONS.has(position) ? "pitcher" : "batter";
+}
+
 interface DraftSessionContextValue {
   sessionId: number | null;
   state: DraftStateType | null;
@@ -25,7 +35,7 @@ interface DraftSessionContextValue {
   arbitrage: ArbitrageReportType | null;
   keepers: KeeperInfoType[];
   teamNames: Record<number, string>;
-  draftedPlayerIds: Set<number>;
+  draftedPlayerKeys: Set<string>;
   getTeamName: (id: number) => string;
   setSessionId: (id: number | null) => void;
   setState: (state: DraftStateType | null) => void;
@@ -38,7 +48,7 @@ interface DraftSessionContextValue {
   setKeepers: (keepers: KeeperInfoType[]) => void;
   setTeamNames: (names: Record<number, string>) => void;
   applyPickResult: (result: PickResultFieldsFragment) => void;
-  addOptimisticPick: (playerId: number) => void;
+  addOptimisticPick: (playerId: number, position: string) => void;
   clearSession: () => void;
 }
 
@@ -58,13 +68,18 @@ export function DraftSessionProvider({ children }: { children: ReactNode }) {
 
   const getTeamName = useCallback((id: number): string => teamNames[id] ?? `Team ${id}`, [teamNames]);
 
-  const draftedPlayerIds = useMemo(() => {
-    if (!state) return new Set<number>();
-    const ids = new Set(state.picks.map((p) => p.playerId));
+  const draftedPlayerKeys = useMemo(() => {
+    if (!state) return new Set<string>();
+    const keys = new Set(state.picks.map((p) => playerKey(p.playerId, pickPlayerType(p.position))));
     for (const k of keepers) {
-      ids.add(k.playerId);
+      if (k.playerType) {
+        keys.add(playerKey(k.playerId, k.playerType));
+      } else {
+        keys.add(playerKey(k.playerId, "batter"));
+        keys.add(playerKey(k.playerId, "pitcher"));
+      }
     }
-    return ids;
+    return keys;
   }, [state, keepers]);
 
   const applyPickResult = useCallback((result: PickResultFieldsFragment) => {
@@ -82,7 +97,7 @@ export function DraftSessionProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const addOptimisticPick = useCallback(
-    (playerId: number) => {
+    (playerId: number, position: string) => {
       if (!state) return;
       // Immediately mark the player as drafted and advance the pick counter.
       // Placeholder fields (playerName, position, etc.) get replaced when
@@ -96,7 +111,7 @@ export function DraftSessionProvider({ children }: { children: ReactNode }) {
             __typename: "DraftPickType" as const,
             playerId,
             playerName: "…",
-            position: "UTIL" as DraftPickType["position"],
+            position: position as DraftPickType["position"],
             team: 0,
             pickNumber: state.currentPick,
             price: null,
@@ -134,7 +149,7 @@ export function DraftSessionProvider({ children }: { children: ReactNode }) {
       arbitrage,
       keepers,
       teamNames,
-      draftedPlayerIds,
+      draftedPlayerKeys,
       getTeamName,
       setSessionId,
       setState,
@@ -161,7 +176,7 @@ export function DraftSessionProvider({ children }: { children: ReactNode }) {
       arbitrage,
       keepers,
       teamNames,
-      draftedPlayerIds,
+      draftedPlayerKeys,
       getTeamName,
       applyPickResult,
       addOptimisticPick,

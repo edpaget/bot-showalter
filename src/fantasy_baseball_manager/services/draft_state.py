@@ -17,6 +17,10 @@ class DraftFormat(StrEnum):
 class DraftError(Exception): ...
 
 
+# Pool key: (player_id, player_type) — uniquely identifies a two-way player's side
+type PoolKey = tuple[int, str]
+
+
 @dataclass(frozen=True)
 class DraftConfig:
     teams: int
@@ -42,7 +46,7 @@ class DraftPick:
 class DraftState:
     config: DraftConfig
     picks: list[DraftPick]
-    available_pool: dict[int, DraftBoardRow]
+    available_pool: dict[PoolKey, DraftBoardRow]
     team_rosters: dict[int, list[DraftPick]]
     team_budgets: dict[int, int]
     current_pick: int = 1
@@ -51,7 +55,7 @@ class DraftState:
 
 class DraftEngine:
     _state: DraftState | None = None
-    _removed_rows: dict[int, DraftBoardRow]
+    _removed_rows: dict[PoolKey, DraftBoardRow]
 
     def __init__(self) -> None:
         self._removed_rows = {}
@@ -74,7 +78,7 @@ class DraftEngine:
     def start(self, players: list[DraftBoardRow], config: DraftConfig) -> DraftState:
         self._removed_rows = {}
         self._trades = []
-        pool = {p.player_id: p for p in players}
+        pool = {(p.player_id, p.player_type): p for p in players}
         rosters: dict[int, list[DraftPick]] = {t: [] for t in range(1, config.teams + 1)}
         budgets: dict[int, int] = {
             t: config.budget if config.format == DraftFormat.AUCTION else 0 for t in range(1, config.teams + 1)
@@ -107,6 +111,7 @@ class DraftEngine:
         team: int,
         position: str,
         *,
+        player_type: str | None = None,
         price: int | None = None,
     ) -> DraftPick:
         state = self._require_state()
@@ -119,8 +124,16 @@ class DraftEngine:
                 msg = f"Wrong team: expected team {expected}, got team {team}"
                 raise DraftError(msg)
 
-        # Pool validation
-        if player_id not in state.available_pool:
+        # Resolve pool key — if player_type not given, find the player in pool
+        pool_key: PoolKey | None = None
+        if player_type is not None:
+            pool_key = (player_id, player_type)
+        else:
+            for key in state.available_pool:
+                if key[0] == player_id:
+                    pool_key = key
+                    break
+        if pool_key is None or pool_key not in state.available_pool:
             msg = f"Player {player_id} is not in the available pool"
             raise DraftError(msg)
 
@@ -156,7 +169,7 @@ class DraftEngine:
                 )
                 raise DraftError(msg)
 
-        player = state.available_pool[player_id]
+        player = state.available_pool[pool_key]
         draft_pick = DraftPick(
             pick_number=state.current_pick,
             team=team,
@@ -167,7 +180,7 @@ class DraftEngine:
         )
 
         # Mutate state
-        self._removed_rows[player_id] = state.available_pool.pop(player_id)
+        self._removed_rows[pool_key] = state.available_pool.pop(pool_key)
         state.team_rosters[team].append(draft_pick)
         state.picks.append(draft_pick)
         state.current_pick += 1
@@ -186,9 +199,17 @@ class DraftEngine:
         state.team_rosters[last.team].remove(last)
         state.current_pick -= 1
 
-        # Restore player to pool
-        row = self._removed_rows.pop(last.player_id)
-        state.available_pool[last.player_id] = row
+        # Restore player to pool — find the matching removed row by player_id
+        restore_key: PoolKey | None = None
+        for key in self._removed_rows:
+            if key[0] == last.player_id:
+                restore_key = key
+                break
+        if restore_key is None:
+            msg = f"Cannot restore player {last.player_id} — not found in removed rows"
+            raise DraftError(msg)
+        row = self._removed_rows.pop(restore_key)
+        state.available_pool[restore_key] = row
 
         # Restore auction budget
         if last.price is not None:

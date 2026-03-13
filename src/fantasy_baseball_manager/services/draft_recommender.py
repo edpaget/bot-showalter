@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Protocol
 
 from fantasy_baseball_manager.domain import AvailabilityWindow, DraftPlan, Recommendation, RecommendationWeights
-from fantasy_baseball_manager.services.draft_state import DraftEngine, DraftFormat, DraftState
+from fantasy_baseball_manager.services.draft_state import DraftEngine, DraftFormat, DraftState, PoolKey
 
 if TYPE_CHECKING:
     from fantasy_baseball_manager.domain import DraftBoardRow
@@ -55,7 +55,7 @@ def recommend(
     # Use pre-computed category balance scores, or compute them from the function
     if cat_scores is None and category_balance_fn is not None:
         roster_ids = [p.player_id for p in state.team_rosters[state.config.user_team]]
-        available_ids = list(state.available_pool.keys())
+        available_ids = [pid for pid, _ in state.available_pool]
         cat_scores = category_balance_fn(roster_ids, available_ids)
     effective_cat_scores: dict[int, float] = cat_scores or {}
 
@@ -149,7 +149,7 @@ _SCARCITY_DEPTH = 5
 
 
 def _compute_scarcity(
-    pool: dict[int, DraftBoardRow],
+    pool: dict[PoolKey, DraftBoardRow],
     needs: dict[str, int],
 ) -> dict[str, float]:
     """Per-position value dropoff from #1 to #5 available, normalized to [0, 1].

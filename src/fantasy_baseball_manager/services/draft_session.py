@@ -559,7 +559,7 @@ class DraftSession:
 
             result = ingest_yahoo_pick(
                 self.engine.pick,
-                set(self.engine.state.available_pool),
+                {pid for pid, _ in self.engine.state.available_pool},
                 yahoo_pick,
                 self._team_map,
                 id_aliases=self._id_aliases,
@@ -795,7 +795,7 @@ class DraftSession:
             return
 
         roster_ids = [p.player_id for p in roster]
-        available_ids = list(self.engine.state.available_pool.keys())
+        available_ids = [pid for pid, _ in self.engine.state.available_pool]
         player_names = {p.player_id: p.player_name for p in self.players}
         needs = identify_needs(
             roster_ids,
