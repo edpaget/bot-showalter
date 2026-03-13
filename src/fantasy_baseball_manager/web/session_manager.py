@@ -106,7 +106,9 @@ class SessionManager:
         # Only use explicitly provided keeper IDs — no auto-loading or auto-derivation
 
         # Build keeper snapshot before filtering the pool
-        keeper_snapshot = self._build_keeper_snapshot(season, keeper_player_ids) if keeper_player_ids else None
+        keeper_snapshot = (
+            self._build_keeper_snapshot(season, keeper_player_ids, system, version) if keeper_player_ids else None
+        )
 
         players = self._build_player_pool(season, system, version, keeper_player_ids=keeper_player_ids)
         roster_slots = build_draft_roster_slots(self._league)
@@ -324,6 +326,8 @@ class SessionManager:
         self,
         season: int,
         keeper_player_ids: set[int],
+        system: str,
+        version: str,
     ) -> list[dict[str, object]]:
         # Resolve player names/positions
         players = self._player_repo.get_by_ids(list(keeper_player_ids))
@@ -337,8 +341,8 @@ class SessionManager:
                 if lk.player_id in keeper_player_ids:
                     keeper_details[lk.player_id] = (lk.team_name, lk.cost)
 
-        # Get valuations for value info
-        valuations = self._valuation_repo.get_by_season(season, system="zar", version="1.0")
+        # Get valuations for value info — use the same system/version as the session
+        valuations = self._valuation_repo.get_by_season(season, system=system, version=version)
         val_map = {v.player_id: v for v in valuations}
 
         snapshot: list[dict[str, object]] = []

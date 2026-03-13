@@ -1,5 +1,5 @@
 import { useLazyQuery, useMutation, useQuery, useSubscription } from "@apollo/client";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useDraftSession } from "../context/DraftSessionContext";
 import { usePlayerDrawer } from "../context/PlayerDrawerContext";
 import type {
@@ -252,6 +252,11 @@ export function DraftDashboard({ season = 2026 }: { season?: number }) {
     : 0;
   const isSnakeFormat = ctx.state?.format === "snake";
   const hasFuturePicks = ctx.state ? ctx.state.currentPick <= totalPicks : false;
+  const userTeamName = ctx.state ? ctx.getTeamName(ctx.state.userTeam) : undefined;
+  const userKeepers = useMemo(
+    () => (userTeamName ? ctx.keepers.filter((k) => k.teamName === userTeamName) : []),
+    [ctx.keepers, userTeamName],
+  );
 
   return (
     <div className="flex flex-col gap-3 h-screen p-3 overflow-hidden">
@@ -285,7 +290,7 @@ export function DraftDashboard({ season = 2026 }: { season?: number }) {
 
         {sessionActive && (
           <div className="w-80 flex-shrink-0 flex flex-col gap-3 overflow-auto">
-            {ctx.keepers.length > 0 && <KeeperPanel keepers={ctx.keepers} />}
+            {ctx.keepers.length > 0 && <KeeperPanel keepers={ctx.keepers} userTeamName={userTeamName} />}
             <RecommendationPanel
               recommendations={ctx.recommendations}
               onDraft={handleDraft}
@@ -301,7 +306,7 @@ export function DraftDashboard({ season = 2026 }: { season?: number }) {
             />
             <RosterPanel
               roster={ctx.roster}
-              keepers={ctx.keepers}
+              keepers={userKeepers}
               needs={ctx.needs}
               budgetRemaining={ctx.state?.budgetRemaining ?? null}
               format={ctx.state?.format ?? "snake"}
