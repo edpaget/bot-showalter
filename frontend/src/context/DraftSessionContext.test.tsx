@@ -24,7 +24,17 @@ function TestConsumer() {
           const state: DraftStateType = {
             sessionId: 42,
             currentPick: 2,
-            picks: [{ pickNumber: 1, team: 1, playerId: 100, playerName: "Test Player", position: "OF", price: null }],
+            picks: [
+              {
+                pickNumber: 1,
+                team: 1,
+                playerId: 100,
+                playerName: "Test Player",
+                position: "OF",
+                playerType: "B",
+                price: null,
+              },
+            ],
             format: "snake",
             teams: 12,
             userTeam: 1,
@@ -43,13 +53,37 @@ function TestConsumer() {
         type="button"
         onClick={() => {
           const result: PickResultFieldsFragment = {
-            pick: { pickNumber: 2, team: 1, playerId: 200, playerName: "New Player", position: "SP", price: null },
+            pick: {
+              pickNumber: 2,
+              team: 1,
+              playerId: 200,
+              playerName: "New Player",
+              position: "SP",
+              playerType: "P",
+              price: null,
+            },
             state: {
               sessionId: 42,
               currentPick: 3,
               picks: [
-                { pickNumber: 1, team: 1, playerId: 100, playerName: "Test Player", position: "OF", price: null },
-                { pickNumber: 2, team: 1, playerId: 200, playerName: "New Player", position: "SP", price: null },
+                {
+                  pickNumber: 1,
+                  team: 1,
+                  playerId: 100,
+                  playerName: "Test Player",
+                  position: "OF",
+                  playerType: "B",
+                  price: null,
+                },
+                {
+                  pickNumber: 2,
+                  team: 1,
+                  playerId: 200,
+                  playerName: "New Player",
+                  position: "SP",
+                  playerType: "P",
+                  price: null,
+                },
               ],
               format: "snake",
               teams: 12,
@@ -72,8 +106,24 @@ function TestConsumer() {
               },
             ],
             roster: [
-              { pickNumber: 1, team: 1, playerId: 100, playerName: "Test Player", position: "OF", price: null },
-              { pickNumber: 2, team: 1, playerId: 200, playerName: "New Player", position: "SP", price: null },
+              {
+                pickNumber: 1,
+                team: 1,
+                playerId: 100,
+                playerName: "Test Player",
+                position: "OF",
+                playerType: "B",
+                price: null,
+              },
+              {
+                pickNumber: 2,
+                team: 1,
+                playerId: 200,
+                playerName: "New Player",
+                position: "SP",
+                playerType: "P",
+                price: null,
+              },
             ],
             needs: [{ position: "C", remaining: 1 }],
             arbitrage: null,

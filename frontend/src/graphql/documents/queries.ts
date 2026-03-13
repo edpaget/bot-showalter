@@ -63,6 +63,7 @@ export const SESSION_QUERY = gql`
         playerId
         playerName
         position
+        playerType
         price
       }
       format
@@ -137,6 +138,7 @@ export const ROSTER_QUERY = gql`
       playerId
       playerName
       position
+      playerType
       price
     }
   }

@@ -276,6 +276,7 @@ def save_draft(state: DraftState, path: Path) -> None:
                 "team": p.team,
                 "player_id": p.player_id,
                 "player_name": p.player_name,
+                "player_type": p.player_type,
                 "position": p.position,
                 "price": p.price,
             }
@@ -310,6 +311,7 @@ def load_draft(path: Path, players: list[DraftBoardRow]) -> DraftEngine:
             player_id=pick_data["player_id"],
             team=pick_data["team"],
             position=pick_data["position"],
+            player_type=pick_data.get("player_type") or None,
             price=pick_data.get("price"),
         )
 
@@ -352,6 +354,7 @@ def load_draft_from_db(
             player_id=pick.player_id,
             team=pick.team,
             position=pick.position,
+            player_type=pick.player_type or None,
             price=pick.price,
         )
 
@@ -533,6 +536,7 @@ class DraftSession:
             player_id=pick.player_id,
             player_name=pick.player_name,
             position=pick.position,
+            player_type=pick.player_type,
             price=pick.price,
         )
         self._session_repo.save_pick(db_pick)

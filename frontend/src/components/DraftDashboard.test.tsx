@@ -89,11 +89,29 @@ function pickMock(): MockedResponse {
     result: {
       data: {
         pick: {
-          pick: { pickNumber: 1, team: 1, playerId: 1, playerName: "Mike Trout", position: "OF", price: null },
+          pick: {
+            pickNumber: 1,
+            team: 1,
+            playerId: 1,
+            playerName: "Mike Trout",
+            position: "OF",
+            playerType: "B",
+            price: null,
+          },
           state: {
             sessionId: 1,
             currentPick: 2,
-            picks: [{ pickNumber: 1, team: 1, playerId: 1, playerName: "Mike Trout", position: "OF", price: null }],
+            picks: [
+              {
+                pickNumber: 1,
+                team: 1,
+                playerId: 1,
+                playerName: "Mike Trout",
+                position: "OF",
+                playerType: "B",
+                price: null,
+              },
+            ],
             format: "snake",
             teams: 12,
             userTeam: 1,
@@ -112,7 +130,17 @@ function pickMock(): MockedResponse {
               playerType: "pitcher",
             },
           ],
-          roster: [{ pickNumber: 1, team: 1, playerId: 1, playerName: "Mike Trout", position: "OF", price: null }],
+          roster: [
+            {
+              pickNumber: 1,
+              team: 1,
+              playerId: 1,
+              playerName: "Mike Trout",
+              position: "OF",
+              playerType: "B",
+              price: null,
+            },
+          ],
           needs: [
             { position: "C", remaining: 1 },
             { position: "SP", remaining: 2 },
@@ -132,7 +160,15 @@ function undoMock(): MockedResponse {
     result: {
       data: {
         undo: {
-          pick: { pickNumber: 1, team: 1, playerId: 1, playerName: "Mike Trout", position: "OF", price: null },
+          pick: {
+            pickNumber: 1,
+            team: 1,
+            playerId: 1,
+            playerName: "Mike Trout",
+            position: "OF",
+            playerType: "B",
+            price: null,
+          },
           state: {
             sessionId: 1,
             currentPick: 1,

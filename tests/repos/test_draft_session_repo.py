@@ -467,6 +467,54 @@ class TestDraftOrder:
         assert sessions[0].draft_order == [4, 3, 2, 1]
 
 
+class TestPickPlayerType:
+    def test_roundtrip_with_player_type(self, repo: SqliteDraftSessionRepo) -> None:
+        session_id = repo.create_session(_make_record())
+        repo.save_pick(
+            DraftSessionPick(
+                session_id=session_id,
+                pick_number=1,
+                team=1,
+                player_id=17,
+                player_name="Shohei Ohtani",
+                position="SP",
+                player_type="P",
+            )
+        )
+        repo.save_pick(
+            DraftSessionPick(
+                session_id=session_id,
+                pick_number=2,
+                team=2,
+                player_id=17,
+                player_name="Shohei Ohtani",
+                position="OF",
+                player_type="B",
+            )
+        )
+
+        loaded = repo.load_picks(session_id)
+        assert len(loaded) == 2
+        assert loaded[0].player_type == "P"
+        assert loaded[1].player_type == "B"
+
+    def test_default_player_type_is_empty(self, repo: SqliteDraftSessionRepo) -> None:
+        session_id = repo.create_session(_make_record())
+        repo.save_pick(
+            DraftSessionPick(
+                session_id=session_id,
+                pick_number=1,
+                team=1,
+                player_id=100,
+                player_name="Player A",
+                position="OF",
+            )
+        )
+
+        loaded = repo.load_picks(session_id)
+        assert loaded[0].player_type == ""
+
+
 class TestLoadSessionNotFound:
     def test_returns_none(self, repo: SqliteDraftSessionRepo) -> None:
         assert repo.load_session(9999) is None

@@ -50,8 +50,8 @@ class SqliteDraftSessionRepo:
         with self._provider.connection() as conn:
             conn.execute(
                 "INSERT INTO draft_session_pick"
-                " (session_id, pick_number, team, player_id, player_name, position, price)"
-                " VALUES (?, ?, ?, ?, ?, ?, ?)",
+                " (session_id, pick_number, team, player_id, player_name, position, player_type, price)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     pick.session_id,
                     pick.pick_number,
@@ -59,6 +59,7 @@ class SqliteDraftSessionRepo:
                     pick.player_id,
                     pick.player_name,
                     pick.position,
+                    pick.player_type,
                     pick.price,
                 ),
             )
@@ -88,7 +89,8 @@ class SqliteDraftSessionRepo:
     def load_picks(self, session_id: int) -> list[DraftSessionPick]:
         with self._provider.connection() as conn:
             rows = conn.execute(
-                "SELECT id, session_id, pick_number, team, player_id, player_name, position, price"
+                "SELECT id, session_id, pick_number, team, player_id, player_name, position,"
+                " player_type, price"
                 " FROM draft_session_pick WHERE session_id = ? ORDER BY pick_number",
                 (session_id,),
             ).fetchall()
@@ -238,5 +240,6 @@ class SqliteDraftSessionRepo:
             player_id=row["player_id"],
             player_name=row["player_name"],
             position=row["position"],
+            player_type=row["player_type"],
             price=row["price"],
         )

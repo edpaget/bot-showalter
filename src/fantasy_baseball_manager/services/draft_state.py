@@ -39,6 +39,7 @@ class DraftPick:
     player_id: int
     player_name: str
     position: str
+    player_type: str = ""
     price: int | None = None
 
 
@@ -178,6 +179,7 @@ class DraftEngine:
             team=team,
             player_id=player_id,
             player_name=player.player_name,
+            player_type=pool_key[1],
             position=position,
             price=price,
         )
@@ -202,12 +204,18 @@ class DraftEngine:
         state.team_rosters[last.team].remove(last)
         state.current_pick -= 1
 
-        # Restore player to pool — find the matching removed row by player_id
+        # Restore player to pool — match by (player_id, player_type)
         restore_key: PoolKey | None = None
-        for key in self._removed_rows:
-            if key[0] == last.player_id:
-                restore_key = key
-                break
+        if last.player_type:
+            restore_key = (last.player_id, last.player_type)
+            if restore_key not in self._removed_rows:
+                restore_key = None
+        else:
+            # Legacy pick without player_type — search by player_id
+            for key in self._removed_rows:
+                if key[0] == last.player_id:
+                    restore_key = key
+                    break
         if restore_key is None:
             msg = f"Cannot restore player {last.player_id} — not found in removed rows"
             raise DraftError(msg)

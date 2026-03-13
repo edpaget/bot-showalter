@@ -255,6 +255,7 @@ class SessionManager:
             player_id=draft_pick.player_id,
             player_name=draft_pick.player_name,
             position=draft_pick.position,
+            player_type=draft_pick.player_type,
             price=draft_pick.price,
         )
         self._repo.save_pick(db_pick)
@@ -329,6 +330,7 @@ class SessionManager:
             player_id=draft_pick.player_id,
             player_name=draft_pick.player_name,
             position=draft_pick.position,
+            player_type=draft_pick.player_type,
             price=draft_pick.price,
         )
         self._repo.save_pick(db_pick)

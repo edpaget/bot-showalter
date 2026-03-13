@@ -12,6 +12,7 @@ export const DRAFT_EVENTS_SUBSCRIPTION = gql`
           playerId
           playerName
           position
+          playerType
           price
         }
       }
@@ -23,6 +24,7 @@ export const DRAFT_EVENTS_SUBSCRIPTION = gql`
           playerId
           playerName
           position
+          playerType
           price
         }
       }

@@ -112,6 +112,7 @@ export function DraftSessionProvider({ children }: { children: ReactNode }) {
             playerId,
             playerName: "…",
             position: position as DraftPickType["position"],
+            playerType,
             team: 0,
             pickNumber: state.currentPick,
             price: null,

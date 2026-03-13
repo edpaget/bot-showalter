@@ -10,7 +10,9 @@ import { SessionControls } from "./SessionControls";
 const ACTIVE_STATE: DraftStateType = {
   sessionId: 1,
   currentPick: 5,
-  picks: [{ pickNumber: 1, team: 1, playerId: 100, playerName: "Mike Trout", position: "OF", price: null }],
+  picks: [
+    { pickNumber: 1, team: 1, playerId: 100, playerName: "Mike Trout", position: "OF", playerType: "B", price: null },
+  ],
   format: "snake",
   teams: 12,
   userTeam: 1,

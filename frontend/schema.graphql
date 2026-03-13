@@ -96,6 +96,7 @@ type DraftPickType {
   playerId: Int!
   playerName: String!
   position: Position!
+  playerType: String!
   price: Int
 }
 

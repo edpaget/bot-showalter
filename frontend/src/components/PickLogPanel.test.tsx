@@ -5,9 +5,9 @@ import type { DraftPickType } from "../generated/graphql";
 import { PickLogPanel } from "./PickLogPanel";
 
 const PICKS: DraftPickType[] = [
-  { pickNumber: 1, team: 1, playerId: 100, playerName: "Mike Trout", position: "OF", price: 35 },
-  { pickNumber: 2, team: 2, playerId: 200, playerName: "Gerrit Cole", position: "SP", price: 28 },
-  { pickNumber: 3, team: 1, playerId: 300, playerName: "Aaron Judge", position: "OF", price: 32 },
+  { pickNumber: 1, team: 1, playerId: 100, playerName: "Mike Trout", position: "OF", playerType: "B", price: 35 },
+  { pickNumber: 2, team: 2, playerId: 200, playerName: "Gerrit Cole", position: "SP", playerType: "P", price: 28 },
+  { pickNumber: 3, team: 1, playerId: 300, playerName: "Aaron Judge", position: "OF", playerType: "B", price: 32 },
 ];
 
 describe("PickLogPanel", () => {

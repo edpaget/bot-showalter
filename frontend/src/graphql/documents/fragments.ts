@@ -8,6 +8,7 @@ export const PICK_RESULT_FRAGMENT = gql`
       playerId
       playerName
       position
+      playerType
       price
     }
     state {
@@ -19,6 +20,7 @@ export const PICK_RESULT_FRAGMENT = gql`
         playerId
         playerName
         position
+        playerType
         price
       }
       format
@@ -50,6 +52,7 @@ export const PICK_RESULT_FRAGMENT = gql`
       playerId
       playerName
       position
+      playerType
       price
     }
     needs {

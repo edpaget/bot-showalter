@@ -4,8 +4,8 @@ import type { DraftPickType, KeeperInfoType, RosterSlotType } from "../generated
 import { RosterPanel } from "./RosterPanel";
 
 const ROSTER: DraftPickType[] = [
-  { pickNumber: 1, team: 1, playerId: 100, playerName: "Mike Trout", position: "OF", price: null },
-  { pickNumber: 5, team: 1, playerId: 200, playerName: "Gerrit Cole", position: "SP", price: null },
+  { pickNumber: 1, team: 1, playerId: 100, playerName: "Mike Trout", position: "OF", playerType: "B", price: null },
+  { pickNumber: 5, team: 1, playerId: 200, playerName: "Gerrit Cole", position: "SP", playerType: "P", price: null },
 ];
 
 const NEEDS: RosterSlotType[] = [
@@ -35,7 +35,7 @@ describe("RosterPanel", () => {
 
   it("shows budget in auction format", () => {
     const auctionRoster: DraftPickType[] = [
-      { pickNumber: 1, team: 1, playerId: 100, playerName: "Mike Trout", position: "OF", price: 35 },
+      { pickNumber: 1, team: 1, playerId: 100, playerName: "Mike Trout", position: "OF", playerType: "B", price: 35 },
     ];
     render(<RosterPanel roster={auctionRoster} keepers={[]} needs={NEEDS} budgetRemaining={225} format="auction" />);
     expect(screen.getByText("Budget: $225")).toBeInTheDocument();
@@ -49,7 +49,7 @@ describe("RosterPanel", () => {
 
   it("shows price next to player name in auction", () => {
     const auctionRoster: DraftPickType[] = [
-      { pickNumber: 1, team: 1, playerId: 100, playerName: "Mike Trout", position: "OF", price: 35 },
+      { pickNumber: 1, team: 1, playerId: 100, playerName: "Mike Trout", position: "OF", playerType: "B", price: 35 },
     ];
     render(<RosterPanel roster={auctionRoster} keepers={[]} needs={[]} budgetRemaining={225} format="auction" />);
     expect(screen.getByText("Mike Trout ($35)")).toBeInTheDocument();

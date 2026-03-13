@@ -36,6 +36,7 @@ export const START_SESSION = gql`
         playerId
         playerName
         position
+        playerType
         price
       }
       format
@@ -134,6 +135,7 @@ export const TRADE_PICKS = gql`
         playerId
         playerName
         position
+        playerType
         price
       }
       format
@@ -164,6 +166,7 @@ export const UNDO_TRADE = gql`
         playerId
         playerName
         position
+        playerType
         price
       }
       format

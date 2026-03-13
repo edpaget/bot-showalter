@@ -41,5 +41,6 @@ class DraftSessionPick:
     player_id: int
     player_name: str
     position: str
+    player_type: str = ""
     price: int | None = None
     id: int | None = None

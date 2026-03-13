@@ -200,6 +200,7 @@ class DraftPickType:
     player_id: int
     player_name: str
     position: Position
+    player_type: str
     price: int | None
 
     @staticmethod
@@ -209,6 +210,7 @@ class DraftPickType:
             team=pick.team,
             player_id=pick.player_id,
             player_name=pick.player_name,
+            player_type=pick.player_type,
             position=position_from_raw(pick.position),
             price=pick.price,
         )
