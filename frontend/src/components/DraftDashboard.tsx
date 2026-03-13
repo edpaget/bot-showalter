@@ -211,13 +211,26 @@ export function DraftDashboard({ season = 2026 }: { season?: number }) {
   const handleDraft = useCallback(
     async (playerId: number, position: string, playerType: string) => {
       if (!ctx.sessionId) return;
+      // Save state before optimistic update so we can roll back on error
+      const prevState = ctx.state;
+      const prevRecs = ctx.recommendations;
       // Optimistically mark player as drafted so the board updates instantly
       ctx.addOptimisticPick(playerId, position, playerType);
-      const result = await pickMutation({
-        variables: { sessionId: ctx.sessionId, playerId, position, playerType },
-      });
-      if (result.data) {
-        ctx.applyPickResult(result.data.pick);
+      try {
+        const result = await pickMutation({
+          variables: { sessionId: ctx.sessionId, playerId, position, playerType },
+        });
+        if (result.data) {
+          ctx.applyPickResult(result.data.pick);
+        } else {
+          // Roll back optimistic update on GraphQL error
+          ctx.setState(prevState);
+          ctx.setRecommendations(prevRecs);
+        }
+      } catch {
+        // Roll back optimistic update on network error
+        ctx.setState(prevState);
+        ctx.setRecommendations(prevRecs);
       }
     },
     [ctx, pickMutation],

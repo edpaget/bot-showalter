@@ -134,7 +134,10 @@ class DraftEngine:
                     pool_key = key
                     break
         if pool_key is None or pool_key not in state.available_pool:
-            msg = f"Player {player_id} is not in the available pool"
+            # Include available types for this player to aid debugging
+            available_types = [ptype for pid, ptype in state.available_pool if pid == player_id]
+            type_hint = f" (requested type={player_type!r}, available types={available_types})" if player_type else ""
+            msg = f"Player {player_id} is not in the available pool{type_hint}"
             raise DraftError(msg)
 
         # Position slot validation
