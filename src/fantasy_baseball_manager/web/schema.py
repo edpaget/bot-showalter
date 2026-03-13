@@ -1,3 +1,5 @@
+import datetime
+import logging
 from collections.abc import AsyncGenerator, Callable  # noqa: TC003 — Strawberry resolves annotations at runtime
 from typing import TYPE_CHECKING, cast
 
@@ -7,9 +9,11 @@ from strawberry.types import Info  # noqa: TC002 — Strawberry needs this at ru
 from fantasy_baseball_manager.domain import (
     ArbitrageReport,
     DraftBoard,
+    LeagueKeeper,
     Position,
     TierAssignment,
     YahooDraftSetupInfo,
+    YahooTeam,
     position_from_raw,
 )
 from fantasy_baseball_manager.services import (
@@ -76,6 +80,69 @@ from fantasy_baseball_manager.yahoo.roster_source import YahooRosterSource
 if TYPE_CHECKING:
     from fantasy_baseball_manager.web.app import AppContext
     from fantasy_baseball_manager.web.session_manager import SessionManager
+
+
+def _sync_current_season_keepers(
+    ctx: AppContext,
+    league_key: str,
+    season: int,
+    league_name: str,
+    teams: list[YahooTeam],
+) -> list[int]:
+    """Fetch current-season rosters from Yahoo and return keeper player IDs.
+
+    By draft time, teams have already set their keepers on Yahoo.
+    Players on the current-season rosters ARE the designated keepers.
+    Writes keeper designations to the league_keeper table so the
+    session manager can look up team names and costs.
+    """
+    yahoo_ctx = ctx.yahoo_web_context
+    if yahoo_ctx is None:
+        return []
+
+    roster_source = YahooRosterSource(yahoo_ctx.client, yahoo_ctx.player_mapper, roster_repo=ctx.yahoo_roster_repo)
+    today = datetime.date.today()
+
+    # Build cost lookup from keeper_cost table
+    costs = ctx.container.keeper_cost_repo.find_by_season_league(season, league_name)
+    cost_lookup = {kc.player_id: kc.cost for kc in costs}
+
+    keeper_player_ids: list[int] = []
+    league_keepers: list[LeagueKeeper] = []
+
+    for team in teams:
+        try:
+            roster = roster_source.fetch_team_roster(
+                team_key=team.team_key,
+                league_key=league_key,
+                season=season,
+                as_of=today,
+            )
+        except Exception:  # noqa: BLE001
+            logging.getLogger(__name__).warning("Failed to fetch roster for %s", team.team_key, exc_info=True)
+            continue
+        for entry in roster.entries:
+            if entry.player_id is None:
+                continue
+            keeper_player_ids.append(entry.player_id)
+            league_keepers.append(
+                LeagueKeeper(
+                    player_id=entry.player_id,
+                    season=season,
+                    league=league_name,
+                    team_name=team.name,
+                    cost=cost_lookup.get(entry.player_id),
+                    source="yahoo_roster",
+                )
+            )
+
+    # Persist to league_keeper table for the session manager's snapshot builder
+    if league_keepers:
+        ctx.container.league_keeper_repo.upsert_batch(league_keepers)
+        with yahoo_ctx.provider.connection() as conn:
+            conn.commit()
+
+    return keeper_player_ids
 
 
 def _get_context(info: Info) -> AppContext:
@@ -792,15 +859,16 @@ class Query:
         else:
             draft_format = "live"
 
-        # Look up keeper data
+        # Look up keeper data from current-season Yahoo rosters.
+        # By draft time, teams have already set their keepers on Yahoo,
+        # so players on 2026 rosters ARE the designated keepers.
         keeper_player_ids: list[int] = []
         max_keepers: int | None = None
         if league.is_keeper:
             yahoo_ctx = ctx.yahoo_web_context
             if yahoo_ctx is not None and yahoo_ctx.league_config.max_keepers is not None:
                 max_keepers = yahoo_ctx.league_config.max_keepers
-            costs = ctx.container.keeper_cost_repo.find_by_season_league(season, league.name)
-            keeper_player_ids = [c.player_id for c in costs]
+            keeper_player_ids = _sync_current_season_keepers(ctx, league_key, season, league.name, teams)
 
         setup = YahooDraftSetupInfo(
             num_teams=league.num_teams,
