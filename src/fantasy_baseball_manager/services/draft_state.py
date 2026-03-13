@@ -88,6 +88,19 @@ class DraftEngine:
         )
         return self._state
 
+    def load_keepers(self, keepers: list[DraftPick]) -> None:
+        """Pre-populate the user's roster with keeper entries.
+
+        Keepers are added to team_rosters but NOT to picks or current_pick,
+        so they fill roster slots and appear in my_roster()/my_needs() without
+        counting as draft picks.  Budget is reduced for auction formats.
+        """
+        state = self._require_state()
+        for keeper in keepers:
+            state.team_rosters[keeper.team].append(keeper)
+            if state.config.format == DraftFormat.AUCTION and keeper.price is not None:
+                state.team_budgets[keeper.team] -= keeper.price
+
     def pick(
         self,
         player_id: int,

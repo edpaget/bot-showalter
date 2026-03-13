@@ -10,9 +10,11 @@ interface RosterPanelProps {
 }
 
 export function RosterPanel({ roster, keepers, needs, budgetRemaining, format }: RosterPanelProps) {
-  const totalValue = roster.reduce((sum, p) => sum + (p.price ?? 0), 0);
+  const keeperIds = new Set(keepers.map((k) => k.playerId));
+  const draftedOnly = roster.filter((p) => !keeperIds.has(p.playerId));
+  const totalValue = draftedOnly.reduce((sum, p) => sum + (p.price ?? 0), 0);
   const keeperPositions = keepers.map((k) => k.position);
-  const allPositions = [...needs.map((n) => n.position), ...roster.map((p) => p.position), ...keeperPositions];
+  const allPositions = [...needs.map((n) => n.position), ...draftedOnly.map((p) => p.position), ...keeperPositions];
   const uniquePositions = [...new Set(allPositions)];
 
   return (
@@ -20,7 +22,7 @@ export function RosterPanel({ roster, keepers, needs, budgetRemaining, format }:
       <h3 className="text-sm font-semibold mb-2">Roster</h3>
       <div className="space-y-1 text-xs">
         {uniquePositions.map((pos) => {
-          const filled = roster.filter((p) => p.position === pos);
+          const filled = draftedOnly.filter((p) => p.position === pos);
           const kept = keepers.filter((k) => k.position === pos);
           const need = needs.find((n) => n.position === pos);
           const remaining = need?.remaining ?? 0;
@@ -54,7 +56,7 @@ export function RosterPanel({ roster, keepers, needs, budgetRemaining, format }:
         })}
       </div>
       <div className="mt-2 pt-2 border-t border-gray-100 text-xs text-gray-600 flex gap-4">
-        <span>Players: {roster.length + keepers.length}</span>
+        <span>Players: {draftedOnly.length + keepers.length}</span>
         {format === "auction" && budgetRemaining != null && <span>Budget: ${budgetRemaining}</span>}
         {format === "auction" && <span>Spent: ${totalValue}</span>}
       </div>

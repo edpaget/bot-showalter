@@ -489,10 +489,10 @@ class Query:
         engine = mgr.get_engine(session_id)
 
         roster = engine.my_roster()
-        if not roster:
+        roster_ids = [p.player_id for p in roster]
+        if not roster_ids:
             return []
 
-        roster_ids = [p.player_id for p in roster]
         projections = ctx.container.projection_repo.get_by_season(engine.state.config.season)
         analysis = analyze_roster(roster_ids, projections, ctx.league)
         return [CategoryBalanceType.from_domain(p) for p in analysis.projections]
@@ -509,10 +509,10 @@ class Query:
         engine = mgr.get_engine(session_id)
 
         roster = engine.my_roster()
-        if not roster:
+        roster_ids = [p.player_id for p in roster]
+        if not roster_ids:
             return []
 
-        roster_ids = [p.player_id for p in roster]
         available_rows = engine.available()
         available_ids = [r.player_id for r in available_rows]
         projections = ctx.container.projection_repo.get_by_season(engine.state.config.season)

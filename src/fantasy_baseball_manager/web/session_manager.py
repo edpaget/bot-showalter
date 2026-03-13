@@ -54,6 +54,24 @@ class DraftSessionSummary:
     pick_count: int
 
 
+def _keeper_picks_from_snapshot(snapshot: list[dict[str, object]], team: int) -> list[DraftPick]:
+    """Convert keeper snapshot dicts to DraftPick entries for engine loading."""
+    picks: list[DraftPick] = []
+    for k in snapshot:
+        cost = k.get("cost")
+        picks.append(
+            DraftPick(
+                pick_number=0,
+                team=team,
+                player_id=int(str(k["player_id"])),
+                player_name=str(k["player_name"]),
+                position=str(k["position"]),
+                price=int(float(str(cost))) if cost is not None else None,
+            )
+        )
+    return picks
+
+
 class SessionManager:
     def __init__(
         self,
@@ -125,6 +143,10 @@ class SessionManager:
         engine = DraftEngine()
         engine.start(players, config)
 
+        # Pre-populate user's roster with keepers so my_roster()/my_needs() include them
+        if keeper_snapshot:
+            engine.load_keepers(_keeper_picks_from_snapshot(keeper_snapshot, user_team))
+
         now = datetime.now(tz=UTC).isoformat()
         record = DraftSessionRecord(
             league=self._league.name,
@@ -160,6 +182,11 @@ class SessionManager:
         keeper_ids = set(record.keeper_player_ids) if record.keeper_player_ids else None
         players = self._build_player_pool(record.season, record.system, record.version, keeper_player_ids=keeper_ids)
         engine = load_draft_from_db(session_id, players, self._repo)
+
+        # Re-load keepers into the engine so my_roster()/my_needs() include them
+        if record.keeper_snapshot:
+            engine.load_keepers(_keeper_picks_from_snapshot(record.keeper_snapshot, record.user_team))
+
         self._engines[session_id] = engine
         return engine
 
