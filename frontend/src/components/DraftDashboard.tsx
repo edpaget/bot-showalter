@@ -134,6 +134,7 @@ export function DraftDashboard({ season = 2026 }: { season?: number }) {
       keeperPlayerIds?: number[];
       leagueKey?: string;
       teamNames?: Record<string, string>;
+      draftOrder?: number[];
     }) => {
       const result = await startSession({
         variables: {
@@ -145,6 +146,7 @@ export function DraftDashboard({ season = 2026 }: { season?: number }) {
           keeperPlayerIds: config.keeperPlayerIds,
           leagueKey: config.leagueKey,
           teamNames: config.teamNames,
+          draftOrder: config.draftOrder,
         },
       });
       if (result.data) {

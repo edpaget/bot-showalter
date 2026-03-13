@@ -332,6 +332,7 @@ class DraftStateType:
     keeper_count: int
     trades: list[DraftTradeType]
     team_names: strawberry.scalars.JSON | None = None
+    draft_order: list[int] | None = None
 
     @staticmethod
     def from_state(
@@ -354,6 +355,7 @@ class DraftStateType:
             keeper_count=keeper_count,
             trades=[DraftTradeType.from_domain(t) for t in (trades or [])],
             team_names=cast("Any", team_names) if team_names else None,
+            draft_order=list(state.config.draft_order) if state.config.draft_order else None,
         )
 
 

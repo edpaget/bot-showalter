@@ -29,6 +29,21 @@ mutation StartSession($season: Int!) {
         format
         teams
         userTeam
+        draftOrder
+    }
+}
+"""
+
+_START_WITH_DRAFT_ORDER = """
+mutation StartSession($season: Int!, $draftOrder: [Int!]) {
+    startSession(season: $season, teams: 3, userTeam: 1, format: "snake", draftOrder: $draftOrder) {
+        sessionId
+        currentPick
+        picks { pickNumber }
+        format
+        teams
+        userTeam
+        draftOrder
     }
 }
 """
@@ -754,3 +769,18 @@ def test_evaluate_trade_query(session_client: TestClient) -> None:
     assert data["givesDetail"][0]["pickNumber"] == 1
     assert len(data["receivesDetail"]) == 1
     assert data["receivesDetail"][0]["pickNumber"] == 10
+
+
+def test_start_session_with_draft_order(session_client: TestClient) -> None:
+    result = _gql(session_client, _START_WITH_DRAFT_ORDER, {"season": 2026, "draftOrder": [3, 2, 1]})
+    assert "errors" not in result, result.get("errors")
+    data = result["data"]["startSession"]
+    assert data["draftOrder"] == [3, 2, 1]
+    assert data["teams"] == 3
+
+
+def test_start_session_without_draft_order(session_client: TestClient) -> None:
+    result = _gql(session_client, _START_MUTATION, {"season": 2026})
+    assert "errors" not in result, result.get("errors")
+    data = result["data"]["startSession"]
+    assert data["draftOrder"] is None

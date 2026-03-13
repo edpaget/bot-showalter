@@ -17,6 +17,7 @@ const ACTIVE_STATE: DraftStateType = {
   budgetRemaining: null,
   keeperCount: 0,
   teamNames: null,
+  draftOrder: null,
   trades: [],
 };
 
@@ -115,6 +116,7 @@ describe("SessionControls", () => {
       userTeam: 1,
       budget: undefined,
       keeperPlayerIds: undefined,
+      draftOrder: undefined,
     });
   });
 

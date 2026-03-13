@@ -338,6 +338,9 @@ def draft_start(  # pragma: no cover
     budget: Annotated[int, typer.Option("--budget", help="Auction budget per team")] = 260,
     resume: Annotated[Path | None, typer.Option("--resume", help="Resume from saved draft file")] = None,
     session_id: Annotated[int | None, typer.Option("--session-id", help="Resume a specific DB session by ID")] = None,
+    draft_order_str: Annotated[
+        str | None, typer.Option("--draft-order", help="Comma-separated team IDs in pick order")
+    ] = None,
     mock_plan: Annotated[
         bool, typer.Option("--mock-plan", help="Pre-run mock sims for plan-informed recommendations")
     ] = False,
@@ -368,6 +371,7 @@ def draft_start(  # pragma: no cover
     roster_slots = build_draft_roster_slots(league)
 
     draft_format = DraftFormat(fmt)
+    draft_order = [int(x) for x in draft_order_str.split(",")] if draft_order_str else None
     config = DraftConfig(
         teams=teams,
         roster_slots=roster_slots,
@@ -375,6 +379,7 @@ def draft_start(  # pragma: no cover
         user_team=slot,
         season=season,
         budget=budget if draft_format == DraftFormat.AUCTION else 0,
+        draft_order=draft_order,
     )
 
     db_conn = create_connection(Path(data_dir) / "fbm.db")

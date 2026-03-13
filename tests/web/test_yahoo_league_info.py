@@ -562,3 +562,15 @@ class TestYahooDraftSetupQuery:
         body = response.json()
         assert "errors" in body
         assert "not been synced" in body["errors"][0]["message"]
+
+    def test_returns_draft_order_from_prior_standings(self, yahoo_keeper_with_standings_client: TestClient) -> None:
+        response = yahoo_keeper_with_standings_client.post(
+            "/graphql",
+            json={"query": self._QUERY, "variables": {"leagueKey": "449.l.12345", "season": 2026}},
+        )
+        assert response.status_code == 200
+        body = response.json()
+        assert "errors" not in body, body.get("errors")
+        data = body["data"]["yahooDraftSetup"]
+        # Reversed standings: rank 2 (team 2) picks first, rank 1 (team 1) picks second
+        assert data["draftOrder"] == [2, 1]

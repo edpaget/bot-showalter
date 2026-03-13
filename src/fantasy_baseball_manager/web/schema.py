@@ -802,12 +802,26 @@ class Query:
             league_keepers = ctx.container.league_keeper_repo.find_by_season_league(season, ctx.league.name)
             keeper_player_ids = [lk.player_id for lk in league_keepers]
 
+        # Derive draft order from previous-season standings (last place picks first)
+        draft_order: list[int] = []
+        if league.is_keeper:
+            stats_repo = ctx.yahoo_team_stats_repo
+            if stats_repo is not None:
+                try:
+                    prior_league_key, _prior_game_key = _resolve_prior_league_key(ctx, league_key, season)
+                    prior_stats = stats_repo.get_by_league_season(prior_league_key, season - 1)
+                    if prior_stats:
+                        # Reverse standings: last place picks first
+                        draft_order = [int(s.team_key.rsplit(".", 1)[1]) for s in reversed(prior_stats)]
+                except ValueError, AssertionError:
+                    pass  # No prior league data available — fall back to empty
+
         setup = YahooDraftSetupInfo(
             num_teams=league.num_teams,
             draft_format=draft_format,
             user_team_id=user_team.team_id,
             team_names=team_names,
-            draft_order=[],
+            draft_order=draft_order,
             is_keeper=league.is_keeper,
             max_keepers=max_keepers,
             keeper_player_ids=keeper_player_ids,
@@ -884,6 +898,7 @@ class Mutation:
         keeper_player_ids: list[int] | None = None,
         league_key: str | None = None,
         team_names: strawberry.scalars.JSON | None = None,
+        draft_order: list[int] | None = None,
     ) -> DraftStateType:
         ctx = _get_context(info)
         system = system or ctx.default_system
@@ -903,6 +918,7 @@ class Mutation:
             keeper_player_ids=set(keeper_player_ids) if keeper_player_ids else None,
             league_key=league_key,
             team_names=parsed_team_names,
+            draft_order=draft_order,
         )
         await ctx.event_bus.publish(
             session_id,

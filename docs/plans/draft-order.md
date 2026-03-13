@@ -7,7 +7,7 @@ Custom draft order support so snake drafts respect the actual pick order rather 
 | Phase | Status |
 |-------|--------|
 | 1 — Domain & engine support | done (2026-03-12) |
-| 2 — CLI + web wiring | not started |
+| 2 — CLI + web wiring | done (2026-03-12) |
 
 ## Phase 1: Domain & engine support
 

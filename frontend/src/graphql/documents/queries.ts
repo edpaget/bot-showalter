@@ -71,6 +71,7 @@ export const SESSION_QUERY = gql`
       budgetRemaining
       keeperCount
       teamNames
+      draftOrder
       trades {
         teamA
         teamB

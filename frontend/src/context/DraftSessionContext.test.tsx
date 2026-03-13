@@ -31,6 +31,7 @@ function TestConsumer() {
             budgetRemaining: null,
             keeperCount: 0,
             teamNames: null,
+            draftOrder: null,
             trades: [],
           };
           ctx.setState(state);

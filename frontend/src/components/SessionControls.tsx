@@ -18,6 +18,7 @@ interface SessionControlsProps {
     keeperPlayerIds?: number[];
     leagueKey?: string;
     teamNames?: Record<string, string>;
+    draftOrder?: number[];
   }) => void;
   onResume: (sessionId: number) => void;
   onUndo: () => void;
@@ -53,6 +54,8 @@ export function SessionControls({
   const [userTeam, setUserTeam] = useState(1);
   const [budget, setBudget] = useState(260);
   const [keeperPlayerIds, setKeeperPlayerIds] = useState<number[]>([]);
+  const [draftOrder, setDraftOrder] = useState<number[] | undefined>(undefined);
+  const [draftOrderText, setDraftOrderText] = useState("");
   const [prefilled, setPrefilled] = useState(false);
   const [prefillError, setPrefillError] = useState(false);
   const [prefillTeamNames, setPrefillTeamNames] = useState<Record<string, string> | undefined>(undefined);
@@ -78,6 +81,10 @@ export function SessionControls({
       setKeeperPlayerIds(setup.keeperPlayerIds);
       if (setup.teamNames) {
         setPrefillTeamNames(setup.teamNames as Record<string, string>);
+      }
+      if (setup.draftOrder.length > 0) {
+        setDraftOrder(setup.draftOrder);
+        setDraftOrderText(setup.draftOrder.join(","));
       }
       setPrefilled(true);
     });
@@ -196,6 +203,25 @@ export function SessionControls({
             />
           </div>
         )}
+        {format === "snake" && (
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">Draft Order</label>
+            <input
+              type="text"
+              value={draftOrderText}
+              onChange={(e) => {
+                setDraftOrderText(e.target.value);
+                const parsed = e.target.value
+                  .split(",")
+                  .map((s) => Number.parseInt(s.trim(), 10))
+                  .filter((n) => !Number.isNaN(n));
+                setDraftOrder(parsed.length > 0 ? parsed : undefined);
+              }}
+              placeholder="e.g. 12,11,10,...,1"
+              className="border border-gray-300 rounded px-2 py-1 text-sm w-48"
+            />
+          </div>
+        )}
         <button
           type="button"
           disabled={loading}
@@ -209,6 +235,7 @@ export function SessionControls({
               keeperPlayerIds: keeperPlayerIds.length > 0 ? keeperPlayerIds : undefined,
               leagueKey: yahooLeague?.leagueKey,
               teamNames: prefillTeamNames,
+              draftOrder: format === "snake" ? draftOrder : undefined,
             })
           }
           className="px-4 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"

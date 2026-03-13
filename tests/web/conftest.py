@@ -655,3 +655,81 @@ def yahoo_keeper_client() -> TestClient:
         yahoo_league_info=yahoo_league_info,
     )
     return TestClient(app)
+
+
+@pytest.fixture
+def yahoo_keeper_with_standings_client() -> TestClient:
+    """Yahoo keeper client with prior-season standings for draft order derivation."""
+    provider = _make_provider()
+    _seed_keeper_yahoo_data(provider)
+    container = AnalysisContainer(provider)
+    yahoo_team_repo = SqliteYahooTeamRepo(provider)
+    yahoo_roster_repo = SqliteYahooRosterRepo(provider)
+    yahoo_team_stats_repo = SqliteYahooTeamStatsRepo(provider)
+    league_repo = SqliteYahooLeagueRepo(provider)
+
+    # Seed prior-season standings (448.l.12345, season 2025)
+    standings = [
+        TeamSeasonStats(
+            team_key="448.l.12345.t.1",
+            league_key="448.l.12345",
+            season=2025,
+            team_name="Dynasty Kings",
+            final_rank=1,
+            stat_values={"HR": 250.0},
+        ),
+        TeamSeasonStats(
+            team_key="448.l.12345.t.2",
+            league_key="448.l.12345",
+            season=2025,
+            team_name="Rival Squad",
+            final_rank=2,
+            stat_values={"HR": 220.0},
+        ),
+    ]
+    for s in standings:
+        yahoo_team_stats_repo.upsert(s)
+    with provider.connection() as conn:
+        conn.commit()
+
+    league_config = YahooLeagueConfig(
+        name="default",
+        league_id=12345,
+        keeper=True,
+        keeper_format="best_n",
+        max_keepers=5,
+    )
+
+    yahoo_web_context = YahooWebContext(
+        client=FakeYahooFantasyClient(),  # type: ignore[arg-type]
+        player_mapper=FakeYahooPlayerMapper(),  # type: ignore[arg-type]
+        league_repo=league_repo,
+        league_name="default",
+        league_config=league_config,
+        provider=provider,
+    )
+
+    yahoo_league_info = YahooLeagueInfo(
+        league_key="449.l.12345",
+        league_name="Test Fantasy League",
+        season=2026,
+        num_teams=12,
+        is_keeper=True,
+        max_keepers=5,
+        user_team_name="Dynasty Kings",
+    )
+
+    app = create_app(
+        container,
+        _LEAGUE,
+        default_system="zar",
+        default_version="1.0",
+        web_config=WebConfig(),
+        yahoo_web_context=yahoo_web_context,
+        yahoo_league_repo=league_repo,
+        yahoo_team_repo=yahoo_team_repo,
+        yahoo_team_stats_repo=yahoo_team_stats_repo,
+        yahoo_roster_repo=yahoo_roster_repo,
+        yahoo_league_info=yahoo_league_info,
+    )
+    return TestClient(app)

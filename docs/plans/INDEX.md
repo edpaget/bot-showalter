@@ -7,7 +7,6 @@ Overview of all roadmaps, their status, and cross-roadmap dependencies.
 | Roadmap | Phases | Progress | Hard Dependencies |
 |---------|--------|----------|-------------------|
 | [Composite GBM Tuning](composite-gbm-tuning.md) | 7 | phase 2 done | none |
-| [Draft Order](draft-order.md) | 2 | phase 1 done | none |
 | [K8s Deployment](k8s-deployment.md) | 4 | not started | none |
 | [NPB/KBO Ingest](npb-kbo-ingest.md) | 6 | not started | none |
 | [Schedule Matchup Analyzer](schedule-matchup-analyzer.md) | 4 | not started | none |
@@ -18,6 +17,7 @@ Overview of all roadmaps, their status, and cross-roadmap dependencies.
 
 | Roadmap | Phases |
 |---------|--------|
+| [Draft Order](draft-order.md) | 2 |
 | [Yahoo Draft Init](yahoo-draft-init.md) | 3 |
 | [Yahoo Draft Init Fixes](yahoo-draft-init-fixes.md) | 2 |
 | [SGP Overhaul](sgp-overhaul.md) | 4 |
