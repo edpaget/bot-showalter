@@ -11,8 +11,7 @@ from fantasy_baseball_manager.cli._defaults import _DataDirOpt, load_cli_default
 from fantasy_baseball_manager.cli.factory import build_breakout_bust_report_context
 from fantasy_baseball_manager.config_league import load_league
 from fantasy_baseball_manager.config_yahoo import load_yahoo_config
-from fantasy_baseball_manager.db.connection import create_connection
-from fantasy_baseball_manager.db.pool import SingleConnectionProvider
+from fantasy_baseball_manager.db.pool import ConnectionPool
 from fantasy_baseball_manager.domain import BreakoutPrediction, LeagueSettings, Valuation, YahooLeagueInfo
 from fantasy_baseball_manager.models import ModelConfig
 from fantasy_baseball_manager.repos import (
@@ -41,6 +40,8 @@ logger = logging.getLogger(__name__)
 def _make_valuation_adjuster(
     container: AnalysisContainer,
     league: LeagueSettings,
+    projection_system: str,
+    projection_version: str,
 ) -> callable:  # type: ignore[type-arg]
     """Build a ValuationAdjuster-compatible callable for keeper-adjusted draft pools."""
     eligibility = PlayerEligibilityService(
@@ -49,7 +50,8 @@ def _make_valuation_adjuster(
     )
 
     def adjust(kept_ids: set[int], valuations: list[Valuation], season: int) -> list[Valuation]:
-        projections = container.projection_repo.get_by_season(season)
+        all_projs = container.projection_repo.get_by_season(season, projection_system)
+        projections = [p for p in all_projs if p.version == projection_version]
         batter_positions = eligibility.get_batter_positions(season, league)
         pitcher_projs = [p for p in projections if p.player_type == "pitcher"]
         pitcher_ids = [p.player_id for p in pitcher_projs]
@@ -113,9 +115,8 @@ def web(  # pragma: no cover
     if version is None:
         version = defaults.version
     league = load_league(league_name, Path.cwd())
-    conn = create_connection(Path(data_dir) / "fbm.db")
-    provider = SingleConnectionProvider(conn)
-    container = AnalysisContainer(provider)
+    pool = ConnectionPool(Path(data_dir) / "fbm.db")
+    container = AnalysisContainer(pool)
 
     event_bus = EventBus()
 
@@ -130,8 +131,8 @@ def web(  # pragma: no cover
         proj_system = "ensemble"
         proj_version = "production"
 
-    session_repo = SqliteDraftSessionRepo(provider)
-    valuation_adjuster = _make_valuation_adjuster(container, league)
+    session_repo = SqliteDraftSessionRepo(pool)
+    valuation_adjuster = _make_valuation_adjuster(container, league, proj_system, proj_version)
     session_manager = SessionManager(
         session_repo=session_repo,
         valuation_repo=container.valuation_repo,
@@ -216,13 +217,13 @@ def web(  # pragma: no cover
         yahoo_config = load_yahoo_config(Path(yahoo_config_dir))
         auth = YahooAuth(yahoo_config.client_id, yahoo_config.client_secret)
         client = YahooFantasyClient(auth)
-        player_map_repo = SqliteYahooPlayerMapRepo(provider)
+        player_map_repo = SqliteYahooPlayerMapRepo(pool)
         player_mapper = YahooPlayerMapper(player_map_repo, container.player_repo)
         draft_source = YahooDraftSource(client, player_mapper)
-        team_repo = SqliteYahooTeamRepo(provider)
+        team_repo = SqliteYahooTeamRepo(pool)
         yahoo_team_repo = team_repo
-        yahoo_team_stats_repo = SqliteYahooTeamStatsRepo(provider)
-        yahoo_roster_repo = SqliteYahooRosterRepo(provider)
+        yahoo_team_stats_repo = SqliteYahooTeamStatsRepo(pool)
+        yahoo_roster_repo = SqliteYahooRosterRepo(pool)
 
         yahoo_poller_manager = YahooPollerManager(
             _draft_source=draft_source,
@@ -232,7 +233,7 @@ def web(  # pragma: no cover
         )
 
         # Build league info snapshot from DB
-        league_repo = SqliteYahooLeagueRepo(provider)
+        league_repo = SqliteYahooLeagueRepo(pool)
         yahoo_league_repo = league_repo
         league_config = yahoo_config.leagues.get(league_name)
         if league_config is not None:
@@ -262,7 +263,7 @@ def web(  # pragma: no cover
                 league_repo=league_repo,
                 league_name=league_name,
                 league_config=league_config,
-                provider=provider,
+                provider=pool,
             )
 
     keeper_planner_ref = KeeperPlannerRef(planner=keeper_planner)
