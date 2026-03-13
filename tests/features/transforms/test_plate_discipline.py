@@ -37,11 +37,13 @@ class TestPlateDisciplineProfile:
         assert result["swinging_strike_pct"] == pytest.approx(20.0)
         # called_strike: 1 / 5 total pitches = 20%
         assert result["called_strike_pct"] == pytest.approx(20.0)
+        # ooz_take: 1 take out of zone / 2 pitches outside zone = 50%
+        assert result["ooz_take_rate"] == pytest.approx(50.0)
 
     def test_empty_rows(self) -> None:
         result = plate_discipline_profile([])
         assert all(math.isnan(v) for v in result.values())
-        assert len(result) == 5
+        assert len(result) == 6
 
     def test_all_in_zone_called_strikes(self) -> None:
         rows = [
@@ -54,6 +56,8 @@ class TestPlateDisciplineProfile:
         assert math.isnan(result["whiff_rate"])
         assert result["swinging_strike_pct"] == pytest.approx(0.0)
         assert result["called_strike_pct"] == pytest.approx(100.0)
+        # No OOZ pitches → NaN
+        assert math.isnan(result["ooz_take_rate"])
 
     def test_no_swings(self) -> None:
         rows = [
@@ -64,6 +68,8 @@ class TestPlateDisciplineProfile:
         assert result["chase_rate"] == pytest.approx(0.0)
         assert math.isnan(result["zone_contact_pct"])
         assert math.isnan(result["whiff_rate"])
+        # ooz_take: 1 take / 1 OOZ pitch = 100%
+        assert result["ooz_take_rate"] == pytest.approx(100.0)
 
     def test_all_chases(self) -> None:
         rows = [
@@ -73,6 +79,7 @@ class TestPlateDisciplineProfile:
         result = plate_discipline_profile(rows)
         assert result["chase_rate"] == pytest.approx(100.0)
         assert result["whiff_rate"] == pytest.approx(50.0)
+        assert result["ooz_take_rate"] == pytest.approx(0.0)
 
     def test_none_zone_rows_skipped(self) -> None:
         rows = [
@@ -91,6 +98,7 @@ class TestPlateDisciplineProfile:
             "whiff_rate",
             "swinging_strike_pct",
             "called_strike_pct",
+            "ooz_take_rate",
         }
         assert set(result.keys()) == expected_keys
 
@@ -111,7 +119,7 @@ class TestPlateDisciplineTransformFeature:
         assert PLATE_DISCIPLINE.source == Source.STATCAST
 
     def test_outputs_count(self) -> None:
-        assert len(PLATE_DISCIPLINE.outputs) == 5
+        assert len(PLATE_DISCIPLINE.outputs) == 6
 
     def test_columns_exclude_unused(self) -> None:
         assert PLATE_DISCIPLINE.columns == ("zone", "description")
