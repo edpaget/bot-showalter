@@ -9,7 +9,7 @@ This roadmap fixes the keeper auto-import pipeline and surfaces team names throu
 | Phase | Status |
 |-------|--------|
 | 1 — Fix keeper auto-import repo mismatch | done (2026-03-12) |
-| 2 — Surface team names in draft sessions | in progress |
+| 2 — Surface team names in draft sessions | done (2026-03-12) |
 
 ## Phase 1: Fix keeper auto-import repo mismatch
 
