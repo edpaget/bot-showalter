@@ -15,6 +15,7 @@ class KeeperCost:
     league: str
     cost: float
     source: str
+    player_type: str | None = None
     years_remaining: int = 1
     original_round: int | None = None
     id: int | None = None
@@ -25,6 +26,7 @@ class KeeperCost:
 class KeeperDecision:
     player_id: int
     player_name: str
+    player_type: str
     position: str
     cost: float
     projected_value: float

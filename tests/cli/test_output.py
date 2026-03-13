@@ -2259,6 +2259,7 @@ class TestPrintResidualAnalysisReport:
 def _make_keeper_decision(
     player_id: int = 1,
     player_name: str = "Mike Trout",
+    player_type: str = "batter",
     position: str = "cf",
     cost: float = 10.0,
     projected_value: float = 25.0,
@@ -2269,6 +2270,7 @@ def _make_keeper_decision(
     return KeeperDecision(
         player_id=player_id,
         player_name=player_name,
+        player_type=player_type,
         position=position,
         cost=cost,
         projected_value=projected_value,

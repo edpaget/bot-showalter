@@ -498,6 +498,7 @@ def trade_impact_cmd(
                     KeeperDecision(
                         player_id=pid,
                         player_name=pname,
+                        player_type="",
                         position=pos,
                         cost=cost,
                         projected_value=value,

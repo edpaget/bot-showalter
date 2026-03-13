@@ -29,6 +29,7 @@ def _decision(
     return KeeperDecision(
         player_id=player_id,
         player_name=name or f"Player {player_id}",
+        player_type="batter",
         position=position,
         cost=cost,
         projected_value=cost + surplus,

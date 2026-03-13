@@ -1335,3 +1335,137 @@ class TestBuildKeeperDraftNeeds:
 
         # With no keepers, all projections should be zero → all weak
         assert len(analysis.projections) == 0 or all(p.projected_value == 0.0 for p in analysis.projections)
+
+
+class TestComputeSurplusTwoWayPlayer:
+    """Two-way players (same player_id, different player_type) must match correctly."""
+
+    def test_pitcher_type_uses_pitcher_valuation(self) -> None:
+        """KeeperCost with player_type='pitcher' should match pitcher valuation, not batter."""
+        players = [Player(name_first="Shohei", name_last="Ohtani", id=100)]
+        keepers = [
+            KeeperCost(player_id=100, season=2026, league="dynasty", cost=20.0, source="auction", player_type="pitcher")
+        ]
+        valuations = [
+            _valuation(100, 30.0, position="OF", player_type="batter"),
+            _valuation(100, 25.0, position="SP", player_type="pitcher"),
+        ]
+
+        result = compute_surplus(keepers, valuations, players)
+
+        assert len(result) == 1
+        assert result[0].projected_value == 25.0  # pitcher value, not batter's 30
+        assert result[0].surplus == 5.0
+        assert result[0].player_type == "pitcher"
+        assert result[0].position == "SP"
+
+    def test_no_player_type_falls_back_to_highest(self) -> None:
+        """KeeperCost without player_type should use the highest valuation."""
+        players = [Player(name_first="Shohei", name_last="Ohtani", id=100)]
+        keepers = [_keeper_cost(100, 20.0)]  # no player_type
+        valuations = [
+            _valuation(100, 30.0, position="OF", player_type="batter"),
+            _valuation(100, 25.0, position="SP", player_type="pitcher"),
+        ]
+
+        result = compute_surplus(keepers, valuations, players)
+
+        assert len(result) == 1
+        assert result[0].projected_value == 30.0  # highest = batter
+        assert result[0].player_type == "batter"
+
+    def test_player_type_propagated_to_decision(self) -> None:
+        """KeeperDecision should carry the matched valuation's player_type."""
+        players = [Player(name_first="Shohei", name_last="Ohtani", id=100)]
+        keepers = [
+            KeeperCost(player_id=100, season=2026, league="dynasty", cost=20.0, source="auction", player_type="batter")
+        ]
+        valuations = [
+            _valuation(100, 30.0, position="OF", player_type="batter"),
+            _valuation(100, 25.0, position="SP", player_type="pitcher"),
+        ]
+
+        result = compute_surplus(keepers, valuations, players)
+
+        assert result[0].player_type == "batter"
+
+
+class TestEstimateOtherKeepersTwoWayPlayer:
+    def test_two_way_player_both_entries_considered(self) -> None:
+        """Roster with both types of same player — each entry gets highest value."""
+        rosters = [
+            Roster(
+                team_key="t1",
+                league_key="449.l.100",
+                season=2025,
+                week=1,
+                as_of=datetime.date(2025, 10, 1),
+                entries=(
+                    RosterEntry(
+                        player_id=100,
+                        yahoo_player_key="449.p.100",
+                        player_name="Ohtani",
+                        position="OF",
+                        roster_status="active",
+                        acquisition_type="draft",
+                    ),
+                    RosterEntry(
+                        player_id=100,
+                        yahoo_player_key="449.p.100p",
+                        player_name="Ohtani",
+                        position="SP",
+                        roster_status="active",
+                        acquisition_type="draft",
+                    ),
+                    RosterEntry(
+                        player_id=200,
+                        yahoo_player_key="449.p.200",
+                        player_name="Other",
+                        position="SS",
+                        roster_status="active",
+                        acquisition_type="draft",
+                    ),
+                ),
+            )
+        ]
+        valuations = [
+            _valuation(100, 30.0, player_type="batter"),
+            _valuation(100, 25.0, player_type="pitcher"),
+            _valuation(200, 10.0, player_type="batter"),
+        ]
+
+        result = estimate_other_keepers(rosters, valuations, max_keepers=2)
+
+        # Top 2 by value: both Ohtani entries have value 30 (best across types),
+        # so both appear before Other's 10
+        assert 100 in result
+
+
+class TestEvaluateTradeTwoWayPlayer:
+    def test_uses_highest_valuation_for_two_way_player(self) -> None:
+        """Trade involving a two-way player should use the highest value across types."""
+        players = [
+            Player(name_first="Shohei", name_last="Ohtani", id=100),
+            Player(name_first="Other", name_last="Player", id=200),
+        ]
+        keeper_costs = [_keeper_cost(100, 20.0), _keeper_cost(200, 10.0)]
+        valuations = [
+            _valuation(100, 30.0, player_type="batter"),
+            _valuation(100, 25.0, player_type="pitcher"),
+            _valuation(200, 20.0, player_type="batter"),
+        ]
+
+        result = evaluate_trade(
+            team_a_gives=[100],
+            team_b_gives=[200],
+            keeper_costs=keeper_costs,
+            valuations=valuations,
+            players=players,
+        )
+
+        # Ohtani: highest val = 30 (batter), cost = 20, surplus = 10
+        # Other: val = 20, cost = 10, surplus = 10
+        assert result.team_a_gives[0].projected_value == 30.0
+        assert result.team_a_gives[0].surplus == pytest.approx(10.0)
+        assert result.team_b_gives[0].surplus == pytest.approx(10.0)
+        assert result.winner == "even"

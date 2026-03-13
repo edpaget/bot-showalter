@@ -67,7 +67,7 @@ class KeeperPlannerService:
         """Compute keeper scenarios with adjusted boards, scarcity, and category needs."""
         # Build decisions from keeper costs
         decisions = compute_surplus(self._keeper_costs, self._valuations, self._players)
-        decision_lookup = {d.player_id: d for d in decisions}
+        decision_lookup = {(d.player_id, d.player_type): d for d in decisions}
 
         # Collect scenario keeper sets
         scenario_sets: list[frozenset[int]] = []
@@ -113,12 +113,12 @@ class KeeperPlannerService:
     def _compute_scenario(
         self,
         keeper_ids: frozenset[int],
-        decision_lookup: dict[int, KeeperDecision],
+        decision_lookup: dict[tuple[int, str], KeeperDecision],
         board_preview_size: int,
     ) -> KeeperScenarioResult:
         """Compute a single keeper scenario's adjusted board, scarcity, and needs."""
-        # Get keeper decisions for this set
-        keeper_decisions = tuple(decision_lookup[pid] for pid in keeper_ids if pid in decision_lookup)
+        # Get keeper decisions for this set — match by player_id across all types
+        keeper_decisions = tuple(d for (pid, _), d in decision_lookup.items() if pid in keeper_ids)
         total_surplus = sum(d.surplus for d in keeper_decisions)
 
         # Compute adjusted valuations

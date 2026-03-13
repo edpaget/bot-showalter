@@ -34,6 +34,37 @@ if TYPE_CHECKING:
     from fantasy_baseball_manager.repos import KeeperCostRepo, PlayerRepo
 
 
+def _best_valuation_for_player(
+    player_id: int,
+    val_lookup: dict[tuple[int, str], Valuation],
+    player_type: str | None = None,
+) -> Valuation | None:
+    """Find the best matching valuation for a player from a typed lookup.
+
+    If player_type is given, returns the exact match. Otherwise returns
+    the highest-value valuation across all types for that player.
+    """
+    if player_type is not None:
+        return val_lookup.get((player_id, player_type))
+    best: Valuation | None = None
+    for (pid, _ptype), v in val_lookup.items():
+        if pid == player_id and (best is None or v.value > best.value):
+            best = v
+    return best
+
+
+def _best_value_for_player(
+    player_id: int,
+    val_lookup: dict[tuple[int, str], float],
+) -> float:
+    """Find the highest value across all types for a player from a typed lookup."""
+    best = 0.0
+    for (pid, _), v in val_lookup.items():
+        if pid == player_id and v > best:
+            best = v
+    return best
+
+
 def set_keeper_cost(
     player_name: str,
     cost: float,
@@ -88,12 +119,13 @@ def compute_surplus(
     For players with multiple valuations, the highest value is used.
     Multi-year contracts use discounted future surplus: sum(surplus * decay^i).
     """
-    # Build lookup: player_id -> highest valuation
-    val_lookup: dict[int, Valuation] = {}
+    # Build lookup: (player_id, player_type) -> highest valuation
+    val_lookup: dict[tuple[int, str], Valuation] = {}
     for v in valuations:
-        existing = val_lookup.get(v.player_id)
+        key = (v.player_id, v.player_type)
+        existing = val_lookup.get(key)
         if existing is None or v.value > existing.value:
-            val_lookup[v.player_id] = v
+            val_lookup[key] = v
 
     # Build lookup: player_id -> Player
     player_lookup: dict[int, Player] = {}
@@ -103,7 +135,7 @@ def compute_surplus(
 
     decisions: list[KeeperDecision] = []
     for kc in keeper_costs:
-        val = val_lookup.get(kc.player_id)
+        val = _best_valuation_for_player(kc.player_id, val_lookup, kc.player_type)
         projected_value = val.value if val is not None else 0.0
         position = val.position if val is not None else "UTIL"
 
@@ -119,6 +151,7 @@ def compute_surplus(
             KeeperDecision(
                 player_id=kc.player_id,
                 player_name=player_name,
+                player_type=val.player_type if val is not None else "",
                 position=position,
                 cost=kc.cost,
                 projected_value=projected_value,
@@ -143,11 +176,12 @@ def estimate_other_keepers(
     For each roster, takes the top `max_keepers` players by valuation value.
     Returns the union of all estimated keeper player IDs.
     """
-    val_lookup: dict[int, float] = {}
+    val_lookup: dict[tuple[int, str], float] = {}
     for v in valuations:
-        existing = val_lookup.get(v.player_id)
+        key = (v.player_id, v.player_type)
+        existing = val_lookup.get(key)
         if existing is None or v.value > existing:
-            val_lookup[v.player_id] = v.value
+            val_lookup[key] = v.value
 
     keeper_ids: set[int] = set()
     for roster in rosters:
@@ -155,7 +189,7 @@ def estimate_other_keepers(
         for entry in roster.entries:
             if entry.player_id is None:
                 continue
-            value = val_lookup.get(entry.player_id, 0.0)
+            value = _best_value_for_player(entry.player_id, val_lookup)
             candidates.append((entry.player_id, value))
         candidates.sort(key=lambda x: x[1], reverse=True)
         for pid, _ in candidates[:max_keepers]:
@@ -174,11 +208,12 @@ def build_league_keeper_overview(
 ) -> LeagueKeeperOverview:
     """Build a league-wide keeper overview with per-team projections and trade targets."""
     # Build lookups
-    val_lookup: dict[int, Valuation] = {}
+    val_lookup: dict[tuple[int, str], Valuation] = {}
     for v in valuations:
-        existing = val_lookup.get(v.player_id)
+        key = (v.player_id, v.player_type)
+        existing = val_lookup.get(key)
         if existing is None or v.value > existing.value:
-            val_lookup[v.player_id] = v
+            val_lookup[key] = v
 
     player_lookup: dict[int, Player] = {}
     for p in players:
@@ -195,7 +230,7 @@ def build_league_keeper_overview(
         for entry in roster.entries:
             if entry.player_id is None:
                 continue
-            val = val_lookup.get(entry.player_id)
+            val = _best_valuation_for_player(entry.player_id, val_lookup)
             value = val.value if val is not None else 0.0
             position = val.position if val is not None else "UTIL"
             cat_scores = val.category_scores if val is not None else {}
@@ -387,11 +422,12 @@ def evaluate_trade(
     in *team_a_gives* and "receives" those in *team_b_gives* (and vice-versa).
     """
     # Build lookups
-    val_lookup: dict[int, Valuation] = {}
+    val_lookup: dict[tuple[int, str], Valuation] = {}
     for v in valuations:
-        existing = val_lookup.get(v.player_id)
+        key = (v.player_id, v.player_type)
+        existing = val_lookup.get(key)
         if existing is None or v.value > existing.value:
-            val_lookup[v.player_id] = v
+            val_lookup[key] = v
 
     cost_lookup: dict[int, KeeperCost] = {}
     for kc in keeper_costs:
@@ -403,7 +439,7 @@ def evaluate_trade(
             player_lookup[p.id] = p
 
     def _build_detail(player_id: int) -> TradePlayerDetail:
-        val = val_lookup.get(player_id)
+        val = _best_valuation_for_player(player_id, val_lookup)
         projected_value = val.value if val is not None else 0.0
         position = val.position if val is not None else "UTIL"
 
