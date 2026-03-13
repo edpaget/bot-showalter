@@ -54,15 +54,26 @@ class DraftSessionSummary:
     pick_count: int
 
 
-def _keeper_picks_from_snapshot(snapshot: list[dict[str, object]], team: int) -> list[DraftPick]:
-    """Convert keeper snapshot dicts to DraftPick entries for engine loading."""
+def _keeper_picks_from_snapshot(
+    snapshot: list[dict[str, object]],
+    user_team: int,
+    team_names: dict[int, str] | None,
+) -> list[DraftPick]:
+    """Convert keeper snapshot dicts to DraftPick entries for engine loading.
+
+    Only includes keepers belonging to the user's team (matched by team_name).
+    """
+    user_team_name = team_names.get(user_team) if team_names else None
     picks: list[DraftPick] = []
     for k in snapshot:
+        # Skip keepers that belong to other teams
+        if user_team_name is not None and str(k.get("team_name", "")) != user_team_name:
+            continue
         cost = k.get("cost")
         picks.append(
             DraftPick(
                 pick_number=0,
-                team=team,
+                team=user_team,
                 player_id=int(str(k["player_id"])),
                 player_name=str(k["player_name"]),
                 position=str(k["position"]),
@@ -145,7 +156,7 @@ class SessionManager:
 
         # Pre-populate user's roster with keepers so my_roster()/my_needs() include them
         if keeper_snapshot:
-            engine.load_keepers(_keeper_picks_from_snapshot(keeper_snapshot, user_team))
+            engine.load_keepers(_keeper_picks_from_snapshot(keeper_snapshot, user_team, team_names))
 
         now = datetime.now(tz=UTC).isoformat()
         record = DraftSessionRecord(
@@ -185,7 +196,9 @@ class SessionManager:
 
         # Re-load keepers into the engine so my_roster()/my_needs() include them
         if record.keeper_snapshot:
-            engine.load_keepers(_keeper_picks_from_snapshot(record.keeper_snapshot, record.user_team))
+            engine.load_keepers(
+                _keeper_picks_from_snapshot(record.keeper_snapshot, record.user_team, record.team_names)
+            )
 
         self._engines[session_id] = engine
         return engine
