@@ -67,6 +67,14 @@ def _estimate_league_rank(
     return max(1, min(num_teams, round(rank)))
 
 
+_PITCHER_POSITIONS = frozenset({"SP", "RP", "P"})
+
+
+def _drafted_player_type(position: str) -> str:
+    """Map a drafted position to 'batter' or 'pitcher'."""
+    return "pitcher" if position in _PITCHER_POSITIONS else "batter"
+
+
 def _classify_strength(rank: int, num_teams: int) -> str:
     """Classify rank into 'strong', 'average', or 'weak'."""
     third = num_teams / 3
@@ -77,16 +85,36 @@ def _classify_strength(rank: int, num_teams: int) -> str:
     return "average"
 
 
+def _top_n_by_playing_time(
+    players: list[Projection],
+    n: int,
+    playing_time_key: str,
+) -> list[Projection]:
+    """Return the top *n* players sorted by playing time (PA or IP).
+
+    This approximates the draftable pool so that league averages reflect
+    realistic per-team totals rather than the entire projection universe.
+    """
+    sorted_players = sorted(players, key=lambda p: p.stat_json.get(playing_time_key, 0.0), reverse=True)
+    return sorted_players[:n]
+
+
 def analyze_roster(
     player_ids: list[int],
     projections: list[Projection],
     league: LeagueSettings,
+    roster_positions: dict[int, str] | None = None,
 ) -> RosterAnalysis:
     """Analyze a roster's projected category strengths and weaknesses.
 
     For each scoring category, sums counting stats or computes weighted-average
     rate stats across the roster, estimates a league rank, and classifies
     strength as 'strong', 'average', or 'weak'.
+
+    *roster_positions* maps player_id → drafted position (e.g. "SS", "SP").
+    When provided, only the projection matching the drafted role is used for
+    each player — important for two-way players like Ohtani who can be drafted
+    as batter or pitcher by different teams.
     """
     if not player_ids:
         return RosterAnalysis(
@@ -96,30 +124,58 @@ def analyze_roster(
         )
 
     roster_set = set(player_ids)
-    proj_lookup: dict[int, Projection] = {p.player_id: p for p in projections}
+    num_teams = league.teams
 
-    roster_projections = [proj_lookup[pid] for pid in roster_set if pid in proj_lookup]
+    # Players can have both batter and pitcher projections, so collect all
+    # matching projections rather than using a single-key dict.  Skip rows
+    # with empty stat_json — these are stub entries (e.g. a pitcher with a
+    # placeholder batter row) that would distort roster fill counts.
+    # When roster_positions is provided, only keep the projection matching
+    # the drafted role so two-way players contribute to the correct side.
+    roster_projections = [p for p in projections if p.player_id in roster_set and p.stat_json]
+    if roster_positions:
+        roster_projections = [
+            p
+            for p in roster_projections
+            if p.player_id not in roster_positions
+            or p.player_type == _drafted_player_type(roster_positions[p.player_id])
+        ]
     roster_batters = [p for p in roster_projections if p.player_type == "batter"]
     roster_pitchers = [p for p in roster_projections if p.player_type == "pitcher"]
 
-    all_batters = [p for p in projections if p.player_type == "batter"]
-    all_pitchers = [p for p in projections if p.player_type == "pitcher"]
-
-    num_teams = league.teams
+    all_batters = _top_n_by_playing_time(
+        [p for p in projections if p.player_type == "batter"],
+        league.roster_batters * num_teams,
+        "pa",
+    )
+    all_pitchers = _top_n_by_playing_time(
+        [p for p in projections if p.player_type == "pitcher"],
+        league.roster_pitchers * num_teams,
+        "ip",
+    )
     category_projections: list[TeamCategoryProjection] = []
 
-    all_categories: list[tuple[CategoryConfig, list[Projection], list[Projection]]] = [
-        *((cat, roster_batters, all_batters) for cat in league.batting_categories),
-        *((cat, roster_pitchers, all_pitchers) for cat in league.pitching_categories),
+    all_categories: list[tuple[CategoryConfig, list[Projection], list[Projection], int, int]] = [
+        *(
+            (cat, roster_batters, all_batters, len(roster_batters), league.roster_batters)
+            for cat in league.batting_categories
+        ),
+        *(
+            (cat, roster_pitchers, all_pitchers, len(roster_pitchers), league.roster_pitchers)
+            for cat in league.pitching_categories
+        ),
     ]
 
-    for cat, roster_pool, league_pool in all_categories:
+    for cat, roster_pool, league_pool, filled, total_slots in all_categories:
         team_value = _compute_category_value(cat, roster_pool)
         league_total = _compute_category_value(cat, league_pool)
-        # For counting stats, divide total by teams to get per-team average.
-        # For rate stats, the pool-wide rate IS the expected per-team rate.
+        # For counting stats, divide total by teams to get per-team average,
+        # then scale by roster fill fraction so partial rosters are compared
+        # against proportional expectations (not a full-roster average).
         if cat.stat_type == StatType.COUNTING:
             league_avg = league_total / num_teams if num_teams > 0 else 0.0
+            if total_slots > 0 and 0 < filled < total_slots:
+                league_avg *= filled / total_slots
         else:
             league_avg = league_total
 
@@ -164,10 +220,15 @@ def compute_category_balance_scores(
     if not weak_keys:
         return {pid: 0.0 for pid in available_ids}
 
-    proj_lookup: dict[int, Projection] = {p.player_id: p for p in projections}
-    roster_projections = [proj_lookup[pid] for pid in set(roster_ids) if pid in proj_lookup]
+    roster_set = set(roster_ids)
+    roster_projections = [p for p in projections if p.player_id in roster_set]
     roster_batters = [p for p in roster_projections if p.player_type == "batter"]
     roster_pitchers = [p for p in roster_projections if p.player_type == "pitcher"]
+
+    # Build per-type lookup for available players (prefer pitcher projection for
+    # pitching categories and batter projection for batting categories).
+    batter_lookup: dict[int, Projection] = {p.player_id: p for p in projections if p.player_type == "batter"}
+    pitcher_lookup: dict[int, Projection] = {p.player_id: p for p in projections if p.player_type == "pitcher"}
 
     # Build list of (weak_cat_config, is_batting, roster_pool) tuples
     weak_cats: list[tuple[CategoryConfig, bool, list[Projection]]] = []
@@ -182,15 +243,16 @@ def compute_category_balance_scores(
     # For each available player, sum positive impacts on matching-type weak categories
     raw_scores: dict[int, float] = {}
     for pid in available_ids:
-        candidate = proj_lookup.get(pid)
-        if candidate is None:
+        # Try both batter and pitcher projections for the candidate
+        batter_candidate = batter_lookup.get(pid)
+        pitcher_candidate = pitcher_lookup.get(pid)
+        if batter_candidate is None and pitcher_candidate is None:
             raw_scores[pid] = 0.0
             continue
-
-        is_batter = candidate.player_type == "batter"
         total_impact = 0.0
         for cat_config, is_batting, roster_pool in weak_cats:
-            if is_batter != is_batting:
+            candidate = batter_candidate if is_batting else pitcher_candidate
+            if candidate is None:
                 continue
             current_value = _compute_category_value(cat_config, roster_pool)
             with_player = _compute_category_value(cat_config, [*roster_pool, candidate])
@@ -251,12 +313,13 @@ def identify_needs(
     weak_projections.sort(key=lambda p: p.league_rank_estimate, reverse=True)
     weak_keys = {p.category for p in weak_projections}
 
-    proj_lookup: dict[int, Projection] = {p.player_id: p for p in projections}
-    roster_projections = [proj_lookup[pid] for pid in set(roster_ids) if pid in proj_lookup]
+    roster_set = set(roster_ids)
+    available_set = set(available_ids)
+    roster_projections = [p for p in projections if p.player_id in roster_set]
     roster_batters = [p for p in roster_projections if p.player_type == "batter"]
     roster_pitchers = [p for p in roster_projections if p.player_type == "pitcher"]
 
-    available_projections = [proj_lookup[pid] for pid in available_ids if pid in proj_lookup]
+    available_projections = [p for p in projections if p.player_id in available_set]
     available_batters = [p for p in available_projections if p.player_type == "batter"]
     available_pitchers = [p for p in available_projections if p.player_type == "pitcher"]
 

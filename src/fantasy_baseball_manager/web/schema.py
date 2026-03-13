@@ -302,9 +302,10 @@ def _build_pick_result(
     # Compute category balance and needs for the updated roster
     ctx = _get_context(info)
     roster_ids = [p.player_id for p in roster]
+    roster_positions = {p.player_id: p.position for p in roster}
     if roster_ids:
         projections = _get_roster_projections(ctx, engine.state.config.season)
-        analysis = analyze_roster(roster_ids, projections, ctx.league)
+        analysis = analyze_roster(roster_ids, projections, ctx.league, roster_positions=roster_positions)
         balance_types = [CategoryBalanceType.from_domain(p) for p in analysis.projections]
 
         available_ids = [r.player_id for r in available]
@@ -516,8 +517,9 @@ class Query:
         if not roster_ids:
             return []
 
+        roster_positions = {p.player_id: p.position for p in roster}
         projections = _get_roster_projections(ctx, engine.state.config.season)
-        analysis = analyze_roster(roster_ids, projections, ctx.league)
+        analysis = analyze_roster(roster_ids, projections, ctx.league, roster_positions=roster_positions)
         return [CategoryBalanceType.from_domain(p) for p in analysis.projections]
 
     @strawberry.field
