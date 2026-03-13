@@ -221,8 +221,6 @@ def _derive_keeper_costs_from_yahoo(
         prior_league_key=prior_league_key,
         prior_game_key=prior_game_key,
     )
-    with yahoo.provider.connection() as conn:
-        conn.commit()
 
     roster_source = YahooRosterSource(yahoo.client, yahoo.player_mapper, roster_repo=ctx.yahoo_roster_repo)
     if yahoo.league_config.keeper_format == "best_n":
@@ -249,9 +247,6 @@ def _derive_keeper_costs_from_yahoo(
             league_name=yahoo.league_name,
             cost_floor=cost_floor,
         )
-
-    with yahoo.provider.connection() as conn:
-        conn.commit()
 
 
 def _ensure_keeper_planner(ctx: AppContext, season: int) -> KeeperPlannerService | None:

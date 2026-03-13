@@ -42,6 +42,7 @@ class SqliteDraftSessionRepo:
                     json.dumps(record.draft_order) if record.draft_order is not None else None,
                 ),
             )
+            conn.commit()
             assert cur.lastrowid is not None  # noqa: S101
             return cur.lastrowid
 
@@ -61,6 +62,7 @@ class SqliteDraftSessionRepo:
                     pick.price,
                 ),
             )
+            conn.commit()
 
     def delete_pick(self, session_id: int, pick_number: int) -> None:
         with self._provider.connection() as conn:
@@ -68,6 +70,7 @@ class SqliteDraftSessionRepo:
                 "DELETE FROM draft_session_pick WHERE session_id = ? AND pick_number = ?",
                 (session_id, pick_number),
             )
+            conn.commit()
 
     def load_session(self, session_id: int) -> DraftSessionRecord | None:
         with self._provider.connection() as conn:
@@ -118,6 +121,7 @@ class SqliteDraftSessionRepo:
                 "UPDATE draft_session SET status = ? WHERE id = ?",
                 (status, session_id),
             )
+            conn.commit()
 
     def update_timestamp(self, session_id: int, updated_at: str) -> None:
         with self._provider.connection() as conn:
@@ -125,12 +129,14 @@ class SqliteDraftSessionRepo:
                 "UPDATE draft_session SET updated_at = ? WHERE id = ?",
                 (updated_at, session_id),
             )
+            conn.commit()
 
     def delete_session(self, session_id: int) -> None:
         with self._provider.connection() as conn:
             conn.execute("DELETE FROM draft_session_trade WHERE session_id = ?", (session_id,))
             conn.execute("DELETE FROM draft_session_pick WHERE session_id = ?", (session_id,))
             conn.execute("DELETE FROM draft_session WHERE id = ?", (session_id,))
+            conn.commit()
 
     def count_picks(self, session_id: int) -> int:
         with self._provider.connection() as conn:
@@ -155,6 +161,7 @@ class SqliteDraftSessionRepo:
                     json.dumps(trade.team_b_gives),
                 ),
             )
+            conn.commit()
 
     def load_trades(self, session_id: int) -> list[DraftSessionTrade]:
         with self._provider.connection() as conn:
@@ -171,6 +178,7 @@ class SqliteDraftSessionRepo:
                 "DELETE FROM draft_session_trade WHERE session_id = ? AND trade_number = ?",
                 (session_id, trade_number),
             )
+            conn.commit()
 
     @staticmethod
     def _row_to_trade(row: sqlite3.Row) -> DraftSessionTrade:

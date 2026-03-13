@@ -37,6 +37,7 @@ class SqliteYahooLeagueRepo:
                     league.renew,
                 ),
             )
+            conn.commit()
             return cursor.lastrowid
 
     def get_by_league_key(self, league_key: str) -> YahooLeague | None:
@@ -100,6 +101,7 @@ class SqliteYahooTeamRepo:
                     int(team.is_owned_by_user),
                 ),
             )
+            conn.commit()
             return cursor.lastrowid
 
     def get_by_league_key(self, league_key: str) -> list[YahooTeam]:

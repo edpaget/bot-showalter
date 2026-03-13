@@ -34,6 +34,7 @@ class SqliteLeagueKeeperRepo:
                     ),
                 )
                 count += 1
+            conn.commit()
             return count
 
     def find_by_season_league(self, season: int, league: str) -> list[LeagueKeeper]:
@@ -58,6 +59,7 @@ class SqliteLeagueKeeperRepo:
                 "DELETE FROM league_keeper WHERE season = ? AND league = ?",
                 (season, league),
             )
+            conn.commit()
             return cursor.rowcount
 
     @staticmethod

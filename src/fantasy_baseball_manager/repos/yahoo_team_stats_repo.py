@@ -32,6 +32,7 @@ class SqliteYahooTeamStatsRepo:
                     json.dumps(stats.stat_values),
                 ),
             )
+            conn.commit()
             return cursor.lastrowid
 
     def get_by_league_season(self, league_key: str, season: int) -> list[TeamSeasonStats]:

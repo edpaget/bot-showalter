@@ -57,6 +57,7 @@ class SqliteYahooRosterRepo:
                     ),
                 )
 
+            conn.commit()
             return snapshot_id
 
     def get_latest_by_team(self, team_key: str, league_key: str) -> Roster | None:

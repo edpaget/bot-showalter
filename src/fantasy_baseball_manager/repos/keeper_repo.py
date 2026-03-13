@@ -38,6 +38,7 @@ class SqliteKeeperCostRepo:
                     ),
                 )
                 count += 1
+            conn.commit()
             return count
 
     def find_by_season_league(self, season: int, league: str) -> list[KeeperCost]:
