@@ -159,14 +159,22 @@ export function DraftDashboard({ season = 2026 }: { season?: number }) {
           }
           ctx.setTeamNames(parsed);
         }
-        // Fetch keepers if this is a keeper session
+        // Fetch keepers, recommendations, roster, and needs for keeper sessions
         if (state.keeperCount > 0) {
-          const keepersRes = await fetchKeepers({ variables: { sessionId: state.sessionId } });
+          const [keepersRes, recsRes, rosterRes, needsRes] = await Promise.all([
+            fetchKeepers({ variables: { sessionId: state.sessionId } }),
+            fetchRecs({ variables: { sessionId: state.sessionId, position: null, limit: 10 } }),
+            fetchRoster({ variables: { sessionId: state.sessionId, team: null } }),
+            fetchNeeds({ variables: { sessionId: state.sessionId } }),
+          ]);
           ctx.setKeepers(keepersRes.data?.keepers ?? []);
+          ctx.setRecommendations(recsRes.data?.recommendations ?? []);
+          ctx.setRoster(rosterRes.data?.roster ?? []);
+          ctx.setNeeds(needsRes.data?.needs ?? []);
         }
       }
     },
-    [startSession, ctx, fetchKeepers],
+    [startSession, ctx, fetchKeepers, fetchRecs, fetchRoster, fetchNeeds],
   );
 
   const handleResume = useCallback(
@@ -274,6 +282,7 @@ export function DraftDashboard({ season = 2026 }: { season?: number }) {
         tradeDisabled={!hasFuturePicks || !league}
         isSnakeFormat={isSnakeFormat}
         yahooLeague={yahooLeague}
+        getTeamName={ctx.getTeamName}
       />
 
       <div className="flex gap-3 flex-1 min-h-0">
