@@ -60,8 +60,12 @@ export function DraftSessionProvider({ children }: { children: ReactNode }) {
 
   const draftedPlayerIds = useMemo(() => {
     if (!state) return new Set<number>();
-    return new Set(state.picks.map((p) => p.playerId));
-  }, [state]);
+    const ids = new Set(state.picks.map((p) => p.playerId));
+    for (const k of keepers) {
+      ids.add(k.playerId);
+    }
+    return ids;
+  }, [state, keepers]);
 
   const applyPickResult = useCallback((result: PickResultFieldsFragment) => {
     // Use startTransition so the optimistic state stays visible while React

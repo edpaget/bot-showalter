@@ -301,6 +301,7 @@ export function DraftDashboard({ season = 2026 }: { season?: number }) {
             />
             <RosterPanel
               roster={ctx.roster}
+              keepers={ctx.keepers}
               needs={ctx.needs}
               budgetRemaining={ctx.state?.budgetRemaining ?? null}
               format={ctx.state?.format ?? "snake"}

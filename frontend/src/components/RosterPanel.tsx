@@ -1,16 +1,18 @@
-import type { DraftPickType, RosterSlotType } from "../generated/graphql";
+import type { DraftPickType, KeeperInfoType, RosterSlotType } from "../generated/graphql";
 import { displayPosition } from "../lib/position";
 
 interface RosterPanelProps {
   roster: DraftPickType[];
+  keepers: KeeperInfoType[];
   needs: RosterSlotType[];
   budgetRemaining: number | null;
   format: string;
 }
 
-export function RosterPanel({ roster, needs, budgetRemaining, format }: RosterPanelProps) {
+export function RosterPanel({ roster, keepers, needs, budgetRemaining, format }: RosterPanelProps) {
   const totalValue = roster.reduce((sum, p) => sum + (p.price ?? 0), 0);
-  const allPositions = [...needs.map((n) => n.position), ...roster.map((p) => p.position)];
+  const keeperPositions = keepers.map((k) => k.position);
+  const allPositions = [...needs.map((n) => n.position), ...roster.map((p) => p.position), ...keeperPositions];
   const uniquePositions = [...new Set(allPositions)];
 
   return (
@@ -19,12 +21,19 @@ export function RosterPanel({ roster, needs, budgetRemaining, format }: RosterPa
       <div className="space-y-1 text-xs">
         {uniquePositions.map((pos) => {
           const filled = roster.filter((p) => p.position === pos);
+          const kept = keepers.filter((k) => k.position === pos);
           const need = needs.find((n) => n.position === pos);
           const remaining = need?.remaining ?? 0;
           return (
             <div key={pos} className="flex items-center gap-2">
               <span className="font-medium w-8">{displayPosition(pos)}</span>
               <div className="flex gap-1 flex-1 flex-wrap">
+                {kept.map((k) => (
+                  <span key={`k-${k.playerId}`} className="bg-green-100 text-green-800 px-1.5 py-0.5 rounded text-xs">
+                    {k.playerName}
+                    {k.cost != null && ` ($${k.cost})`}
+                  </span>
+                ))}
                 {filled.map((p) => (
                   <span key={p.pickNumber} className="bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded text-xs">
                     {p.playerName}
@@ -45,7 +54,7 @@ export function RosterPanel({ roster, needs, budgetRemaining, format }: RosterPa
         })}
       </div>
       <div className="mt-2 pt-2 border-t border-gray-100 text-xs text-gray-600 flex gap-4">
-        <span>Players: {roster.length}</span>
+        <span>Players: {roster.length + keepers.length}</span>
         {format === "auction" && budgetRemaining != null && <span>Budget: ${budgetRemaining}</span>}
         {format === "auction" && <span>Spent: ${totalValue}</span>}
       </div>

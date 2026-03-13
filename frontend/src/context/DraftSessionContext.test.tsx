@@ -81,6 +81,16 @@ function TestConsumer() {
       >
         apply-pick
       </button>
+      <button
+        type="button"
+        onClick={() =>
+          ctx.setKeepers([
+            { playerId: 500, playerName: "Keeper A", position: "OF", teamName: "Team A", cost: 10, value: 20 },
+          ])
+        }
+      >
+        set-keepers
+      </button>
       <button type="button" onClick={() => ctx.clearSession()}>
         clear
       </button>
@@ -135,6 +145,20 @@ describe("DraftSessionContext", () => {
     expect(screen.getByTestId("recs-count")).toHaveTextContent("1");
     expect(screen.getByTestId("roster-count")).toHaveTextContent("2");
     expect(screen.getByTestId("needs-count")).toHaveTextContent("1");
+  });
+
+  it("includes keeper player IDs in draftedPlayerIds", async () => {
+    render(
+      <DraftSessionProvider>
+        <TestConsumer />
+      </DraftSessionProvider>,
+    );
+    const user = userEvent.setup();
+    await user.click(screen.getByText("set-state"));
+    expect(screen.getByTestId("drafted-count")).toHaveTextContent("1");
+    await user.click(screen.getByText("set-keepers"));
+    // 1 from picks + 1 from keepers = 2
+    expect(screen.getByTestId("drafted-count")).toHaveTextContent("2");
   });
 
   it("clearSession resets all state", async () => {
