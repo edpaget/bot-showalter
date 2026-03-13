@@ -8,7 +8,7 @@ Ensure all draft, keeper, and valuation code identifies players by `(player_id, 
 |-------|--------|
 | 1 — Core valuation pipeline | done (2025-07-10) |
 | 2 — Keeper service lookups | done (2026-03-13) |
-| 3 — DraftPick & undo identity | not started |
+| 3 — DraftPick & undo identity | in progress |
 | 4 — Peripheral services & CLI | not started |
 
 ## Phase 1 — Core valuation pipeline
