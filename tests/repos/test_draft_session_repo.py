@@ -403,6 +403,45 @@ class TestSaveTradeAndLoadTrades:
         assert repo.load_trades(9999) == []
 
 
+class TestTeamNames:
+    def test_roundtrip_with_team_names(self, repo: SqliteDraftSessionRepo) -> None:
+        team_names = {1: "Sluggers", 2: "Aces", 3: "Dingers"}
+        record = _make_record(team_names=team_names)
+        session_id = repo.create_session(record)
+
+        loaded = repo.load_session(session_id)
+        assert loaded is not None
+        assert loaded.team_names == {1: "Sluggers", 2: "Aces", 3: "Dingers"}
+
+    def test_roundtrip_without_team_names(self, repo: SqliteDraftSessionRepo) -> None:
+        record = _make_record()
+        session_id = repo.create_session(record)
+
+        loaded = repo.load_session(session_id)
+        assert loaded is not None
+        assert loaded.team_names is None
+
+    def test_list_sessions_includes_team_names(self, repo: SqliteDraftSessionRepo) -> None:
+        team_names = {1: "Sluggers", 2: "Aces"}
+        repo.create_session(_make_record(team_names=team_names))
+
+        sessions = repo.list_sessions()
+        assert len(sessions) == 1
+        assert sessions[0].team_names == {1: "Sluggers", 2: "Aces"}
+
+    def test_team_names_keys_are_int_after_roundtrip(self, repo: SqliteDraftSessionRepo) -> None:
+        """JSON round-trips dict keys as strings; verify they're converted back to int."""
+        team_names = {10: "Team Ten", 20: "Team Twenty"}
+        record = _make_record(team_names=team_names)
+        session_id = repo.create_session(record)
+
+        loaded = repo.load_session(session_id)
+        assert loaded is not None
+        assert loaded.team_names is not None
+        for key in loaded.team_names:
+            assert isinstance(key, int)
+
+
 class TestLoadSessionNotFound:
     def test_returns_none(self, repo: SqliteDraftSessionRepo) -> None:
         assert repo.load_session(9999) is None

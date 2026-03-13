@@ -16,6 +16,7 @@ const ACTIVE_STATE: DraftStateType = {
   userTeam: 1,
   budgetRemaining: null,
   keeperCount: 0,
+  teamNames: null,
   trades: [],
 };
 

@@ -331,6 +331,7 @@ class DraftStateType:
     budget_remaining: int | None
     keeper_count: int
     trades: list[DraftTradeType]
+    team_names: strawberry.scalars.JSON | None = None
 
     @staticmethod
     def from_state(
@@ -339,6 +340,7 @@ class DraftStateType:
         *,
         keeper_count: int = 0,
         trades: list[DraftTrade] | None = None,
+        team_names: dict[int, str] | None = None,
     ) -> DraftStateType:
         is_auction = state.config.format.value == "auction"
         return DraftStateType(
@@ -351,6 +353,7 @@ class DraftStateType:
             budget_remaining=state.team_budgets[state.config.user_team] if is_auction else None,
             keeper_count=keeper_count,
             trades=[DraftTradeType.from_domain(t) for t in (trades or [])],
+            team_names=cast("Any", team_names) if team_names else None,
         )
 
 

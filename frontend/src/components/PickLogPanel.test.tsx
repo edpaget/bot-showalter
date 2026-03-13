@@ -54,4 +54,23 @@ describe("PickLogPanel", () => {
     const firstPlayerCell = rows[0]!.querySelectorAll("td")[2]!;
     expect(firstPlayerCell.textContent).toBe("Aaron Judge");
   });
+
+  it("displays team names when provided", () => {
+    const teamNames = { 1: "Sluggers", 2: "Aces" };
+    render(<PickLogPanel picks={PICKS} teamNames={teamNames} />);
+    expect(screen.getAllByText("Sluggers")).toHaveLength(2); // picks 1 and 3
+    expect(screen.getByText("Aces")).toBeInTheDocument();
+  });
+
+  it("falls back to Team N when no team names provided", () => {
+    render(<PickLogPanel picks={PICKS} />);
+    expect(screen.getAllByText(/^Team \d+$/)).toHaveLength(3);
+  });
+
+  it("displays trade team names when provided", () => {
+    const trades = [{ teamA: 1, teamB: 2, teamAGives: [1], teamBGives: [2] }];
+    const teamNames = { 1: "Sluggers", 2: "Aces" };
+    render(<PickLogPanel picks={[]} trades={trades} teamNames={teamNames} userTeam={1} />);
+    expect(screen.getByText(/Sluggers ↔ Aces/)).toBeInTheDocument();
+  });
 });

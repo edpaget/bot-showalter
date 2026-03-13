@@ -24,7 +24,9 @@ interface DraftSessionContextValue {
   categoryNeeds: CategoryNeedType[];
   arbitrage: ArbitrageReportType | null;
   keepers: KeeperInfoType[];
+  teamNames: Record<number, string>;
   draftedPlayerIds: Set<number>;
+  getTeamName: (id: number) => string;
   setSessionId: (id: number | null) => void;
   setState: (state: DraftStateType | null) => void;
   setRecommendations: (recs: RecommendationType[]) => void;
@@ -34,6 +36,7 @@ interface DraftSessionContextValue {
   setCategoryNeeds: (needs: CategoryNeedType[]) => void;
   setArbitrage: (arbitrage: ArbitrageReportType | null) => void;
   setKeepers: (keepers: KeeperInfoType[]) => void;
+  setTeamNames: (names: Record<number, string>) => void;
   applyPickResult: (result: PickResultFieldsFragment) => void;
   addOptimisticPick: (playerId: number) => void;
   clearSession: () => void;
@@ -51,6 +54,9 @@ export function DraftSessionProvider({ children }: { children: ReactNode }) {
   const [categoryNeeds, setCategoryNeeds] = useState<CategoryNeedType[]>([]);
   const [arbitrage, setArbitrage] = useState<ArbitrageReportType | null>(null);
   const [keepers, setKeepers] = useState<KeeperInfoType[]>([]);
+  const [teamNames, setTeamNames] = useState<Record<number, string>>({});
+
+  const getTeamName = useCallback((id: number): string => teamNames[id] ?? `Team ${id}`, [teamNames]);
 
   const draftedPlayerIds = useMemo(() => {
     if (!state) return new Set<number>();
@@ -109,6 +115,7 @@ export function DraftSessionProvider({ children }: { children: ReactNode }) {
     setCategoryNeeds([]);
     setArbitrage(null);
     setKeepers([]);
+    setTeamNames({});
   }, []);
 
   const value = useMemo(
@@ -122,7 +129,9 @@ export function DraftSessionProvider({ children }: { children: ReactNode }) {
       categoryNeeds,
       arbitrage,
       keepers,
+      teamNames,
       draftedPlayerIds,
+      getTeamName,
       setSessionId,
       setState,
       setRecommendations,
@@ -132,6 +141,7 @@ export function DraftSessionProvider({ children }: { children: ReactNode }) {
       setCategoryNeeds,
       setArbitrage,
       setKeepers,
+      setTeamNames,
       applyPickResult,
       addOptimisticPick,
       clearSession,
@@ -146,7 +156,9 @@ export function DraftSessionProvider({ children }: { children: ReactNode }) {
       categoryNeeds,
       arbitrage,
       keepers,
+      teamNames,
       draftedPlayerIds,
+      getTeamName,
       applyPickResult,
       addOptimisticPick,
       clearSession,

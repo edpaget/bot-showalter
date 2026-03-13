@@ -1,5 +1,5 @@
 from collections.abc import AsyncGenerator, Callable  # noqa: TC003 — Strawberry resolves annotations at runtime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 import strawberry
 from strawberry.types import Info  # noqa: TC002 — Strawberry needs this at runtime
@@ -302,9 +302,12 @@ def _build_pick_result(
         category_needs_types = []
 
     keeper_count = _get_keeper_count(mgr, session_id)
+    team_names = mgr.get_team_names(session_id)
     return PickResultType(
         pick=pick,
-        state=DraftStateType.from_state(session_id, engine.state, keeper_count=keeper_count, trades=engine.trades),
+        state=DraftStateType.from_state(
+            session_id, engine.state, keeper_count=keeper_count, trades=engine.trades, team_names=team_names
+        ),
         recommendations=[RecommendationType.from_domain(r) for r in recs],
         roster=[DraftPickType.from_domain(p) for p in roster],
         needs=[RosterSlotType(position=position_from_raw(pos), remaining=count) for pos, count in needs.items()],
@@ -419,7 +422,10 @@ class Query:
         mgr = _get_session_manager(info)
         engine = mgr.get_engine(session_id)
         keeper_count = _get_keeper_count(mgr, session_id)
-        return DraftStateType.from_state(session_id, engine.state, keeper_count=keeper_count, trades=engine.trades)
+        team_names = mgr.get_team_names(session_id)
+        return DraftStateType.from_state(
+            session_id, engine.state, keeper_count=keeper_count, trades=engine.trades, team_names=team_names
+        )
 
     @strawberry.field
     def keepers(self, info: Info, session_id: int) -> list[KeeperInfoType]:
@@ -877,11 +883,15 @@ class Mutation:
         budget: int | None = None,
         keeper_player_ids: list[int] | None = None,
         league_key: str | None = None,
+        team_names: strawberry.scalars.JSON | None = None,
     ) -> DraftStateType:
         ctx = _get_context(info)
         system = system or ctx.default_system
         version = version or ctx.default_version
         mgr = _get_session_manager(info)
+        parsed_team_names: dict[int, str] | None = (
+            {int(k): v for k, v in cast("dict[str, str]", team_names).items()} if team_names else None
+        )
         session_id, engine = mgr.start_session(
             season,
             system=system,
@@ -892,13 +902,16 @@ class Mutation:
             budget=budget,
             keeper_player_ids=set(keeper_player_ids) if keeper_player_ids else None,
             league_key=league_key,
+            team_names=parsed_team_names,
         )
         await ctx.event_bus.publish(
             session_id,
             SessionEvent(session_id=session_id, event_type="started"),
         )
         keeper_count = _get_keeper_count(mgr, session_id)
-        return DraftStateType.from_state(session_id, engine.state, keeper_count=keeper_count, trades=engine.trades)
+        return DraftStateType.from_state(
+            session_id, engine.state, keeper_count=keeper_count, trades=engine.trades, team_names=parsed_team_names
+        )
 
     @strawberry.mutation
     async def pick(
@@ -996,7 +1009,10 @@ class Mutation:
         trade = mgr.trade_picks(session_id, gives, receives, partner_team, team_a=team_a)
         engine = mgr.get_engine(session_id)
         keeper_count = _get_keeper_count(mgr, session_id)
-        state = DraftStateType.from_state(session_id, engine.state, keeper_count=keeper_count, trades=engine.trades)
+        team_names = mgr.get_team_names(session_id)
+        state = DraftStateType.from_state(
+            session_id, engine.state, keeper_count=keeper_count, trades=engine.trades, team_names=team_names
+        )
         await ctx.event_bus.publish(
             session_id,
             TradeEvent(
@@ -1015,7 +1031,10 @@ class Mutation:
         removed = mgr.undo_trade(session_id)
         engine = mgr.get_engine(session_id)
         keeper_count = _get_keeper_count(mgr, session_id)
-        state = DraftStateType.from_state(session_id, engine.state, keeper_count=keeper_count, trades=engine.trades)
+        team_names = mgr.get_team_names(session_id)
+        state = DraftStateType.from_state(
+            session_id, engine.state, keeper_count=keeper_count, trades=engine.trades, team_names=team_names
+        )
         await ctx.event_bus.publish(
             session_id,
             TradeEvent(

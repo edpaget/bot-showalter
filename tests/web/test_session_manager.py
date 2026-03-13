@@ -909,6 +909,109 @@ class TestKeeperAutoDerivation:
         assert 2 in available_ids
 
 
+class TestTeamNames:
+    def test_team_names_persisted_and_retrieved(self) -> None:
+        mgr = _make_manager()
+        team_names = {1: "Sluggers", 2: "Aces", 3: "Dingers"}
+        sid, _ = mgr.start_session(2026, team_names=team_names)
+
+        result = mgr.get_team_names(sid)
+        assert result == {1: "Sluggers", 2: "Aces", 3: "Dingers"}
+
+    def test_get_team_names_returns_none_without_names(self) -> None:
+        mgr = _make_manager()
+        sid, _ = mgr.start_session(2026)
+
+        result = mgr.get_team_names(sid)
+        assert result is None
+
+    def test_team_names_survive_restart(self) -> None:
+        conn = create_connection(":memory:", check_same_thread=False)
+        provider = SingleConnectionProvider(conn)
+
+        player_repo = SqlitePlayerRepo(provider)
+        valuation_repo = SqliteValuationRepo(provider)
+
+        players = [
+            Player(name_first="Mike", name_last="Trout", id=1, mlbam_id=545361),
+            Player(name_first="Shohei", name_last="Ohtani", id=2, mlbam_id=660271),
+            Player(name_first="Gerrit", name_last="Cole", id=3, mlbam_id=543037),
+        ]
+        for p in players:
+            player_repo.upsert(p)
+
+        valuations = [
+            Valuation(
+                player_id=1,
+                season=2026,
+                system="zar",
+                version="1.0",
+                projection_system="steamer",
+                projection_version="2026",
+                player_type="batter",
+                position="OF",
+                value=35.0,
+                rank=1,
+                category_scores={"HR": 2.5, "RBI": 1.8},
+            ),
+            Valuation(
+                player_id=2,
+                season=2026,
+                system="zar",
+                version="1.0",
+                projection_system="steamer",
+                projection_version="2026",
+                player_type="batter",
+                position="OF",
+                value=30.0,
+                rank=2,
+                category_scores={"HR": 2.0, "RBI": 1.5},
+            ),
+            Valuation(
+                player_id=3,
+                season=2026,
+                system="zar",
+                version="1.0",
+                projection_system="steamer",
+                projection_version="2026",
+                player_type="pitcher",
+                position="SP",
+                value=25.0,
+                rank=3,
+                category_scores={"W": 1.5, "K": 2.0},
+            ),
+        ]
+        for v in valuations:
+            valuation_repo.upsert(v)
+        with provider.connection() as c:
+            c.commit()
+
+        mgr1 = SessionManager(
+            session_repo=SqliteDraftSessionRepo(provider),
+            valuation_repo=valuation_repo,
+            player_repo=player_repo,
+            adp_repo=SqliteADPRepo(provider),
+            player_profile_service=PlayerProfileService(player_repo),
+            league=_LEAGUE,
+            adp_provider="fantasypros",
+        )
+        team_names = {1: "Sluggers", 2: "Aces"}
+        sid, _ = mgr1.start_session(2026, team_names=team_names)
+
+        # Simulate restart with fresh manager
+        mgr2 = SessionManager(
+            session_repo=SqliteDraftSessionRepo(provider),
+            valuation_repo=valuation_repo,
+            player_repo=player_repo,
+            adp_repo=SqliteADPRepo(provider),
+            player_profile_service=PlayerProfileService(player_repo),
+            league=_LEAGUE,
+            adp_provider="fantasypros",
+        )
+        result = mgr2.get_team_names(sid)
+        assert result == {1: "Sluggers", 2: "Aces"}
+
+
 class TestEvaluateTrade:
     def test_evaluate_trade_returns_evaluation(self) -> None:
         mgr = _make_manager()

@@ -26,6 +26,7 @@ export const PICK_RESULT_FRAGMENT = gql`
       userTeam
       budgetRemaining
       keeperCount
+      teamNames
     }
     recommendations {
       playerId

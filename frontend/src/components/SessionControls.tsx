@@ -16,6 +16,7 @@ interface SessionControlsProps {
     budget?: number;
     keeperPlayerIds?: number[];
     leagueKey?: string;
+    teamNames?: Record<string, string>;
   }) => void;
   onResume: (sessionId: number) => void;
   onUndo: () => void;
@@ -51,6 +52,7 @@ export function SessionControls({
   const [keeperPlayerIds, setKeeperPlayerIds] = useState<number[]>([]);
   const [prefilled, setPrefilled] = useState(false);
   const [prefillError, setPrefillError] = useState(false);
+  const [prefillTeamNames, setPrefillTeamNames] = useState<Record<string, string> | undefined>(undefined);
 
   const [fetchSetup] = useLazyQuery<YahooDraftSetupQuery>(YAHOO_DRAFT_SETUP_QUERY);
 
@@ -69,6 +71,9 @@ export function SessionControls({
         setFormat(fmt);
         setUserTeam(setup.userTeamId);
         setKeeperPlayerIds(setup.keeperPlayerIds);
+        if (setup.teamNames) {
+          setPrefillTeamNames(setup.teamNames as Record<string, string>);
+        }
         setPrefilled(true);
       },
     );
@@ -187,6 +192,7 @@ export function SessionControls({
               budget: format === "auction" ? budget : undefined,
               keeperPlayerIds: keeperPlayerIds.length > 0 ? keeperPlayerIds : undefined,
               leagueKey: yahooLeague?.leagueKey,
+              teamNames: prefillTeamNames,
             })
           }
           className="px-4 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"

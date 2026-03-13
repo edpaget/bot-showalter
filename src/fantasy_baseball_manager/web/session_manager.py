@@ -97,6 +97,7 @@ class SessionManager:
         budget: int | None = None,
         keeper_player_ids: set[int] | None = None,
         league_key: str | None = None,
+        team_names: dict[int, str] | None = None,
     ) -> tuple[int, DraftEngine]:
         teams = teams or self._league.teams
         budget = budget if budget is not None else self._league.budget
@@ -148,6 +149,7 @@ class SessionManager:
             version=version,
             keeper_player_ids=sorted(keeper_player_ids) if keeper_player_ids is not None else None,
             keeper_snapshot=keeper_snapshot,
+            team_names=team_names,
         )
         session_id = self._repo.create_session(record)
         self._engines[session_id] = engine
@@ -282,6 +284,13 @@ class SessionManager:
         if status is not None:
             records = [r for r in records if r.status == status]
         return [DraftSessionSummary(record=r, pick_count=self._repo.count_picks(r.id or 0)) for r in records]
+
+    def get_team_names(self, session_id: int) -> dict[int, str] | None:
+        record = self._repo.load_session(session_id)
+        if record is None:
+            msg = f"Draft session {session_id} not found"
+            raise ValueError(msg)
+        return record.team_names
 
     def get_keepers(self, session_id: int) -> list[dict[str, object]]:
         record = self._repo.load_session(session_id)

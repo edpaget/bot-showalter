@@ -12,6 +12,7 @@ export const START_SESSION = gql`
     $budget: Int
     $keeperPlayerIds: [Int!]
     $leagueKey: String
+    $teamNames: JSON
   ) {
     startSession(
       season: $season
@@ -23,6 +24,7 @@ export const START_SESSION = gql`
       budget: $budget
       keeperPlayerIds: $keeperPlayerIds
       leagueKey: $leagueKey
+      teamNames: $teamNames
     ) {
       sessionId
       currentPick
@@ -39,6 +41,7 @@ export const START_SESSION = gql`
       userTeam
       budgetRemaining
       keeperCount
+      teamNames
       trades {
         teamA
         teamB
@@ -133,6 +136,7 @@ export const TRADE_PICKS = gql`
       userTeam
       budgetRemaining
       keeperCount
+      teamNames
       trades {
         teamA
         teamB
@@ -161,6 +165,7 @@ export const UNDO_TRADE = gql`
       userTeam
       budgetRemaining
       keeperCount
+      teamNames
       trades {
         teamA
         teamB

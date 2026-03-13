@@ -70,6 +70,7 @@ export const SESSION_QUERY = gql`
       userTeam
       budgetRemaining
       keeperCount
+      teamNames
       trades {
         teamA
         teamB

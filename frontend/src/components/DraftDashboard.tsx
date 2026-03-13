@@ -133,6 +133,7 @@ export function DraftDashboard({ season = 2026 }: { season?: number }) {
       budget?: number;
       keeperPlayerIds?: number[];
       leagueKey?: string;
+      teamNames?: Record<string, string>;
     }) => {
       const result = await startSession({
         variables: {
@@ -143,12 +144,21 @@ export function DraftDashboard({ season = 2026 }: { season?: number }) {
           budget: config.budget,
           keeperPlayerIds: config.keeperPlayerIds,
           leagueKey: config.leagueKey,
+          teamNames: config.teamNames,
         },
       });
       if (result.data) {
         const state = result.data.startSession;
         ctx.setSessionId(state.sessionId);
         ctx.setState(state);
+        // Populate team names from response
+        if (state.teamNames) {
+          const parsed: Record<number, string> = {};
+          for (const [k, v] of Object.entries(state.teamNames as Record<string, string>)) {
+            parsed[Number(k)] = v;
+          }
+          ctx.setTeamNames(parsed);
+        }
         // Fetch keepers if this is a keeper session
         if (state.keeperCount > 0) {
           const keepersRes = await fetchKeepers({ variables: { sessionId: state.sessionId } });
@@ -175,6 +185,14 @@ export function DraftDashboard({ season = 2026 }: { season?: number }) {
         ctx.setRoster(rosterRes.data?.roster ?? []);
         ctx.setNeeds(needsRes.data?.needs ?? []);
         ctx.setKeepers(keepersRes.data?.keepers ?? []);
+        // Restore team names from persisted session
+        if (sessionRes.data.session.teamNames) {
+          const parsed: Record<number, string> = {};
+          for (const [k, v] of Object.entries(sessionRes.data.session.teamNames as Record<string, string>)) {
+            parsed[Number(k)] = v;
+          }
+          ctx.setTeamNames(parsed);
+        }
       }
     },
     [ctx, fetchSession, fetchRecs, fetchRoster, fetchNeeds, fetchKeepers],
@@ -300,6 +318,7 @@ export function DraftDashboard({ season = 2026 }: { season?: number }) {
           trades={ctx.state.trades}
           teams={ctx.state.teams}
           userTeam={ctx.state.userTeam}
+          teamNames={ctx.teamNames}
           onPlayerClick={openPlayer}
           onUndoTrade={handleUndoTrade}
           undoingTrade={undoingTrade}
@@ -314,6 +333,7 @@ export function DraftDashboard({ season = 2026 }: { season?: number }) {
           currentPick={ctx.state.currentPick}
           totalPicks={totalPicks}
           trades={ctx.state.trades}
+          teamNames={ctx.teamNames}
           onTradeComplete={handleTradeComplete}
           onClose={() => setTradeDialogOpen(false)}
         />

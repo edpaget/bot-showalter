@@ -210,4 +210,25 @@ describe("TradeDialog", () => {
     await user.click(screen.getByText("Cancel"));
     expect(onClose).toHaveBeenCalled();
   });
+
+  it("renders team names in dropdowns when provided", () => {
+    const teamNames = { 1: "Sluggers", 2: "Aces", 3: "Dingers", 4: "Bombers" };
+    renderDialog([], { teamNames });
+    const selects = screen.getAllByRole("combobox");
+    // Team A dropdown should have team names
+    const teamAOptions = within(selects[0]!).getAllByRole("option");
+    expect(teamAOptions.map((o) => o.textContent)).toContain("Sluggers");
+    expect(teamAOptions.map((o) => o.textContent)).not.toContain("Aces"); // excluded (it's team B default)
+    // Team B dropdown should have team names
+    const teamBOptions = within(selects[1]!).getAllByRole("option");
+    expect(teamBOptions.map((o) => o.textContent)).toContain("Aces");
+    expect(teamBOptions.map((o) => o.textContent)).not.toContain("Sluggers"); // excluded (it's team A default)
+  });
+
+  it("falls back to Team N without team names", () => {
+    renderDialog();
+    const selects = screen.getAllByRole("combobox");
+    const teamAOptions = within(selects[0]!).getAllByRole("option");
+    expect(teamAOptions.some((o) => o.textContent === "Team 1")).toBe(true);
+  });
 });

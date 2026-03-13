@@ -13,8 +13,13 @@ interface TradeDialogProps {
   currentPick: number;
   totalPicks: number;
   trades: DraftTradeType[];
+  teamNames?: Record<number, string>;
   onTradeComplete: (state: DraftStateType) => void;
   onClose: () => void;
+}
+
+function teamLabel(id: number, teamNames?: Record<number, string>): string {
+  return teamNames?.[id] ?? `Team ${id}`;
 }
 
 export function TradeDialog({
@@ -24,6 +29,7 @@ export function TradeDialog({
   currentPick,
   totalPicks,
   trades,
+  teamNames,
   onTradeComplete,
   onClose,
 }: TradeDialogProps) {
@@ -123,7 +129,7 @@ export function TradeDialog({
                 .filter((t) => t !== teamB)
                 .map((t) => (
                   <option key={t} value={t}>
-                    Team {t}
+                    {teamLabel(t, teamNames)}
                   </option>
                 ))}
             </select>
@@ -148,7 +154,7 @@ export function TradeDialog({
                 .filter((t) => t !== teamA)
                 .map((t) => (
                   <option key={t} value={t}>
-                    Team {t}
+                    {teamLabel(t, teamNames)}
                   </option>
                 ))}
             </select>

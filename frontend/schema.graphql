@@ -124,6 +124,7 @@ type DraftStateType {
   budgetRemaining: Int
   keeperCount: Int!
   trades: [DraftTradeType!]!
+  teamNames: JSON
 }
 
 type DraftTradeType {
@@ -205,7 +206,7 @@ type LeagueSettingsType {
 }
 
 type Mutation {
-  startSession(season: Int!, system: String = null, version: String = null, teams: Int = null, userTeam: Int! = 1, format: String! = "snake", budget: Int = null, keeperPlayerIds: [Int!] = null, leagueKey: String = null): DraftStateType!
+  startSession(season: Int!, system: String = null, version: String = null, teams: Int = null, userTeam: Int! = 1, format: String! = "snake", budget: Int = null, keeperPlayerIds: [Int!] = null, leagueKey: String = null, teamNames: JSON = null): DraftStateType!
   pick(sessionId: Int!, playerId: Int!, position: Position!, price: Int = null, team: Int = null): PickResultType!
   undo(sessionId: Int!): PickResultType!
   endSession(sessionId: Int!): Boolean!

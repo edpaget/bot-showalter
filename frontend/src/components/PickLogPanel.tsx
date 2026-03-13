@@ -9,9 +9,14 @@ interface PickLogPanelProps {
   trades?: DraftTradeType[];
   teams?: number;
   userTeam?: number;
+  teamNames?: Record<number, string>;
   onPlayerClick?: (playerId: number, playerName: string, playerType?: string) => void;
   onUndoTrade?: () => void;
   undoingTrade?: boolean;
+}
+
+function teamLabel(id: number, teamNames?: Record<number, string>): string {
+  return teamNames?.[id] ?? `Team ${id}`;
 }
 
 export function PickLogPanel({
@@ -19,6 +24,7 @@ export function PickLogPanel({
   trades = [],
   teams = 0,
   userTeam = 0,
+  teamNames,
   onPlayerClick,
   onUndoTrade,
   undoingTrade,
@@ -45,8 +51,8 @@ export function PickLogPanel({
               className="flex items-center gap-2 text-xs text-indigo-600"
             >
               <span>
-                Team {trade.teamA} ↔ Team {trade.teamB}: gave picks [{trade.teamAGives.join(", ")}] for picks [
-                {trade.teamBGives.join(", ")}]
+                {teamLabel(trade.teamA, teamNames)} ↔ {teamLabel(trade.teamB, teamNames)}: gave picks [
+                {trade.teamAGives.join(", ")}] for picks [{trade.teamBGives.join(", ")}]
               </span>
               {i === trades.length - 1 && (trade.teamA === userTeam || trade.teamB === userTeam) && onUndoTrade && (
                 <button
@@ -88,7 +94,7 @@ export function PickLogPanel({
                   >
                     <td className="px-3 py-1">{pick.pickNumber}</td>
                     <td className="py-1">
-                      Team {pick.team}
+                      {teamLabel(pick.team, teamNames)}
                       {teams > 0 && snakeTeam(pick.pickNumber, teams) !== pick.team && (
                         <span className="ml-1 bg-indigo-100 text-indigo-700 text-[10px] px-1 rounded">traded</span>
                       )}
