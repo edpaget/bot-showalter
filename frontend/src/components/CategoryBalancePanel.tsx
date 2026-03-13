@@ -29,11 +29,15 @@ export function CategoryBalancePanel({ balance }: CategoryBalancePanelProps) {
     rank: b.leagueRankEstimate,
   }));
 
+  // Force re-mount when data changes — recharts RadarChart doesn't always
+  // re-render when only values change but the structure stays the same.
+  const chartKey = balance.map((b) => `${b.category}:${b.projectedValue}`).join(",");
+
   return (
     <div className="border border-gray-200 rounded p-3">
       <h3 className="text-sm font-semibold mb-2">Category Balance</h3>
       <ResponsiveContainer width="100%" height={200}>
-        <RadarChart data={chartData}>
+        <RadarChart key={chartKey} data={chartData}>
           <PolarGrid />
           <PolarAngleAxis dataKey="category" tick={{ fontSize: 10 }} />
           <PolarRadiusAxis tick={false} axisLine={false} />
