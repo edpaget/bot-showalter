@@ -430,7 +430,7 @@ class SessionManager:
             val_map[(v.player_id, v.player_type)] = v
 
         snapshot: list[dict[str, object]] = []
-        for pid, ptype in sorted(keeper_player_ids):
+        for pid, ptype in sorted(keeper_player_ids, key=lambda k: (k[0], k[1] or "")):
             player = player_map.get(pid)
             val: Valuation | None = val_map.get((pid, ptype))
             # Fall back to any valuation for this player if typed lookup fails
