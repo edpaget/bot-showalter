@@ -173,11 +173,13 @@ The evaluation uses established independent targets (WAR ρ, top-N hit rates) vi
 
 **Go (adopt)** if `sgp-overhauled` matches or improves baseline ZAR's SP WAR ρ on both seasons without degrading batter metrics or hit rates, while producing plausible reliever valuations. **Go (blend)** if SGP and ZAR have complementary strengths — pursue an ensemble approach. **No-go** if `sgp-overhauled` still underperforms baseline ZAR on SP WAR ρ on both seasons despite all fixes. In that case, SGP's weakness may be fundamental to H2H category leagues (SGP was designed for and validated on roto, not H2H), and further investment should be redirected to [ZAR Pitcher Budget](zar-pitcher-budget.md) improvements instead.
 
-### Results
+### Results (original — superseded)
+
+> **Note:** The original phase 4 results below were invalidated by a polluted projection pool bug discovered on 2026-03-12. See [Corrected results](#corrected-results-2026-03-12) below for the accurate holdout validation. The original results are preserved for reference.
 
 All SGP configs used ensemble/routed-sgbm projections to match the ZAR baseline population (~945 players per season). Control: `zar/holdout-baseline`.
 
-#### Comparison matrix
+#### Comparison matrix (original — polluted pool)
 
 | Config | Season | WAR ρ (all) | WAR ρ (SP) | Hit-25 | Hit-50 | Hit-100 | Regression gate |
 |--------|--------|-------------|------------|--------|--------|---------|-----------------|
@@ -194,30 +196,80 @@ All SGP configs used ensemble/routed-sgbm projections to match the ZAR baseline 
 
 Per-category hit rates (sgp-overhauled vs ZAR): HR, R, RBI, SO, W all matched ZAR. OBP consistently -10 to -15pp worse. SB -5pp worse. ERA and WHIP 0% for both systems (expected — these rate stats have noisy actuals). SV+HLD not evaluable (combined stat not tracked in actuals).
 
-#### Phase contribution analysis
+#### Polluted pool bug (discovered 2026-03-12)
 
-- **Regression denominators** (baseline → regression): Negligible impact. WAR ρ changes < 0.01 on both seasons. SP WAR ρ slightly worse (-0.01 on 2024). Regression provides more stable denominators across seasons (lower CoV, proven in phase 1) but doesn't translate to measurably better valuations.
-- **Team-impact rate stats** (baseline → team-impact): Also minimal impact on aggregate metrics. Top-25 hit rate improved to 40% on 2024 (matching ZAR), but SP WAR ρ degraded on 2025 (-0.065). The team-impact formula successfully eliminates reliever inflation ($110 Díaz → < $40) but this correctness improvement doesn't translate to aggregate WAR ρ gains.
-- **Combined (overhauled)**: Reliever inflation eliminated. Top-50 hit rate improved (+6pp on 2024, +2pp on 2025). But OBP hit rate is persistently 10-15pp worse than ZAR, and top-100 hit rate is 4-9pp worse.
+The original sgp-overhauled holdout runs were generated via a script that fetched projections using `get_by_season(season, system="ensemble")` instead of `get_by_system_version("ensemble", "routed-sgbm")`. The former returns *all* ensemble versions for that season, so the model received projections from both `routed-sgbm` (2269 pitchers) and `routed-sgbm-pt` (1615 pitchers) — many of the same players counted twice with different projection versions.
 
-#### Pitcher inspection
+This inflated the pitcher pool from ~600 (correct) to ~1450, which:
 
-**sgp-overhauled 2024 top pitchers:** Strider ($53.1 SP), Cease ($40.9), Imanaga ($40.1), Pivetta ($39.6 RP), Steele ($36.8). No RP above $40. Edwin Díaz does not appear in top-20 (was $110 in original SGP, $26 in sgp-baseline). SP aces dominate as expected.
+1. **Raised the replacement level** — more players competing for 96 roster spots (8 pitcher slots × 12 teams) pushes the "best freely available" baseline higher.
+2. **Compressed top-end dollar values** — Skenes went from $162 (correct pool) to $72 (polluted pool) because the surplus above replacement was smaller with a higher replacement level.
+3. **Corrupted the OBP team-impact fallback** — the projection-based `representative_team` OBP entry had doubled total PA, inflating the team volume used in the marginal-impact formula.
 
-**sgp-overhauled 2025 top pitchers:** Skenes ($72.5), Skubal ($45.2 SP), Sale ($41.6 SP), Wheeler ($33.6 SP). RPs: Bowden Francis ($27.7), Clay Holmes ($25.1). Plausible reliever valuations — closers are in the draftable pool but don't dominate.
+The compressed values made SGP look more reasonable in pitcher inspection ("no RP above $40", "plausible reliever valuations") but this was an artifact — the real SGP values with a correct single-version pool are much more top-heavy.
 
-#### Go/no-go decision: **No-go**
+### Corrected results (2026-03-12)
 
-SGP cannot replace ZAR as the production system. While the overhauled SGP successfully fixes the reliever inflation problem (acceptance criterion 3: met) and is competitive on overall WAR ρ, it:
+After fixing the polluted pool, sgp-overhauled was regenerated using `get_by_system_version("ensemble", "routed-sgbm")` for both holdout seasons, producing ~945 players per season (matching ZAR's population).
 
-1. **Fails the regression gate on 2025** (WAR ρ 0.467 vs 0.480, hit rate 43.0% vs 46.3%).
-2. **Does not exceed baseline SGP's SP WAR ρ** (criterion 4: not met — overhauled SP WAR ρ 0.411/0.423 vs baseline's 0.436/0.438).
-3. **Consistently underperforms on OBP category hit rate** (-10 to -15pp), suggesting SGP's rate-stat handling still doesn't capture OBP value as well as ZAR's z-score approach.
-4. **SV+HLD category hit rate untestable** (criterion 5: inconclusive — combined stat not tracked in actuals infrastructure).
+#### Corrected comparison matrix
 
-The phases 1-3 improvements are technically correct — regression denominators are more robust, the team-impact formula is the theoretically right approach for rate stats, and reliever inflation is eliminated. But these correctness improvements don't translate into aggregate accuracy gains over ZAR in H2H categories format. SGP was designed for and validated in roto leagues (the FanGraphs test); H2H categories may have different dynamics that ZAR's z-score approach handles better.
+| Config | Season | Value MAE | Rank ρ | WAR ρ (all) | WAR ρ (batters) | WAR ρ (pitchers) | WAR ρ (SP) | Hit-25 | Hit-50 | Hit-100 |
+|--------|--------|-----------|--------|-------------|-----------------|------------------|------------|--------|--------|---------|
+| zar (control) | 2024 | 3.83 | 0.685 | 0.426 | 0.450 | 0.391 | 0.414 | 40% | 36% | 52% |
+| sgp-overhauled | 2024 | 4.15 | 0.689 | 0.448 | 0.459 | 0.421 | 0.436 | 36% | 40% | 45% |
+| zar (control) | 2025 | 4.11 | 0.680 | 0.479 | 0.510 | 0.425 | 0.476 | 48% | 44% | 46% |
+| sgp-overhauled | 2025 | 4.37 | 0.671 | 0.476 | 0.495 | 0.435 | 0.446 | 40% | 40% | 46% |
 
-**Recommendation:** Keep SGP infrastructure as a research tool (it's useful for understanding category value and standings dynamics). Redirect active optimization effort to [ZAR Pitcher Budget](zar-pitcher-budget.md) tuning and OBP-specific improvements. Consider SGP as an ensemble candidate if a future valuation ensemble roadmap emerges — SGP and ZAR have somewhat complementary strengths (SGP slightly better on counting stats, ZAR better on rate stats).
+Shared population (min PA ≥ 50): n=875 (2024), n=762 (2025).
+
+Per-category hit rates were identical between systems for all categories on both seasons (HR, R, RBI, OBP, SB, ERA, SO, SV+HLD, W, WHIP). The OBP gap from the original results (-10 to -15pp) was entirely a population artifact — with shared populations, both systems produce the same OBP hit rate.
+
+#### Corrected analysis
+
+With a clean pool, the picture changes:
+
+- **2024:** SGP wins WAR ρ overall (+0.022), batters (+0.009), pitchers (+0.030), and SP (+0.022). ZAR wins Value MAE (-0.32) and hit rate top-100 (-7pp). Mixed result.
+- **2025:** ZAR wins most metrics — Value MAE (-0.26), Rank ρ (+0.009), WAR ρ overall (+0.003), batters (+0.015), SP (+0.030), hit rates top-25 (-8pp) and top-50 (-4pp). SGP only wins pitcher WAR ρ (+0.010).
+
+#### Structural pitcher overvaluation
+
+With the correct pool, SGP's dollar values reveal a structural problem:
+
+| Version | Season | Top pitcher | Top batter | Max pitcher / Max batter |
+|---------|--------|-------------|------------|--------------------------|
+| sgp-overhauled | 2024 | $175.0 | $89.4 | 1.96× |
+| sgp-overhauled | 2025 | $160.5 | $82.2 | 1.95× |
+| sgp/production | 2026 | $162.7 | $73.2 | 2.22× |
+| zar/production | 2026 | $73.3 | $66.8 | 1.10× |
+
+SGP's top pitcher is consistently ~2× the top batter, while ZAR's are roughly equal. This is a known structural limitation of SGP documented in the fantasy baseball analytics community (Smart Fantasy Baseball, FanGraphs, Pitcher List).
+
+**Root cause:** Elite starting pitchers accumulate SGP in *both* counting categories (SO, W) and rate categories (ERA, WHIP) simultaneously. A pitcher like Skenes gets ERA SGP of 6.87 (team-impact: adding 194 IP of 2.92 ERA to a 1033 IP team at 3.70 ERA), WHIP SGP of 1.30, SO SGP of 7.36, and W SGP of 4.51, for a composite of 20.03. No batter can accumulate equivalent composite because batter rate stats (OBP) don't compound with counting stats the same way.
+
+This is not a bug in the rate-stat formula — the team-impact calculation is correct. It's an inherent property of how SGP combines rate and counting dimensions for pitchers. ZAR avoids this because its z-score approach normalizes each category independently and produces a more compressed distribution.
+
+**Attempted mitigation — linearized rate stats:** Converting ERA to "earned runs saved" (`IP × avg_ERA/9 - ER`) and WHIP to "baserunners prevented" (`IP × avg_WHIP - (BB+H)`) eliminates the team-impact nonlinearity but produces a similar spread (#1 to #96 spread of 11.58 SGP vs 9.84 for team-impact). The top pitcher still reaches $129 — the concentration is driven by elite pitchers dominating both dimensions, not by the specific rate-stat formula.
+
+#### Go/no-go decision: **No-go** (confirmed)
+
+The corrected results confirm the no-go decision, though for partially different reasons than originally documented:
+
+1. **Structural pitcher overvaluation** — SGP produces top pitchers at $160-175 (2× top batters). This makes the dollar values unsuitable for auction guidance without post-hoc rescaling.
+2. **Mixed holdout accuracy** — SGP is competitive with ZAR on WAR ρ (wins 2024, loses 2025) but consistently worse on Value MAE and top-N hit rates. No clear accuracy advantage to justify the dollar-scale distortion.
+3. **Category hit rates are identical** — the original OBP gap was a population artifact from the polluted pool and the pre-fix evaluation infrastructure (independent populations per system). With shared-population comparison, all category hit rates match.
+
+**Recommendation:** Keep SGP infrastructure for research and as a supplementary ranking signal. The WAR ρ results suggest SGP captures pitcher value slightly differently than ZAR (better pitcher WAR ρ on both seasons), which could be useful in an ensemble. However, SGP dollar values should not be used directly for auction budgets due to the structural pitcher concentration.
+
+### Evaluation infrastructure improvements (2026-03-12)
+
+Three improvements to the valuation comparison framework were implemented during this investigation:
+
+1. **Shared-population comparison** — `compare()` now evaluates both systems on the intersection of players present in both predictions AND in actuals. Previously, each system was evaluated independently with different matched sets, making metrics asymmetric and incomparable. This eliminated the OBP hit-rate artifact (15pp gap that was entirely population-dependent).
+
+2. **Min PA/IP filtering** — `evaluate()` and `compare()` accept optional `min_pa` and `min_ip` parameters to filter actual batter/pitcher pools. Low-PA noise players with extreme rate stats (e.g., .667 OBP from 6 PA) distorted rate-stat category evaluations. CLI flags: `--min-pa`, `--min-ip`.
+
+3. **Derived stats in actuals (SV+HLD)** — `add_derived_stats()` computes compound stats (SV+HLD = SV + HLD) on actual stat dicts, making the combined category evaluable in hit-rate metrics. Extracted from `projection_lookup.py` to `stats_conversion.py` for shared use.
 
 ---
 
