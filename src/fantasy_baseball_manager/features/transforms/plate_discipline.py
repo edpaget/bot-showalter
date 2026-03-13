@@ -63,15 +63,12 @@ def plate_discipline_profile(rows: list[dict[str, Any]]) -> dict[str, Any]:
         if desc == "called_strike":
             called_strikes += 1
 
-    out_of_zone_takes = out_of_zone - out_of_zone_swings
-
     return {
         "chase_rate": (out_of_zone_swings / out_of_zone * 100.0) if out_of_zone > 0 else float("nan"),
         "zone_contact_pct": (in_zone_contact / in_zone_swings * 100.0) if in_zone_swings > 0 else float("nan"),
         "whiff_rate": (total_misses / total_swings * 100.0) if total_swings > 0 else float("nan"),
         "swinging_strike_pct": (total_misses / total_pitches * 100.0) if total_pitches > 0 else float("nan"),
         "called_strike_pct": (called_strikes / total_pitches * 100.0) if total_pitches > 0 else float("nan"),
-        "ooz_take_rate": (out_of_zone_takes / out_of_zone * 100.0) if out_of_zone > 0 else float("nan"),
     }
 
 
@@ -87,6 +84,5 @@ PLATE_DISCIPLINE = TransformFeature(
         "whiff_rate",
         "swinging_strike_pct",
         "called_strike_pct",
-        "ooz_take_rate",
     ),
 )

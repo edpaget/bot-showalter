@@ -69,7 +69,7 @@ LABEL_TO_INT: dict[OutcomeLabel, int] = {
 INT_TO_LABEL: dict[int, OutcomeLabel] = {v: k for k, v in LABEL_TO_INT.items()}
 
 _DEFAULT_FEATURE_COLUMNS: dict[str, list[str]] = {
-    "batter": [*preseason_weighted_batter_curated_columns(), "ooz_take_rate", "adp_rank", "adp_pick"],
+    "batter": [*preseason_weighted_batter_curated_columns(), "adp_rank", "adp_pick"],
     "pitcher": [*preseason_averaged_pitcher_curated_columns(), "adp_rank", "adp_pick"],
 }
 
