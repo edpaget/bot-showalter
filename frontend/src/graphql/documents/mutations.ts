@@ -62,6 +62,7 @@ export const PICK = gql`
     $position: Position!
     $price: Int
     $team: Int
+    $playerType: String
   ) {
     pick(
       sessionId: $sessionId
@@ -69,6 +70,7 @@ export const PICK = gql`
       position: $position
       price: $price
       team: $team
+      playerType: $playerType
     ) {
       ...PickResultFields
     }

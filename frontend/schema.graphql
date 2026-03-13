@@ -145,6 +145,7 @@ type FallingPlayerType {
   value: Float!
   valueRank: Int!
   arbitrageScore: Float!
+  playerType: String!
 }
 
 """
@@ -209,7 +210,7 @@ type LeagueSettingsType {
 
 type Mutation {
   startSession(season: Int!, system: String = null, version: String = null, teams: Int = null, userTeam: Int! = 1, format: String! = "snake", budget: Int = null, keeperPlayerIds: JSON = null, leagueKey: String = null, teamNames: JSON = null, draftOrder: [Int!] = null): DraftStateType!
-  pick(sessionId: Int!, playerId: Int!, position: Position!, price: Int = null, team: Int = null): PickResultType!
+  pick(sessionId: Int!, playerId: Int!, position: Position!, price: Int = null, team: Int = null, playerType: String = null): PickResultType!
   undo(sessionId: Int!): PickResultType!
   endSession(sessionId: Int!): Boolean!
   tradePicks(sessionId: Int!, gives: [Int!]!, receives: [Int!]!, partnerTeam: Int!, teamA: Int = null): DraftStateType!
@@ -371,6 +372,7 @@ type RecommendationType {
   value: Float!
   score: Float!
   reason: String!
+  playerType: String!
 }
 
 type RosterSlotType {

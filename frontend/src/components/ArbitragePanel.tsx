@@ -8,7 +8,7 @@ const POSITION_FILTERS = ["All", "C", "1B", "2B", "SS", "3B", "OF", "SP", "RP"] 
 interface ArbitragePanelProps {
   arbitrage: ArbitrageReportType | null;
   sessionId: number;
-  onDraft: (playerId: number, position: string) => void;
+  onDraft: (playerId: number, position: string, playerType: string) => void;
   pickLoading?: boolean;
 }
 
@@ -111,7 +111,7 @@ function FallingTable({
   pickLoading,
 }: {
   players: FallingPlayerType[];
-  onDraft: (playerId: number, position: string) => void;
+  onDraft: (playerId: number, position: string, playerType: string) => void;
   pickLoading?: boolean;
 }) {
   if (players.length === 0) {
@@ -143,7 +143,7 @@ function FallingTable({
               <button
                 type="button"
                 disabled={pickLoading}
-                onClick={() => onDraft(fp.playerId, fp.position.toUpperCase())}
+                onClick={() => onDraft(fp.playerId, fp.position.toUpperCase(), fp.playerType)}
                 className="px-2 py-0.5 text-xs bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Draft

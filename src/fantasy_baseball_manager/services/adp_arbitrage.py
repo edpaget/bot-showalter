@@ -56,6 +56,7 @@ def detect_falling_players(
                 value=row.value,
                 value_rank=value_rank_map[row.player_id],
                 arbitrage_score=score,
+                player_type=row.player_type,
             )
         )
 

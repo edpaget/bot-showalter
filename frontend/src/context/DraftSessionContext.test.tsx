@@ -68,6 +68,7 @@ function TestConsumer() {
                 value: 20,
                 score: 0.8,
                 reason: "Need 1B",
+                playerType: "batter",
               },
             ],
             roster: [

@@ -5,9 +5,33 @@ import type { RecommendationType } from "../generated/graphql";
 import { RecommendationPanel } from "./RecommendationPanel";
 
 const RECS: RecommendationType[] = [
-  { playerId: 1, playerName: "Mike Trout", position: "OF", value: 35, score: 0.95, reason: "Best value" },
-  { playerId: 2, playerName: "Gerrit Cole", position: "SP", value: 25, score: 0.85, reason: "Need SP" },
-  { playerId: 3, playerName: "Pete Alonso", position: "FIRST_BASE", value: 20, score: 0.75, reason: "Need 1B" },
+  {
+    playerId: 1,
+    playerName: "Mike Trout",
+    position: "OF",
+    value: 35,
+    score: 0.95,
+    reason: "Best value",
+    playerType: "batter",
+  },
+  {
+    playerId: 2,
+    playerName: "Gerrit Cole",
+    position: "SP",
+    value: 25,
+    score: 0.85,
+    reason: "Need SP",
+    playerType: "pitcher",
+  },
+  {
+    playerId: 3,
+    playerName: "Pete Alonso",
+    position: "FIRST_BASE",
+    value: 20,
+    score: 0.75,
+    reason: "Need 1B",
+    playerType: "batter",
+  },
 ];
 
 describe("RecommendationPanel", () => {
@@ -34,7 +58,7 @@ describe("RecommendationPanel", () => {
     const user = userEvent.setup();
     const draftButtons = screen.getAllByRole("button", { name: "Draft" });
     await user.click(draftButtons[0]!);
-    expect(onDraft).toHaveBeenCalledWith(1, "OF");
+    expect(onDraft).toHaveBeenCalledWith(1, "OF", "batter");
   });
 
   it("hides Draft buttons when session is not active", () => {
@@ -54,8 +78,24 @@ describe("RecommendationPanel", () => {
 
   it("shows Cat badge when reason includes category fill", () => {
     const catRecs: RecommendationType[] = [
-      { playerId: 10, playerName: "SB Guy", position: "OF", value: 15, score: 0.8, reason: "fills SB + ERA gaps" },
-      { playerId: 11, playerName: "No Cat", position: "OF", value: 15, score: 0.7, reason: "best value available" },
+      {
+        playerId: 10,
+        playerName: "SB Guy",
+        position: "OF",
+        value: 15,
+        score: 0.8,
+        reason: "fills SB + ERA gaps",
+        playerType: "batter",
+      },
+      {
+        playerId: 11,
+        playerName: "No Cat",
+        position: "OF",
+        value: 15,
+        score: 0.7,
+        reason: "best value available",
+        playerType: "batter",
+      },
     ];
     render(<RecommendationPanel recommendations={catRecs} onDraft={vi.fn()} sessionActive />);
     const badges = screen.getAllByText("Cat");
@@ -71,6 +111,7 @@ describe("RecommendationPanel", () => {
         value: 15,
         score: 0.8,
         reason: "addresses weak categories",
+        playerType: "batter",
       },
     ];
     render(<RecommendationPanel recommendations={catRecs} onDraft={vi.fn()} sessionActive />);

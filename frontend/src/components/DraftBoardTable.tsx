@@ -88,7 +88,7 @@ export interface DraftBoardTableProps {
   system?: string;
   version?: string;
   draftedPlayerKeys?: Set<string>;
-  onDraft?: (playerId: number, position: string) => void;
+  onDraft?: (playerId: number, position: string, playerType: string) => void;
   onPlayerClick?: (playerId: number, playerName: string, playerType: string) => void;
   sessionActive?: boolean;
   pickLoading?: boolean;
@@ -303,7 +303,7 @@ interface VirtualBodyProps {
   draftedPlayerKeys?: Set<string>;
   sessionActive: boolean;
   pickLoading?: boolean;
-  onDraft?: (playerId: number, position: string) => void;
+  onDraft?: (playerId: number, position: string, playerType: string) => void;
   onPlayerClick?: (playerId: number, playerName: string, playerType: string) => void;
   battingCategories: string[];
   pitchingCategories: string[];
@@ -386,7 +386,7 @@ interface BoardRowProps {
   isDrafted: boolean;
   sessionActive: boolean;
   pickLoading?: boolean;
-  onDraft?: (playerId: number, position: string) => void;
+  onDraft?: (playerId: number, position: string, playerType: string) => void;
   onPlayerClick?: (playerId: number, playerName: string, playerType: string) => void;
   battingCategories: string[];
   pitchingCategories: string[];
@@ -407,7 +407,10 @@ const BoardRow = memo(function BoardRow({
     [onPlayerClick, row.playerId, row.playerName, row.playerType],
   );
 
-  const handleDraft = useCallback(() => onDraft?.(row.playerId, row.position), [onDraft, row.playerId, row.position]);
+  const handleDraft = useCallback(
+    () => onDraft?.(row.playerId, row.position, row.playerType),
+    [onDraft, row.playerId, row.position, row.playerType],
+  );
 
   return (
     <tr

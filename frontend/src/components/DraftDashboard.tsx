@@ -209,12 +209,12 @@ export function DraftDashboard({ season = 2026 }: { season?: number }) {
   );
 
   const handleDraft = useCallback(
-    async (playerId: number, position: string) => {
+    async (playerId: number, position: string, playerType: string) => {
       if (!ctx.sessionId) return;
       // Optimistically mark player as drafted so the board updates instantly
-      ctx.addOptimisticPick(playerId, position);
+      ctx.addOptimisticPick(playerId, position, playerType);
       const result = await pickMutation({
-        variables: { sessionId: ctx.sessionId, playerId, position },
+        variables: { sessionId: ctx.sessionId, playerId, position, playerType },
       });
       if (result.data) {
         ctx.applyPickResult(result.data.pick);

@@ -228,7 +228,7 @@ describe("DraftBoardTable", () => {
     const user = userEvent.setup();
     const draftButtons = screen.getAllByRole("button", { name: "Draft" });
     await user.click(draftButtons[0]!);
-    expect(onDraft).toHaveBeenCalledWith(1, "OF");
+    expect(onDraft).toHaveBeenCalledWith(1, "OF", "batter");
   });
 
   it("grays out drafted players", async () => {

@@ -7,6 +7,7 @@ from strawberry.types import Info  # noqa: TC002 — Strawberry needs this at ru
 from fantasy_baseball_manager.domain import (
     ArbitrageReport,
     DraftBoard,
+    DraftBoardRow,
     Position,
     TierAssignment,
     YahooDraftSetupInfo,
@@ -138,6 +139,14 @@ def _team_needs(engine: DraftEngine, team: int) -> dict[str, int]:
         if remaining > 0:
             needs[pos] = remaining
     return needs
+
+
+def _find_player_in_pool(engine: DraftEngine, player_id: int, player_type: str | None = None) -> DraftBoardRow | None:
+    """Find a player in the available pool by player_id (optionally filtered by player_type)."""
+    for (pid, ptype), row in engine.state.available_pool.items():
+        if pid == player_id and (player_type is None or ptype == player_type):
+            return row
+    return None
 
 
 def _compute_arbitrage_cat_scores(
@@ -1004,6 +1013,7 @@ class Mutation:
         position: Position,
         price: int | None = None,
         team: int | None = None,
+        player_type: str | None = None,
     ) -> PickResultType:
         ctx = _get_context(info)
         mgr = _get_session_manager(info)
@@ -1019,11 +1029,8 @@ class Mutation:
 
         # Auto-detect best slot: handles invalid positions (e.g. "P" → "SP"),
         # full slots (overflow to UTIL/P/BN), and normal placement.
-        # Look up player by (player_id, player_type) — derive player_type from position.
-        pitcher_positions = {"SP", "RP", "P"}
-        player_type = "pitcher" if pos_str in pitcher_positions else "batter"
-        pool_key = (player_id, player_type)
-        player = engine.state.available_pool.get(pool_key)
+        # Find the player in the pool by player_id (may match batter or pitcher entry).
+        player = _find_player_in_pool(engine, player_id, player_type)
         if player is not None:
             needs = _team_needs(engine, team)
             if pos_str not in needs:

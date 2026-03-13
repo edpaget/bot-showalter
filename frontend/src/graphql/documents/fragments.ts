@@ -42,6 +42,7 @@ export const PICK_RESULT_FRAGMENT = gql`
       value
       score
       reason
+      playerType
     }
     roster {
       pickNumber
@@ -67,6 +68,7 @@ export const PICK_RESULT_FRAGMENT = gql`
         value
         valueRank
         arbitrageScore
+        playerType
       }
       reaches {
         playerId

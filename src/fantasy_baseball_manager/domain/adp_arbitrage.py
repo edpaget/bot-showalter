@@ -12,6 +12,7 @@ class FallingPlayer:
     value: float
     value_rank: int
     arbitrage_score: float
+    player_type: str = ""
 
 
 @dataclass(frozen=True)

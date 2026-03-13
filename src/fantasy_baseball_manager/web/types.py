@@ -370,6 +370,7 @@ class RecommendationType:
     value: float
     score: float
     reason: str
+    player_type: str
 
     @staticmethod
     def from_domain(rec: Recommendation) -> RecommendationType:
@@ -380,6 +381,7 @@ class RecommendationType:
             value=rec.value,
             score=rec.score,
             reason=rec.reason,
+            player_type=rec.player_type,
         )
 
 
@@ -451,6 +453,7 @@ class FallingPlayerType:
     value: float
     value_rank: int
     arbitrage_score: float
+    player_type: str
 
     @staticmethod
     def from_domain(fp: FallingPlayer) -> FallingPlayerType:
@@ -464,6 +467,7 @@ class FallingPlayerType:
             value=fp.value,
             value_rank=fp.value_rank,
             arbitrage_score=fp.arbitrage_score,
+            player_type=fp.player_type,
         )
 
 

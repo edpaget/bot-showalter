@@ -21,3 +21,4 @@ class Recommendation:
     value: float
     score: float
     reason: str
+    player_type: str = ""

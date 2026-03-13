@@ -48,7 +48,7 @@ interface DraftSessionContextValue {
   setKeepers: (keepers: KeeperInfoType[]) => void;
   setTeamNames: (names: Record<number, string>) => void;
   applyPickResult: (result: PickResultFieldsFragment) => void;
-  addOptimisticPick: (playerId: number, position: string) => void;
+  addOptimisticPick: (playerId: number, position: string, playerType: string) => void;
   clearSession: () => void;
 }
 
@@ -97,7 +97,7 @@ export function DraftSessionProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const addOptimisticPick = useCallback(
-    (playerId: number, position: string) => {
+    (playerId: number, position: string, playerType: string) => {
       if (!state) return;
       // Immediately mark the player as drafted and advance the pick counter.
       // Placeholder fields (playerName, position, etc.) get replaced when
@@ -118,8 +118,9 @@ export function DraftSessionProvider({ children }: { children: ReactNode }) {
           },
         ],
       });
-      // Filter the drafted player out of recommendations
-      setRecommendations((prev) => prev.filter((r) => r.playerId !== playerId));
+      // Filter the drafted player out of recommendations (match both id and type
+      // so drafting batter-Ohtani doesn't remove pitcher-Ohtani from recs).
+      setRecommendations((prev) => prev.filter((r) => !(r.playerId === playerId && r.playerType === playerType)));
     },
     [state],
   );

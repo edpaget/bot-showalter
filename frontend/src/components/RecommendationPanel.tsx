@@ -6,7 +6,7 @@ const POSITION_FILTERS = ["All", ...Object.values(Position)] as const;
 
 interface RecommendationPanelProps {
   recommendations: RecommendationType[];
-  onDraft: (playerId: number, position: string) => void;
+  onDraft: (playerId: number, position: string, playerType: string) => void;
   onPlayerClick?: (playerId: number, playerName: string) => void;
   sessionActive: boolean;
   pickLoading?: boolean;
@@ -82,7 +82,7 @@ export function RecommendationPanel({
                     <button
                       type="button"
                       disabled={pickLoading}
-                      onClick={() => onDraft(rec.playerId, rec.position)}
+                      onClick={() => onDraft(rec.playerId, rec.position, rec.playerType)}
                       className="px-2 py-0.5 text-xs bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       Draft

@@ -92,6 +92,7 @@ def recommend(
                 position=player.position,
                 value=player.value,
                 score=round(score, 4),
+                player_type=player.player_type,
                 reason=_build_reason(
                     player,
                     w,

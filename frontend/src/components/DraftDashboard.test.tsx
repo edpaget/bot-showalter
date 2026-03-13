@@ -84,7 +84,7 @@ function pickMock(): MockedResponse {
   return {
     request: {
       query: PICK,
-      variables: { sessionId: 1, playerId: 1, position: "OF" },
+      variables: { sessionId: 1, playerId: 1, position: "OF", playerType: "batter" },
     },
     result: {
       data: {
@@ -102,7 +102,15 @@ function pickMock(): MockedResponse {
             trades: [],
           },
           recommendations: [
-            { playerId: 2, playerName: "Gerrit Cole", position: "SP", value: 25, score: 0.9, reason: "Best value" },
+            {
+              playerId: 2,
+              playerName: "Gerrit Cole",
+              position: "SP",
+              value: 25,
+              score: 0.9,
+              reason: "Best value",
+              playerType: "pitcher",
+            },
           ],
           roster: [{ pickNumber: 1, team: 1, playerId: 1, playerName: "Mike Trout", position: "OF", price: null }],
           needs: [
@@ -137,7 +145,15 @@ function undoMock(): MockedResponse {
             trades: [],
           },
           recommendations: [
-            { playerId: 1, playerName: "Mike Trout", position: "OF", value: 35, score: 0.95, reason: "Best value" },
+            {
+              playerId: 1,
+              playerName: "Mike Trout",
+              position: "OF",
+              value: 35,
+              score: 0.95,
+              reason: "Best value",
+              playerType: "batter",
+            },
           ],
           roster: [],
           needs: [

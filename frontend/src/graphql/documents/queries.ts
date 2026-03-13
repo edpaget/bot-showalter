@@ -124,6 +124,7 @@ export const RECOMMENDATIONS_QUERY = gql`
       value
       score
       reason
+      playerType
     }
   }
 `;
@@ -213,6 +214,7 @@ export const ARBITRAGE_QUERY = gql`
         value
         valueRank
         arbitrageScore
+        playerType
       }
       reaches {
         playerId
