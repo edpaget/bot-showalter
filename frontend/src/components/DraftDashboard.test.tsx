@@ -99,6 +99,7 @@ function pickMock(): MockedResponse {
             userTeam: 1,
             budgetRemaining: null,
             keeperCount: 0,
+            trades: [],
           },
           recommendations: [
             { playerId: 2, playerName: "Gerrit Cole", position: "SP", value: 25, score: 0.9, reason: "Best value" },
@@ -133,6 +134,7 @@ function undoMock(): MockedResponse {
             userTeam: 1,
             budgetRemaining: null,
             keeperCount: 0,
+            trades: [],
           },
           recommendations: [
             { playerId: 1, playerName: "Mike Trout", position: "OF", value: 35, score: 0.95, reason: "Best value" },
