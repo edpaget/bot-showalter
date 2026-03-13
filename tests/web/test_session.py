@@ -471,8 +471,9 @@ def test_start_session_with_keeper_ids(session_provider: SingleConnectionProvide
     container = AnalysisContainer(session_provider)
     session_repo = SqliteDraftSessionRepo(session_provider)
 
-    def fake_adjuster(kept_ids: set[int], valuations: list, season: int) -> list:
-        return [v for v in valuations if v.player_id not in kept_ids]
+    def fake_adjuster(kept_keys: set[tuple[int, str | None]], valuations: list, season: int) -> list:
+        kept_pids = {pid for pid, _ in kept_keys}
+        return [v for v in valuations if v.player_id not in kept_pids]
 
     mgr = SessionManager(
         session_repo=session_repo,
@@ -570,8 +571,9 @@ def test_keepers_query_with_keeper_session(session_provider: SingleConnectionPro
     with session_provider.connection() as conn:
         conn.commit()
 
-    def fake_adjuster(kept_ids: set[int], valuations: list, season: int) -> list:
-        return [v for v in valuations if v.player_id not in kept_ids]
+    def fake_adjuster(kept_keys: set[tuple[int, str | None]], valuations: list, season: int) -> list:
+        kept_pids = {pid for pid, _ in kept_keys}
+        return [v for v in valuations if v.player_id not in kept_pids]
 
     mgr = SessionManager(
         session_repo=session_repo,

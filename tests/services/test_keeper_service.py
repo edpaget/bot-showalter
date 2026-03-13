@@ -120,7 +120,7 @@ class TestSetKeeperCost:
         assert "John Smith" in result.error
 
 
-def _valuation(player_id: int, value: float, position: str = "SS") -> Valuation:
+def _valuation(player_id: int, value: float, position: str = "SS", player_type: str = "batter") -> Valuation:
     return Valuation(
         player_id=player_id,
         season=2026,
@@ -128,7 +128,7 @@ def _valuation(player_id: int, value: float, position: str = "SS") -> Valuation:
         version="v1",
         projection_system="composite",
         projection_version="v1",
-        player_type="batter",
+        player_type=player_type,
         position=position,
         value=value,
         rank=1,
@@ -359,7 +359,7 @@ class TestComputeAdjustedValuations:
         original_vals = [_valuation(pid, 10.0) for pid in range(1, 7)]
 
         result = compute_adjusted_valuations(
-            kept_player_ids={1},
+            kept_player_ids={(1, None)},
             projections=_adj_projections(),
             batter_positions=_adj_batter_positions(),
             pitcher_positions={},
@@ -380,7 +380,7 @@ class TestComputeAdjustedValuations:
 
         # Get baseline values (no keepers) to use as original valuations
         baseline = compute_adjusted_valuations(
-            kept_player_ids=set(),
+            kept_player_ids=set[tuple[int, str | None]](),
             projections=projections,
             batter_positions=batter_positions,
             pitcher_positions={},
@@ -407,7 +407,7 @@ class TestComputeAdjustedValuations:
 
         # Keep best catcher (pid 1)
         adjusted = compute_adjusted_valuations(
-            kept_player_ids={1},
+            kept_player_ids={(1, None)},
             projections=projections,
             batter_positions=batter_positions,
             pitcher_positions={},
@@ -426,7 +426,7 @@ class TestComputeAdjustedValuations:
         original_vals = [_valuation(pid, float(pid * 5)) for pid in range(1, 7)]
 
         result = compute_adjusted_valuations(
-            kept_player_ids={1},
+            kept_player_ids={(1, None)},
             projections=_adj_projections(),
             batter_positions=_adj_batter_positions(),
             pitcher_positions={},
@@ -442,7 +442,7 @@ class TestComputeAdjustedValuations:
         original_vals = [_valuation(pid, 10.0) for pid in range(1, 7)]
 
         result = compute_adjusted_valuations(
-            kept_player_ids=set(),
+            kept_player_ids=set[tuple[int, str | None]](),
             projections=_adj_projections(),
             batter_positions=_adj_batter_positions(),
             pitcher_positions={},
@@ -462,7 +462,7 @@ class TestComputeAdjustedValuations:
 
         # First call to get baseline adjusted values
         baseline = compute_adjusted_valuations(
-            kept_player_ids=set(),
+            kept_player_ids=set[tuple[int, str | None]](),
             projections=projections,
             batter_positions=batter_positions,
             pitcher_positions={},
@@ -489,7 +489,7 @@ class TestComputeAdjustedValuations:
 
         # Second call: same empty keepers, but with original vals set
         result = compute_adjusted_valuations(
-            kept_player_ids=set(),
+            kept_player_ids=set[tuple[int, str | None]](),
             projections=projections,
             batter_positions=batter_positions,
             pitcher_positions={},
@@ -503,11 +503,11 @@ class TestComputeAdjustedValuations:
             assert r.value_change == pytest.approx(0.0, abs=0.01)
 
     def test_all_kept(self) -> None:
-        all_ids = {p.player_id for p in _adj_projections()}
+        all_keys: set[tuple[int, str | None]] = {(p.player_id, None) for p in _adj_projections()}
         original_vals = [_valuation(pid, 10.0) for pid in range(1, 7)]
 
         result = compute_adjusted_valuations(
-            kept_player_ids=all_ids,
+            kept_player_ids=all_keys,
             projections=_adj_projections(),
             batter_positions=_adj_batter_positions(),
             pitcher_positions={},
@@ -517,6 +517,97 @@ class TestComputeAdjustedValuations:
         )
 
         assert result == []
+
+    def test_two_way_player_keeps_batter_only(self) -> None:
+        """Keeping batter-Ohtani excludes only batter projections; pitcher-Ohtani stays."""
+        league = LeagueSettings(
+            name="test",
+            format=LeagueFormat.H2H_CATEGORIES,
+            teams=2,
+            budget=100,
+            roster_batters=1,
+            roster_pitchers=1,
+            batting_categories=(
+                CategoryConfig(key="hr", name="HR", stat_type=StatType.COUNTING, direction=Direction.HIGHER),
+            ),
+            pitching_categories=(
+                CategoryConfig(key="k", name="K", stat_type=StatType.COUNTING, direction=Direction.HIGHER),
+            ),
+            positions={"of": 1},
+            pitcher_positions={"sp": 1},
+            roster_util=0,
+        )
+
+        # Ohtani has both batter and pitcher projections (player_id=100)
+        projections = [
+            Projection(
+                player_id=100,
+                season=2026,
+                system="c",
+                version="v1",
+                player_type="batter",
+                stat_json={"pa": 600, "hr": 40},
+            ),
+            Projection(
+                player_id=100,
+                season=2026,
+                system="c",
+                version="v1",
+                player_type="pitcher",
+                stat_json={"ip": 150, "k": 200},
+            ),
+            Projection(
+                player_id=200,
+                season=2026,
+                system="c",
+                version="v1",
+                player_type="batter",
+                stat_json={"pa": 500, "hr": 25},
+            ),
+            Projection(
+                player_id=300,
+                season=2026,
+                system="c",
+                version="v1",
+                player_type="pitcher",
+                stat_json={"ip": 180, "k": 180},
+            ),
+        ]
+
+        batter_positions = {100: ["of"], 200: ["of"]}
+        pitcher_positions = {100: ["sp"], 300: ["sp"]}
+
+        original_valuations = [
+            _valuation(100, 30.0, player_type="batter"),
+            _valuation(100, 25.0, player_type="pitcher"),
+            _valuation(200, 20.0, player_type="batter"),
+            _valuation(300, 22.0, player_type="pitcher"),
+        ]
+
+        players = [
+            Player(name_first="Shohei", name_last="Ohtani", id=100),
+            Player(name_first="Other", name_last="Batter", id=200),
+            Player(name_first="Other", name_last="Pitcher", id=300),
+        ]
+
+        # Keep only batter-Ohtani
+        result = compute_adjusted_valuations(
+            kept_player_ids={(100, "batter")},
+            projections=projections,
+            batter_positions=batter_positions,
+            pitcher_positions=pitcher_positions,
+            league=league,
+            original_valuations=original_valuations,
+            players=players,
+        )
+
+        result_keys = {(r.player_id, r.player_type) for r in result}
+        # Batter-Ohtani should be excluded
+        assert (100, "batter") not in result_keys
+        # Pitcher-Ohtani should remain with correct original value
+        assert (100, "pitcher") in result_keys
+        pitcher_ohtani = next(r for r in result if r.player_id == 100 and r.player_type == "pitcher")
+        assert pitcher_ohtani.original_value == 25.0
 
 
 class TestEvaluateTrade:
@@ -787,7 +878,7 @@ class TestAdjustValuationsForLeagueKeepers:
 
         # Build baseline valuations from all players
         baseline = compute_adjusted_valuations(
-            kept_player_ids=set(),
+            kept_player_ids=set[tuple[int, str | None]](),
             projections=projections,
             batter_positions=batter_positions,
             pitcher_positions={},

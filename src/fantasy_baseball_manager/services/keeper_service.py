@@ -352,7 +352,13 @@ def adjust_valuations_for_league_keepers(
         return valuations
 
     adjusted = compute_adjusted_valuations(
-        estimated_ids, projections, batter_positions, pitcher_positions, league, valuations, players
+        {(pid, None) for pid in estimated_ids},
+        projections,
+        batter_positions,
+        pitcher_positions,
+        league,
+        valuations,
+        players,
     )
 
     adj_lookup = {a.player_id: a for a in adjusted}
@@ -458,8 +464,17 @@ def _extract_stats(projections: list[Projection]) -> list[dict[str, float]]:
     return result
 
 
+def _is_projection_kept(player_id: int, player_type: str, kept_keys: set[tuple[int, str | None]]) -> bool:
+    """Check if a projection matches a kept key.
+
+    A ``None`` player_type in the key matches all types for that player
+    (backward compat for untyped keepers).
+    """
+    return any(pid == player_id and (ptype is None or ptype == player_type) for pid, ptype in kept_keys)
+
+
 def compute_adjusted_valuations(
-    kept_player_ids: set[int],
+    kept_player_ids: set[tuple[int, str | None]],
     projections: list[Projection],
     batter_positions: dict[int, list[str]],
     pitcher_positions: dict[int, list[str]],
@@ -471,9 +486,12 @@ def compute_adjusted_valuations(
 
     Filters kept players out before running the pipeline, so replacement
     levels naturally recalculate based on the reduced pool.
+
+    ``kept_player_ids`` is a set of ``(player_id, player_type | None)`` tuples.
+    A ``None`` player_type matches all types for that player.
     """
     # Filter out kept players
-    pool = [p for p in projections if p.player_id not in kept_player_ids]
+    pool = [p for p in projections if not _is_projection_kept(p.player_id, p.player_type, kept_player_ids)]
 
     # Split into batters and pitchers
     batter_projs = [p for p in pool if p.player_type == "batter" and p.stat_json.get("pa", 0) > 0]
@@ -499,12 +517,14 @@ def compute_adjusted_valuations(
     all_vals = batter_vals + pitcher_vals
     all_vals.sort(key=lambda v: v[1], reverse=True)  # sort by dollar value
 
-    # Build lookups
-    orig_lookup: dict[int, float] = {}
+    # Build lookups — keyed by (player_id, player_type) to avoid collisions
+    # for two-way players who have both batter and pitcher valuations.
+    orig_lookup: dict[tuple[int, str], float] = {}
     for v in original_valuations:
-        existing = orig_lookup.get(v.player_id)
+        key = (v.player_id, v.player_type)
+        existing = orig_lookup.get(key)
         if existing is None or v.value > existing:
-            orig_lookup[v.player_id] = v.value
+            orig_lookup[key] = v.value
 
     player_lookup: dict[int, Player] = {}
     for p in players:
@@ -514,7 +534,7 @@ def compute_adjusted_valuations(
     # Build results
     results: list[AdjustedValuation] = []
     for player_id, adjusted_value, player_type, position in all_vals:
-        original_value = orig_lookup.get(player_id, 0.0)
+        original_value = orig_lookup.get((player_id, player_type), 0.0)
         player = player_lookup.get(player_id)
         player_name = f"{player.name_first} {player.name_last}" if player else "Unknown"
         results.append(

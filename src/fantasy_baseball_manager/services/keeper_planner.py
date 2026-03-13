@@ -123,7 +123,7 @@ class KeeperPlannerService:
 
         # Compute adjusted valuations
         adjusted = compute_adjusted_valuations(
-            set(keeper_ids),
+            {(pid, None) for pid in keeper_ids},
             self._projections,
             self._batter_positions,
             self._pitcher_positions,

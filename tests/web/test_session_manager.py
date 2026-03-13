@@ -22,7 +22,7 @@ from fantasy_baseball_manager.repos import (
 )
 from fantasy_baseball_manager.services import PlayerProfileService
 from fantasy_baseball_manager.web import SessionManager
-from fantasy_baseball_manager.web.session_manager import DraftSessionSummary
+from fantasy_baseball_manager.web.session_manager import DraftSessionSummary, _is_kept
 from tests.fakes.repos import FakeProjectionRepo
 
 _LEAGUE = LeagueSettings(
@@ -257,9 +257,12 @@ def _make_manager_with_adjuster() -> tuple[SessionManager, SingleConnectionProvi
     with provider.connection() as c:
         c.commit()
 
-    def fake_adjuster(kept_ids: set[int], valuations: list[Valuation], season: int) -> list[Valuation]:
+    def fake_adjuster(
+        kept_keys: set[tuple[int, str | None]], valuations: list[Valuation], season: int
+    ) -> list[Valuation]:
         """Fake adjuster that boosts remaining players' values by 10%."""
-        return [replace(v, value=round(v.value * 1.1, 2)) for v in valuations if v.player_id not in kept_ids]
+        kept_pids = {pid for pid, _ in kept_keys}
+        return [replace(v, value=round(v.value * 1.1, 2)) for v in valuations if v.player_id not in kept_pids]
 
     session_repo = SqliteDraftSessionRepo(provider)
     adp_repo = SqliteADPRepo(provider)
@@ -360,8 +363,8 @@ class TestKeeperSnapshot:
             player_profile_service=PlayerProfileService(SqlitePlayerRepo(provider)),
             league=_LEAGUE,
             adp_provider="fantasypros",
-            valuation_adjuster=lambda kept_ids, valuations, season: [
-                v for v in valuations if v.player_id not in kept_ids
+            valuation_adjuster=lambda kept_keys, valuations, season: [
+                v for v in valuations if v.player_id not in {pid for pid, _ in kept_keys}
             ],
             league_keeper_repo=league_keeper_repo,
         )
@@ -685,8 +688,14 @@ class TestTwoWayPlayerKeeper:
         with provider.connection() as c:
             c.commit()
 
-        def fake_adjuster(kept_ids: set[int], valuations: list[Valuation], season: int) -> list[Valuation]:
-            return [replace(v, value=round(v.value * 1.1, 2)) for v in valuations if v.player_id not in kept_ids]
+        def fake_adjuster(
+            kept_keys: set[tuple[int, str | None]], valuations: list[Valuation], season: int
+        ) -> list[Valuation]:
+            return [
+                replace(v, value=round(v.value * 1.1, 2))
+                for v in valuations
+                if not _is_kept(v.player_id, v.player_type, kept_keys)
+            ]
 
         return SessionManager(
             session_repo=SqliteDraftSessionRepo(provider),

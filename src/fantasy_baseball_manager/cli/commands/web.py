@@ -49,7 +49,7 @@ def _make_valuation_adjuster(
         pitching_stats_repo=container.pitching_stats_repo,
     )
 
-    def adjust(kept_ids: set[int], valuations: list[Valuation], season: int) -> list[Valuation]:
+    def adjust(kept_keys: set[tuple[int, str | None]], valuations: list[Valuation], season: int) -> list[Valuation]:
         all_projs = container.projection_repo.get_by_season(season, projection_system)
         projections = [p for p in all_projs if p.version == projection_version]
         batter_positions = eligibility.get_batter_positions(season, league)
@@ -60,18 +60,19 @@ def _make_valuation_adjuster(
         players = container.player_repo.get_by_ids(list(player_ids))
 
         adjusted = compute_adjusted_valuations(
-            kept_ids, projections, batter_positions, pitcher_positions, league, valuations, players
+            kept_keys, projections, batter_positions, pitcher_positions, league, valuations, players
         )
 
         # Map AdjustedValuation back to Valuation, preserving original metadata
-        orig_lookup: dict[int, Valuation] = {}
+        orig_lookup: dict[tuple[int, str], Valuation] = {}
         for v in valuations:
-            if v.player_id not in orig_lookup or v.value > orig_lookup[v.player_id].value:
-                orig_lookup[v.player_id] = v
+            key = (v.player_id, v.player_type)
+            if key not in orig_lookup or v.value > orig_lookup[key].value:
+                orig_lookup[key] = v
 
         result: list[Valuation] = []
         for adj in adjusted:
-            orig = orig_lookup.get(adj.player_id)
+            orig = orig_lookup.get((adj.player_id, adj.player_type))
             if orig is not None:
                 result.append(replace(orig, value=adj.adjusted_value))
             else:

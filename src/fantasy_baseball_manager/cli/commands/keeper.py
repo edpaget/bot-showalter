@@ -260,7 +260,7 @@ def adjusted_rankings_cmd(
         )
 
         results = compute_adjusted_valuations(
-            kept_player_ids=kept_player_ids,
+            kept_player_ids={(pid, None) for pid in kept_player_ids},
             projections=projections,
             batter_positions=batter_positions,
             pitcher_positions=pitcher_positions,
