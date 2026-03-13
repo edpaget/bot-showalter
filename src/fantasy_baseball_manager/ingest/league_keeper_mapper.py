@@ -63,6 +63,8 @@ def import_league_keepers(
 
         source = str(row.get("source") or row.get("Source") or "").strip() or None
 
+        player_type_raw = str(row.get("player_type") or row.get("PlayerType") or "").strip() or None
+
         repo.upsert_batch(
             [
                 LeagueKeeper(
@@ -72,6 +74,7 @@ def import_league_keepers(
                     team_name=team_name.strip(),
                     cost=cost,
                     source=source,
+                    player_type=player_type_raw,
                 )
             ]
         )

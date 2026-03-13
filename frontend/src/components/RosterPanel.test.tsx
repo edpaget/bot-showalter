@@ -57,7 +57,15 @@ describe("RosterPanel", () => {
 
   it("shows keepers in the roster with green styling", () => {
     const keepers: KeeperInfoType[] = [
-      { playerId: 300, playerName: "Shohei Ohtani", position: "OF", teamName: "Team A", cost: 15, value: 30 },
+      {
+        playerId: 300,
+        playerName: "Shohei Ohtani",
+        playerType: "batter",
+        position: "OF",
+        teamName: "Team A",
+        cost: 15,
+        value: 30,
+      },
     ];
     render(<RosterPanel roster={[]} keepers={keepers} needs={NEEDS} budgetRemaining={null} format="snake" />);
     expect(screen.getByText("Shohei Ohtani ($15)")).toBeInTheDocument();
@@ -65,7 +73,15 @@ describe("RosterPanel", () => {
 
   it("counts keepers in total player count", () => {
     const keepers: KeeperInfoType[] = [
-      { playerId: 300, playerName: "Shohei Ohtani", position: "OF", teamName: "Team A", cost: 15, value: 30 },
+      {
+        playerId: 300,
+        playerName: "Shohei Ohtani",
+        playerType: "batter",
+        position: "OF",
+        teamName: "Team A",
+        cost: 15,
+        value: 30,
+      },
     ];
     render(<RosterPanel roster={ROSTER} keepers={keepers} needs={NEEDS} budgetRemaining={null} format="snake" />);
     expect(screen.getByText("Players: 3")).toBeInTheDocument();

@@ -169,6 +169,7 @@ type KeeperInfoType {
   teamName: String!
   cost: Float
   value: Float!
+  playerType: String
 }
 
 type KeeperPlanType {
@@ -207,7 +208,7 @@ type LeagueSettingsType {
 }
 
 type Mutation {
-  startSession(season: Int!, system: String = null, version: String = null, teams: Int = null, userTeam: Int! = 1, format: String! = "snake", budget: Int = null, keeperPlayerIds: [Int!] = null, leagueKey: String = null, teamNames: JSON = null, draftOrder: [Int!] = null): DraftStateType!
+  startSession(season: Int!, system: String = null, version: String = null, teams: Int = null, userTeam: Int! = 1, format: String! = "snake", budget: Int = null, keeperPlayerIds: JSON = null, leagueKey: String = null, teamNames: JSON = null, draftOrder: [Int!] = null): DraftStateType!
   pick(sessionId: Int!, playerId: Int!, position: Position!, price: Int = null, team: Int = null): PickResultType!
   undo(sessionId: Int!): PickResultType!
   endSession(sessionId: Int!): Boolean!
@@ -449,7 +450,7 @@ type YahooDraftSetupInfoType {
   draftOrder: [Int!]!
   isKeeper: Boolean!
   maxKeepers: Int
-  keeperPlayerIds: [Int!]!
+  keeperPlayerIds: JSON!
 }
 
 type YahooLeagueInfoType {

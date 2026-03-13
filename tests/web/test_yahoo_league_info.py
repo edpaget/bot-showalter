@@ -480,12 +480,12 @@ class TestYahooDraftSetupInfoType:
             draft_order=[2, 1],
             is_keeper=True,
             max_keepers=5,
-            keeper_player_ids=[100, 200, 300],
+            keeper_player_ids=[[100, "batter"], [200, "pitcher"], [300, None]],
         )
         result = YahooDraftSetupInfoType.from_domain(info)
         assert result.is_keeper is True
         assert result.max_keepers == 5
-        assert result.keeper_player_ids == [100, 200, 300]
+        assert result.keeper_player_ids == [[100, "batter"], [200, "pitcher"], [300, None]]
         assert result.draft_order == [2, 1]
 
 

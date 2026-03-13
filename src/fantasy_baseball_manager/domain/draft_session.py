@@ -15,7 +15,7 @@ class DraftSessionRecord:
     updated_at: str
     system: str = "zar"
     version: str = "1.0"
-    keeper_player_ids: list[int] | None = None
+    keeper_player_ids: list[list[object]] | None = None  # [[player_id, player_type], ...]
     keeper_snapshot: list[dict[str, object]] | None = None
     team_names: dict[int, str] | None = None
     draft_order: list[int] | None = None

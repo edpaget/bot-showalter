@@ -240,7 +240,7 @@ class TestKeeperPlayerIds:
 
         loaded = repo.load_session(session_id)
         assert loaded is not None
-        assert loaded.keeper_player_ids == [10, 20, 30]
+        assert loaded.keeper_player_ids == [[10, None], [20, None], [30, None]]
 
     def test_roundtrip_without_keeper_ids(self, repo: SqliteDraftSessionRepo) -> None:
         record = _make_record()
@@ -255,7 +255,7 @@ class TestKeeperPlayerIds:
 
         sessions = repo.list_sessions()
         assert len(sessions) == 1
-        assert sessions[0].keeper_player_ids == [5, 15]
+        assert sessions[0].keeper_player_ids == [[5, None], [15, None]]
 
 
 class TestKeeperSnapshot:

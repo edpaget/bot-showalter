@@ -818,14 +818,14 @@ class Query:
             draft_format = "live"
 
         # Look up keeper data from league_keeper table (set via CLI).
-        keeper_player_ids: list[int] = []
+        keeper_player_ids: list[list[object]] = []
         max_keepers: int | None = None
         if league.is_keeper:
             yahoo_ctx = ctx.yahoo_web_context
             if yahoo_ctx is not None and yahoo_ctx.league_config.max_keepers is not None:
                 max_keepers = yahoo_ctx.league_config.max_keepers
             league_keepers = ctx.container.league_keeper_repo.find_by_season_league(season, ctx.league.name)
-            keeper_player_ids = [lk.player_id for lk in league_keepers]
+            keeper_player_ids = [[lk.player_id, lk.player_type] for lk in league_keepers]
 
         # Derive draft order from previous-season standings (last place picks first)
         draft_order: list[int] = []
@@ -920,7 +920,7 @@ class Mutation:
         user_team: int = 1,
         format: str = "snake",
         budget: int | None = None,
-        keeper_player_ids: list[int] | None = None,
+        keeper_player_ids: strawberry.scalars.JSON | None = None,
         league_key: str | None = None,
         team_names: strawberry.scalars.JSON | None = None,
         draft_order: list[int] | None = None,
@@ -932,6 +932,19 @@ class Mutation:
         parsed_team_names: dict[int, str] | None = (
             {int(k): v for k, v in cast("dict[str, str]", team_names).items()} if team_names else None
         )
+        # Parse keeper_player_ids: accepts [[id, type], ...] or [id, ...] (legacy)
+        keeper_set: set[tuple[int, str | None]] | None = None
+        if keeper_player_ids is not None:
+            raw_list = cast("list[int] | list[list[int | str | None]]", keeper_player_ids)
+            if raw_list and isinstance(raw_list[0], int | float):
+                # Legacy: plain list of IDs → typed with None
+                keeper_set = {(int(pid), None) for pid in cast("list[int]", raw_list)}
+            else:
+                # New: list of [id, type] pairs
+                keeper_set = {
+                    (int(cast("int", entry[0])), str(entry[1]) if entry[1] is not None else None)
+                    for entry in cast("list[list[int | str | None]]", raw_list)
+                }
         session_id, engine = mgr.start_session(
             season,
             system=system,
@@ -940,7 +953,7 @@ class Mutation:
             user_team=user_team,
             fmt=format,
             budget=budget,
-            keeper_player_ids=set(keeper_player_ids) if keeper_player_ids else None,
+            keeper_player_ids=keeper_set,
             league_key=league_key,
             team_names=parsed_team_names,
             draft_order=draft_order,

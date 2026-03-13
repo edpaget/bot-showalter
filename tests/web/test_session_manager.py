@@ -281,7 +281,7 @@ def _make_manager_with_adjuster() -> tuple[SessionManager, SingleConnectionProvi
 class TestKeeperExclusion:
     def test_kept_players_excluded_from_available(self) -> None:
         mgr, _ = _make_manager_with_adjuster()
-        sid, engine = mgr.start_session(2026, keeper_player_ids={1})
+        sid, engine = mgr.start_session(2026, keeper_player_ids={(1, "batter")})
 
         available_ids = [r.player_id for r in engine.available()]
         assert 1 not in available_ids
@@ -296,7 +296,7 @@ class TestKeeperExclusion:
 
         mgr2, _ = _make_manager_with_adjuster()
         # With keepers — player 1 excluded, remaining boosted by 10%
-        _, engine_adj = mgr2.start_session(2026, keeper_player_ids={1})
+        _, engine_adj = mgr2.start_session(2026, keeper_player_ids={(1, "batter")})
         adj_values = {r.player_id: r.value for r in engine_adj.available()}
 
         # Player 2 should have a different (higher) value when player 1 is kept
@@ -305,7 +305,7 @@ class TestKeeperExclusion:
 
     def test_session_restore_preserves_keeper_context(self) -> None:
         mgr, _ = _make_manager_with_adjuster()
-        sid, engine = mgr.start_session(2026, keeper_player_ids={1})
+        sid, engine = mgr.start_session(2026, keeper_player_ids={(1, "batter")})
 
         original_ids = {r.player_id for r in engine.available()}
 
@@ -330,11 +330,11 @@ class TestKeeperExclusion:
 
     def test_keeper_ids_persisted_in_record(self) -> None:
         mgr, _ = _make_manager_with_adjuster()
-        sid, _ = mgr.start_session(2026, keeper_player_ids={1, 3})
+        sid, _ = mgr.start_session(2026, keeper_player_ids={(1, "batter"), (3, "pitcher")})
 
         record = mgr._repo.load_session(sid)
         assert record is not None
-        assert record.keeper_player_ids == [1, 3]
+        assert record.keeper_player_ids == [[1, "batter"], [3, "pitcher"]]
 
 
 class TestKeeperSnapshot:
@@ -366,7 +366,7 @@ class TestKeeperSnapshot:
             league_keeper_repo=league_keeper_repo,
         )
 
-        sid, _ = mgr_with_keepers.start_session(2026, keeper_player_ids={1, 3})
+        sid, _ = mgr_with_keepers.start_session(2026, keeper_player_ids={(1, "batter"), (3, "pitcher")})
         keepers = mgr_with_keepers.get_keepers(sid)
 
         assert len(keepers) == 2
@@ -385,7 +385,7 @@ class TestKeeperSnapshot:
 
     def test_keeper_snapshot_survives_persist_load(self) -> None:
         mgr, provider = _make_manager_with_adjuster()
-        sid, _ = mgr.start_session(2026, keeper_player_ids={1})
+        sid, _ = mgr.start_session(2026, keeper_player_ids={(1, "batter")})
         keepers = mgr.get_keepers(sid)
         assert len(keepers) == 1
         assert keepers[0]["player_name"] == "Mike Trout"
@@ -500,7 +500,7 @@ class TestGetCategoryBalanceFn:
         fake_proj_repo = FakeProjectionRepo(projections)
         mgr._projection_repo = fake_proj_repo
 
-        sid, _ = mgr.start_session(2026, keeper_player_ids={1})
+        sid, _ = mgr.start_session(2026, keeper_player_ids={(1, "batter")})
         fn = mgr.get_category_balance_fn(sid)
         assert fn is not None
         # Call it — should return dict[int, float]
@@ -522,7 +522,7 @@ class TestGetCategoryBalanceFn:
 
     def test_returns_none_when_no_projection_repo(self) -> None:
         mgr, _ = _make_manager_with_adjuster()
-        sid, _ = mgr.start_session(2026, keeper_player_ids={1})
+        sid, _ = mgr.start_session(2026, keeper_player_ids={(1, "batter")})
         fn = mgr.get_category_balance_fn(sid)
         assert fn is None
 
@@ -543,7 +543,7 @@ class TestGetWeakCategories:
         ]
         mgr._projection_repo = FakeProjectionRepo(projections)
 
-        sid, _ = mgr.start_session(2026, keeper_player_ids={1})
+        sid, _ = mgr.start_session(2026, keeper_player_ids={(1, "batter")})
         weak = mgr.get_weak_categories(sid)
         # Should return a list (possibly empty) or None — just verify it's callable
         assert weak is None or isinstance(weak, list)

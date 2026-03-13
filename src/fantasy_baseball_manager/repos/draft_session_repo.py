@@ -34,7 +34,7 @@ class SqliteDraftSessionRepo:
                     record.updated_at,
                     record.system,
                     record.version,
-                    json.dumps(sorted(record.keeper_player_ids)) if record.keeper_player_ids is not None else None,
+                    json.dumps(record.keeper_player_ids) if record.keeper_player_ids is not None else None,
                     json.dumps(record.keeper_snapshot) if record.keeper_snapshot is not None else None,
                     json.dumps({str(k): v for k, v in record.team_names.items()})
                     if record.team_names is not None
@@ -195,7 +195,11 @@ class SqliteDraftSessionRepo:
     @staticmethod
     def _row_to_session(row: sqlite3.Row) -> DraftSessionRecord:
         raw_keeper_ids = row["keeper_player_ids"]
-        keeper_player_ids: list[int] | None = json.loads(raw_keeper_ids) if raw_keeper_ids is not None else None
+        keeper_player_ids: list[list[object]] | None = None
+        if raw_keeper_ids is not None:
+            parsed = json.loads(raw_keeper_ids)
+            # Legacy format: [1, 2, 3] → [[1, None], [2, None], ...]
+            keeper_player_ids = [[pid, None] for pid in parsed] if parsed and isinstance(parsed[0], int) else parsed
         raw_snapshot = row["keeper_snapshot"]
         keeper_snapshot: list[dict[str, object]] | None = json.loads(raw_snapshot) if raw_snapshot is not None else None
         raw_team_names = row["team_names"]

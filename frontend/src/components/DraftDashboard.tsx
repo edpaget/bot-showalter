@@ -131,7 +131,7 @@ export function DraftDashboard({ season = 2026 }: { season?: number }) {
       format: string;
       userTeam: number;
       budget?: number;
-      keeperPlayerIds?: number[];
+      keeperPlayerIds?: (number | string | null)[][];
       leagueKey?: string;
       teamNames?: Record<string, string>;
       draftOrder?: number[];

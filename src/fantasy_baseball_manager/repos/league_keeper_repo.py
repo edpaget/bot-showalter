@@ -18,9 +18,9 @@ class SqliteLeagueKeeperRepo:
             for keeper in keepers:
                 conn.execute(
                     "INSERT INTO league_keeper"
-                    "    (player_id, season, league, team_name, cost, source)"
-                    " VALUES (?, ?, ?, ?, ?, ?)"
-                    " ON CONFLICT(player_id, season, league) DO UPDATE SET"
+                    "    (player_id, season, league, team_name, cost, source, player_type)"
+                    " VALUES (?, ?, ?, ?, ?, ?, ?)"
+                    " ON CONFLICT(player_id, season, league, player_type) DO UPDATE SET"
                     "    team_name=excluded.team_name,"
                     "    cost=excluded.cost,"
                     "    source=excluded.source",
@@ -31,6 +31,7 @@ class SqliteLeagueKeeperRepo:
                         keeper.team_name,
                         keeper.cost,
                         keeper.source,
+                        keeper.player_type or "",
                     ),
                 )
                 count += 1
@@ -64,7 +65,7 @@ class SqliteLeagueKeeperRepo:
 
     @staticmethod
     def _select_sql() -> str:
-        return "SELECT id, player_id, season, league, team_name, cost, source FROM league_keeper"
+        return "SELECT id, player_id, season, league, team_name, cost, source, player_type FROM league_keeper"
 
     @staticmethod
     def _row_to_league_keeper(row: sqlite3.Row) -> LeagueKeeper:
@@ -76,4 +77,5 @@ class SqliteLeagueKeeperRepo:
             team_name=row["team_name"],
             cost=row["cost"],
             source=row["source"],
+            player_type=row["player_type"] or None,
         )

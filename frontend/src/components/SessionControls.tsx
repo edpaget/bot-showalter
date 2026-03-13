@@ -15,7 +15,7 @@ interface SessionControlsProps {
     format: string;
     userTeam: number;
     budget?: number;
-    keeperPlayerIds?: number[];
+    keeperPlayerIds?: (number | string | null)[][];
     leagueKey?: string;
     teamNames?: Record<string, string>;
     draftOrder?: number[];
@@ -53,7 +53,7 @@ export function SessionControls({
   const [format, setFormat] = useState("snake");
   const [userTeam, setUserTeam] = useState(1);
   const [budget, setBudget] = useState(260);
-  const [keeperPlayerIds, setKeeperPlayerIds] = useState<number[]>([]);
+  const [keeperPlayerIds, setKeeperPlayerIds] = useState<(number | string | null)[][]>([]);
   const [draftOrder, setDraftOrder] = useState<number[] | undefined>(undefined);
   const [draftOrderText, setDraftOrderText] = useState("");
   const [prefilled, setPrefilled] = useState(false);
@@ -78,7 +78,7 @@ export function SessionControls({
       const fmt = setup.draftFormat === "auction" ? "auction" : "snake";
       setFormat(fmt);
       setUserTeam(setup.userTeamId);
-      setKeeperPlayerIds(setup.keeperPlayerIds);
+      setKeeperPlayerIds(setup.keeperPlayerIds as unknown as (number | string | null)[][]);
       if (setup.teamNames) {
         setPrefillTeamNames(setup.teamNames as Record<string, string>);
       }

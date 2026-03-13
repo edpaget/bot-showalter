@@ -10,7 +10,7 @@ class YahooDraftSetupInfo:
     draft_order: list[int]
     is_keeper: bool
     max_keepers: int | None
-    keeper_player_ids: list[int] = field(default_factory=list)
+    keeper_player_ids: list[list[object]] = field(default_factory=list)  # [[player_id, player_type], ...]
 
 
 @dataclass(frozen=True)

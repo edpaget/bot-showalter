@@ -10,7 +10,7 @@ export const START_SESSION = gql`
     $userTeam: Int! = 1
     $format: String! = "snake"
     $budget: Int
-    $keeperPlayerIds: [Int!]
+    $keeperPlayerIds: JSON
     $leagueKey: String
     $teamNames: JSON
     $draftOrder: [Int!]

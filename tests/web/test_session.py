@@ -491,14 +491,14 @@ def test_start_session_with_keeper_ids(session_provider: SingleConnectionProvide
     result = _gql(
         client,
         """
-        mutation StartSession($season: Int!, $keepers: [Int!]) {
+        mutation StartSession($season: Int!, $keepers: JSON) {
             startSession(season: $season, teams: 10, userTeam: 1, format: "snake", keeperPlayerIds: $keepers) {
                 sessionId
                 currentPick
             }
         }
         """,
-        {"season": 2026, "keepers": [1]},
+        {"season": 2026, "keepers": [[1, "batter"]]},
     )
     assert "errors" not in result, result.get("errors")
     sid = result["data"]["startSession"]["sessionId"]
@@ -591,13 +591,13 @@ def test_keepers_query_with_keeper_session(session_provider: SingleConnectionPro
     result = _gql(
         client,
         """
-        mutation StartSession($season: Int!, $keepers: [Int!]) {
+        mutation StartSession($season: Int!, $keepers: JSON) {
             startSession(season: $season, teams: 10, userTeam: 1, format: "snake", keeperPlayerIds: $keepers) {
                 sessionId keeperCount
             }
         }
         """,
-        {"season": 2026, "keepers": [1]},
+        {"season": 2026, "keepers": [[1, "batter"]]},
     )
     assert "errors" not in result, result.get("errors")
     sid = result["data"]["startSession"]["sessionId"]

@@ -39,6 +39,9 @@ if TYPE_CHECKING:
     )
     from fantasy_baseball_manager.services.draft_recommender import CategoryBalanceFn
 
+# A keeper entry: (player_id, player_type_or_none)
+KeeperKey = tuple[int, str | None]
+
 
 class ValuationAdjuster(Protocol):
     def __call__(self, kept_ids: set[int], valuations: list[Valuation], season: int) -> list[Valuation]: ...
@@ -52,6 +55,26 @@ class KeeperCostDeriver(Protocol):
 class DraftSessionSummary:
     record: DraftSessionRecord
     pick_count: int
+
+
+def _is_kept(player_id: int, player_type: str, keeper_set: set[KeeperKey]) -> bool:
+    """Check if a valuation is kept. None player_type in keeper matches all types for that player."""
+    return any(player_id == kid and (ktype is None or ktype == player_type) for kid, ktype in keeper_set)
+
+
+def _keeper_set_to_list(keeper_set: set[KeeperKey]) -> list[list[object]]:
+    """Serialize keeper set to sorted list for JSON storage."""
+    return sorted([pid, ptype] for pid, ptype in keeper_set)
+
+
+def _list_to_keeper_set(entries: list[list[object]]) -> set[KeeperKey]:
+    """Deserialize keeper list from JSON storage to set."""
+    return {(int(str(entry[0])), str(entry[1]) if entry[1] is not None else None) for entry in entries}
+
+
+def _keeper_player_ids_only(keeper_set: set[KeeperKey]) -> set[int]:
+    """Extract just player IDs from keeper set (for adjuster compatibility)."""
+    return {pid for pid, _ in keeper_set}
 
 
 def _keeper_picks_from_snapshot(
@@ -130,7 +153,7 @@ class SessionManager:
         user_team: int = 1,
         fmt: str = "snake",
         budget: int | None = None,
-        keeper_player_ids: set[int] | None = None,
+        keeper_player_ids: set[KeeperKey] | None = None,
         league_key: str | None = None,
         team_names: dict[int, str] | None = None,
         draft_order: list[int] | None = None,
@@ -178,7 +201,7 @@ class SessionManager:
             updated_at=now,
             system=system,
             version=version,
-            keeper_player_ids=sorted(keeper_player_ids) if keeper_player_ids is not None else None,
+            keeper_player_ids=_keeper_set_to_list(keeper_player_ids) if keeper_player_ids is not None else None,
             keeper_snapshot=keeper_snapshot,
             team_names=team_names,
             draft_order=draft_order,
@@ -196,7 +219,7 @@ class SessionManager:
             msg = f"Draft session {session_id} not found"
             raise ValueError(msg)
 
-        keeper_ids = set(record.keeper_player_ids) if record.keeper_player_ids else None
+        keeper_ids = _list_to_keeper_set(record.keeper_player_ids) if record.keeper_player_ids else None
         players = self._build_player_pool(record.season, record.system, record.version, keeper_player_ids=keeper_ids)
         engine = load_draft_from_db(session_id, players, self._repo)
 
@@ -369,44 +392,62 @@ class SessionManager:
             projections = [p for p in projections if p.version == self._projection_version]
         if not projections:
             return None
-        analysis = analyze_roster(record.keeper_player_ids, projections, self._league)
+        keeper_ids = [int(str(entry[0])) for entry in record.keeper_player_ids]
+        analysis = analyze_roster(keeper_ids, projections, self._league)
         return analysis.weakest_categories or None
 
     def _build_keeper_snapshot(
         self,
         season: int,
-        keeper_player_ids: set[int],
+        keeper_player_ids: set[KeeperKey],
         system: str,
         version: str,
     ) -> list[dict[str, object]]:
         # Resolve player names/positions
-        players = self._player_repo.get_by_ids(list(keeper_player_ids))
+        pids = list(_keeper_player_ids_only(keeper_player_ids))
+        players = self._player_repo.get_by_ids(pids)
         player_map = {p.id: p for p in players if p.id is not None}
 
-        # Get keeper team/cost from league keeper repo if available
-        keeper_details: dict[int, tuple[str, float | None]] = {}
+        # Get keeper team/cost/player_type from league keeper repo if available
+        keeper_details: dict[KeeperKey, tuple[str, float | None]] = {}
         if self._league_keeper_repo is not None:
             league_keepers = self._league_keeper_repo.find_by_season_league(season, self._league.name)
             for lk in league_keepers:
-                if lk.player_id in keeper_player_ids:
-                    keeper_details[lk.player_id] = (lk.team_name, lk.cost)
+                key = (lk.player_id, lk.player_type)
+                if key in keeper_player_ids:
+                    keeper_details[key] = (lk.team_name, lk.cost)
+                elif lk.player_type is None:
+                    # Untyped league keeper — match any keeper key with same player_id
+                    for kk in keeper_player_ids:
+                        if kk[0] == lk.player_id and kk not in keeper_details:
+                            keeper_details[kk] = (lk.team_name, lk.cost)
 
         # Get valuations for value info — use the same system/version as the session
         valuations = self._valuation_repo.get_by_season(season, system=system, version=version)
-        val_map = {v.player_id: v for v in valuations}
+        # Build val_map keyed by (player_id, player_type)
+        val_map: dict[KeeperKey, Valuation] = {}
+        for v in valuations:
+            val_map[(v.player_id, v.player_type)] = v
 
         snapshot: list[dict[str, object]] = []
-        for pid in sorted(keeper_player_ids):
+        for pid, ptype in sorted(keeper_player_ids):
             player = player_map.get(pid)
-            val = val_map.get(pid)
-            team_name, cost = keeper_details.get(pid, ("Unknown", None))
+            val: Valuation | None = val_map.get((pid, ptype))
+            # Fall back to any valuation for this player if typed lookup fails
+            if val is None:
+                val = next((v for v in valuations if v.player_id == pid), None)
+            team_name, cost = keeper_details.get((pid, ptype), ("Unknown", None))
+            # Fall back to untyped lookup for legacy keepers
+            if team_name == "Unknown":
+                team_name, cost = keeper_details.get((pid, None), ("Unknown", None))
             entry: dict[str, object] = {
                 "player_id": pid,
                 "player_name": f"{player.name_first} {player.name_last}" if player else f"Player {pid}",
-                "position": val.position if val else "UTIL",
+                "position": val.position if val is not None else "UTIL",
+                "player_type": ptype or (val.player_type if val is not None else None),
                 "team_name": team_name,
                 "cost": cost,
-                "value": val.value if val else 0.0,
+                "value": val.value if val is not None else 0.0,
             }
             snapshot.append(entry)
         return snapshot
@@ -417,14 +458,17 @@ class SessionManager:
         system: str,
         version: str,
         *,
-        keeper_player_ids: set[int] | None = None,
+        keeper_player_ids: set[KeeperKey] | None = None,
     ) -> list[DraftBoardRow]:
         valuations = self._valuation_repo.get_by_season(season, system=system, version=version)
 
         # Apply keeper adjustments: re-value pool then exclude kept players
         if keeper_player_ids and self._valuation_adjuster is not None:
-            valuations = self._valuation_adjuster(keeper_player_ids, valuations, season)
-            valuations = [v for v in valuations if v.player_id not in keeper_player_ids]
+            # The adjuster takes plain player IDs for pool reduction
+            plain_ids = _keeper_player_ids_only(keeper_player_ids)
+            valuations = self._valuation_adjuster(plain_ids, valuations, season)
+            # Filter by (player_id, player_type) — typed keepers only remove matching type
+            valuations = [v for v in valuations if not _is_kept(v.player_id, v.player_type, keeper_player_ids)]
 
         player_ids = [v.player_id for v in valuations]
         players = self._player_repo.get_by_ids(player_ids)

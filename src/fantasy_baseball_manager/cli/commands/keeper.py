@@ -525,6 +525,7 @@ def league_set_cmd(
     season: Annotated[int | None, typer.Option("--season", help="Season year")] = None,
     league: Annotated[str, typer.Option(help="League name")] = "dynasty",
     cost: Annotated[float | None, typer.Option(help="Keeper cost")] = None,
+    player_type: Annotated[str | None, typer.Option("--player-type", help="Player type (batter/pitcher)")] = None,
     data_dir: _DataDirOpt = "./data",
 ) -> None:
     """Set a single player as kept by a specific team."""
@@ -550,13 +551,15 @@ def league_set_cmd(
             league=league,
             team_name=team,
             cost=cost,
+            player_type=player_type,
         )
         ctx.league_keeper_repo.upsert_batch([keeper])
         ctx.conn.commit()
 
     name = f"{player.name_first} {player.name_last}"
     cost_str = f" (${cost:.0f})" if cost is not None else ""
-    typer.echo(f"Set {name} as keeper for {team}{cost_str}")
+    type_str = f" [{player_type}]" if player_type is not None else ""
+    typer.echo(f"Set {name} as keeper for {team}{cost_str}{type_str}")
 
 
 @keeper_app.command("league-import")

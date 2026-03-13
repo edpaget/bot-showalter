@@ -255,10 +255,12 @@ class KeeperInfoType:
     team_name: str
     cost: float | None
     value: float
+    player_type: str | None = None
 
     @staticmethod
     def from_dict(d: dict[str, object]) -> KeeperInfoType:
         raw_cost = d.get("cost")
+        raw_player_type = d.get("player_type")
         return KeeperInfoType(
             player_id=int(str(d["player_id"])),
             player_name=str(d["player_name"]),
@@ -266,6 +268,7 @@ class KeeperInfoType:
             team_name=str(d["team_name"]),
             cost=float(str(raw_cost)) if raw_cost is not None else None,
             value=float(str(d["value"])),
+            player_type=str(raw_player_type) if raw_player_type is not None else None,
         )
 
 
@@ -902,7 +905,7 @@ class YahooDraftSetupInfoType:
     draft_order: list[int]
     is_keeper: bool
     max_keepers: int | None
-    keeper_player_ids: list[int]
+    keeper_player_ids: strawberry.scalars.JSON  # [[player_id, player_type], ...]
 
     @staticmethod
     def from_domain(info: YahooDraftSetupInfo) -> YahooDraftSetupInfoType:
@@ -914,7 +917,7 @@ class YahooDraftSetupInfoType:
             draft_order=list(info.draft_order),
             is_keeper=info.is_keeper,
             max_keepers=info.max_keepers,
-            keeper_player_ids=list(info.keeper_player_ids),
+            keeper_player_ids=cast("Any", list(info.keeper_player_ids)),
         )
 
 

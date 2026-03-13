@@ -99,6 +99,7 @@ class LeagueKeeper:
     team_name: str
     cost: float | None = None
     source: str | None = None
+    player_type: str | None = None
     id: int | None = None
 
 

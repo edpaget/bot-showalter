@@ -5,9 +5,33 @@ import type { KeeperInfo } from "../context/DraftSessionContext";
 import { KeeperPanel } from "./KeeperPanel";
 
 const KEEPERS: KeeperInfo[] = [
-  { playerId: 1, playerName: "Mike Trout", position: "OF", teamName: "Team A", cost: 35, value: 40.0 },
-  { playerId: 2, playerName: "Shohei Ohtani", position: "OF", teamName: "Team A", cost: 30, value: 35.0 },
-  { playerId: 3, playerName: "Gerrit Cole", position: "SP", teamName: "Team B", cost: 25, value: 30.0 },
+  {
+    playerId: 1,
+    playerName: "Mike Trout",
+    playerType: "batter",
+    position: "OF",
+    teamName: "Team A",
+    cost: 35,
+    value: 40.0,
+  },
+  {
+    playerId: 2,
+    playerName: "Shohei Ohtani",
+    playerType: "batter",
+    position: "OF",
+    teamName: "Team A",
+    cost: 30,
+    value: 35.0,
+  },
+  {
+    playerId: 3,
+    playerName: "Gerrit Cole",
+    playerType: "pitcher",
+    position: "SP",
+    teamName: "Team B",
+    cost: 25,
+    value: 30.0,
+  },
 ];
 
 describe("KeeperPanel", () => {
@@ -60,7 +84,15 @@ describe("KeeperPanel", () => {
 
   it("shows only value when cost is null", () => {
     const noCosters: KeeperInfo[] = [
-      { playerId: 1, playerName: "Mike Trout", position: "OF", teamName: "Team A", cost: null, value: 40.0 },
+      {
+        playerId: 1,
+        playerName: "Mike Trout",
+        playerType: "batter",
+        position: "OF",
+        teamName: "Team A",
+        cost: null,
+        value: 40.0,
+      },
     ];
     render(<KeeperPanel keepers={noCosters} />);
     expect(screen.getByText("40.0")).toBeInTheDocument();

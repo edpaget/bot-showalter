@@ -84,7 +84,7 @@ export function KeeperPlannerView() {
         version: null,
         teams: null,
         budget: null,
-        keeperPlayerIds: selected.keeperIds,
+        keeperPlayerIds: selected.keeperIds.map((id: number) => [id, null]) as unknown as Record<string, unknown>,
         leagueKey: null,
         teamNames: null,
         draftOrder: null,

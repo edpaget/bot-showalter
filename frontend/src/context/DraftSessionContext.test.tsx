@@ -88,7 +88,15 @@ function TestConsumer() {
         type="button"
         onClick={() =>
           ctx.setKeepers([
-            { playerId: 500, playerName: "Keeper A", position: "OF", teamName: "Team A", cost: 10, value: 20 },
+            {
+              playerId: 500,
+              playerName: "Keeper A",
+              playerType: "batter",
+              position: "OF",
+              teamName: "Team A",
+              cost: 10,
+              value: 20,
+            },
           ])
         }
       >

@@ -87,6 +87,7 @@ export const KEEPERS_QUERY = gql`
     keepers(sessionId: $sessionId) {
       playerId
       playerName
+      playerType
       position
       teamName
       cost
