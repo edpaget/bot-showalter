@@ -14,6 +14,7 @@ interface TradeDialogProps {
   totalPicks: number;
   trades: DraftTradeType[];
   teamNames?: Record<number, string>;
+  draftOrder?: number[] | null;
   onTradeComplete: (state: DraftStateType) => void;
   onClose: () => void;
 }
@@ -30,6 +31,7 @@ export function TradeDialog({
   totalPicks,
   trades,
   teamNames,
+  draftOrder,
   onTradeComplete,
   onClose,
 }: TradeDialogProps) {
@@ -41,8 +43,8 @@ export function TradeDialog({
   const [evaluate, { data: evalData, loading: evaluating }] = useLazyQuery<EvaluateTradeQuery>(EVALUATE_TRADE_QUERY);
   const [executeTrade, { loading: executing }] = useMutation<TradePicksMutation>(TRADE_PICKS);
 
-  const teamAPicks = remainingPicksForTeam(teamA, currentPick, totalPicks, teams, trades);
-  const teamBPicks = remainingPicksForTeam(teamB, currentPick, totalPicks, teams, trades);
+  const teamAPicks = remainingPicksForTeam(teamA, currentPick, totalPicks, teams, trades, draftOrder);
+  const teamBPicks = remainingPicksForTeam(teamB, currentPick, totalPicks, teams, trades, draftOrder);
 
   const allTeams = Array.from({ length: teams }, (_, i) => i + 1);
 

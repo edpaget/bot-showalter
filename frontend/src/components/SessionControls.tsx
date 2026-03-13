@@ -91,7 +91,8 @@ export function SessionControls({
   }, [yahooLeague, sessionActive, fetchSetup]);
 
   if (sessionActive && state) {
-    const currentTeamId = state.format === "snake" ? teamForPick(state.currentPick, state.teams, state.trades) : null;
+    const currentTeamId =
+      state.format === "snake" ? teamForPick(state.currentPick, state.teams, state.trades, state.draftOrder) : null;
     const currentTeamName = currentTeamId ? (getTeamName?.(currentTeamId) ?? `Team ${currentTeamId}`) : null;
     const isUserPick = currentTeamId === state.userTeam;
 

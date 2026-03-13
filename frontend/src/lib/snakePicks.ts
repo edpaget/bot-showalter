@@ -1,13 +1,22 @@
 import type { DraftTradeType } from "../generated/graphql";
 
-export function snakeTeam(pickNumber: number, teams: number): number {
+export function snakeTeam(pickNumber: number, teams: number, draftOrder?: number[] | null): number {
   const zero = pickNumber - 1;
   const round = Math.floor(zero / teams);
   const pos = zero % teams;
+  if (draftOrder && draftOrder.length === teams) {
+    const idx = round % 2 === 0 ? pos : teams - 1 - pos;
+    return draftOrder[idx]!;
+  }
   return round % 2 === 0 ? pos + 1 : teams - pos;
 }
 
-export function teamForPick(pickNumber: number, teams: number, trades: DraftTradeType[]): number {
+export function teamForPick(
+  pickNumber: number,
+  teams: number,
+  trades: DraftTradeType[],
+  draftOrder?: number[] | null,
+): number {
   const overrides = new Map<number, number>();
   for (const trade of trades) {
     for (const pick of trade.teamAGives) {
@@ -17,7 +26,7 @@ export function teamForPick(pickNumber: number, teams: number, trades: DraftTrad
       overrides.set(pick, trade.teamA);
     }
   }
-  return overrides.get(pickNumber) ?? snakeTeam(pickNumber, teams);
+  return overrides.get(pickNumber) ?? snakeTeam(pickNumber, teams, draftOrder);
 }
 
 export function remainingPicksForTeam(
@@ -26,10 +35,11 @@ export function remainingPicksForTeam(
   totalPicks: number,
   teams: number,
   trades: DraftTradeType[],
+  draftOrder?: number[] | null,
 ): number[] {
   const result: number[] = [];
   for (let pick = currentPick; pick <= totalPicks; pick++) {
-    if (teamForPick(pick, teams, trades) === team) {
+    if (teamForPick(pick, teams, trades, draftOrder) === team) {
       result.push(pick);
     }
   }

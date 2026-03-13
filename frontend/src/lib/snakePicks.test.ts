@@ -75,3 +75,43 @@ describe("remainingPicksForTeam", () => {
     expect(result).toEqual([1, 7]);
   });
 });
+
+describe("snakeTeam with draftOrder", () => {
+  it("uses draft order for round 1 (forward)", () => {
+    const order = [4, 3, 2, 1];
+    expect(snakeTeam(1, 4, order)).toBe(4);
+    expect(snakeTeam(2, 4, order)).toBe(3);
+    expect(snakeTeam(3, 4, order)).toBe(2);
+    expect(snakeTeam(4, 4, order)).toBe(1);
+  });
+
+  it("uses draft order for round 2 (reversed)", () => {
+    const order = [4, 3, 2, 1];
+    expect(snakeTeam(5, 4, order)).toBe(1);
+    expect(snakeTeam(6, 4, order)).toBe(2);
+    expect(snakeTeam(7, 4, order)).toBe(3);
+    expect(snakeTeam(8, 4, order)).toBe(4);
+  });
+
+  it("falls back to default when draftOrder is null", () => {
+    expect(snakeTeam(1, 4, null)).toBe(1);
+    expect(snakeTeam(5, 4, undefined)).toBe(4);
+  });
+});
+
+describe("teamForPick with draftOrder", () => {
+  it("respects draft order", () => {
+    const order = [4, 3, 2, 1];
+    expect(teamForPick(1, 4, [], order)).toBe(4);
+    expect(teamForPick(5, 4, [], order)).toBe(1);
+  });
+
+  it("trades override draft order", () => {
+    const order = [4, 3, 2, 1];
+    const trades: DraftTradeType[] = [{ teamA: 4, teamB: 1, teamAGives: [1], teamBGives: [4] }];
+    // Pick 1 was team 4's (via draft order), now traded to team 1
+    expect(teamForPick(1, 4, trades, order)).toBe(1);
+    // Pick 4 was team 1's (via draft order), now traded to team 4
+    expect(teamForPick(4, 4, trades, order)).toBe(4);
+  });
+});

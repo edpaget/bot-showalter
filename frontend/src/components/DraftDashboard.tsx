@@ -336,6 +336,7 @@ export function DraftDashboard({ season = 2026 }: { season?: number }) {
           teams={ctx.state.teams}
           userTeam={ctx.state.userTeam}
           teamNames={ctx.teamNames}
+          draftOrder={ctx.state.draftOrder}
           onPlayerClick={openPlayer}
           onUndoTrade={handleUndoTrade}
           undoingTrade={undoingTrade}
@@ -351,6 +352,7 @@ export function DraftDashboard({ season = 2026 }: { season?: number }) {
           totalPicks={totalPicks}
           trades={ctx.state.trades}
           teamNames={ctx.teamNames}
+          draftOrder={ctx.state.draftOrder}
           onTradeComplete={handleTradeComplete}
           onClose={() => setTradeDialogOpen(false)}
         />

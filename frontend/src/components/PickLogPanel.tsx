@@ -10,6 +10,7 @@ interface PickLogPanelProps {
   teams?: number;
   userTeam?: number;
   teamNames?: Record<number, string>;
+  draftOrder?: number[] | null;
   onPlayerClick?: (playerId: number, playerName: string, playerType?: string) => void;
   onUndoTrade?: () => void;
   undoingTrade?: boolean;
@@ -25,6 +26,7 @@ export function PickLogPanel({
   teams = 0,
   userTeam = 0,
   teamNames,
+  draftOrder,
   onPlayerClick,
   onUndoTrade,
   undoingTrade,
@@ -95,7 +97,7 @@ export function PickLogPanel({
                     <td className="px-3 py-1">{pick.pickNumber}</td>
                     <td className="py-1">
                       {teamLabel(pick.team, teamNames)}
-                      {teams > 0 && snakeTeam(pick.pickNumber, teams) !== pick.team && (
+                      {teams > 0 && snakeTeam(pick.pickNumber, teams, draftOrder) !== pick.team && (
                         <span className="ml-1 bg-indigo-100 text-indigo-700 text-[10px] px-1 rounded">traded</span>
                       )}
                     </td>
