@@ -108,7 +108,7 @@ export function SessionControls({
           </span>
         )}
         <span className="text-xs text-gray-500">
-          {state.format} · {state.teams} teams
+          Session #{state.sessionId} · {state.format} · {state.teams} teams
         </span>
         {state.budgetRemaining != null && (
           <span className="text-xs text-gray-500">Budget: ${state.budgetRemaining}</span>
