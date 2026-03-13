@@ -74,6 +74,7 @@ from fantasy_baseball_manager.yahoo.league_source import YahooLeagueSource
 from fantasy_baseball_manager.yahoo.roster_source import YahooRosterSource
 
 if TYPE_CHECKING:
+    from fantasy_baseball_manager.domain import Projection
     from fantasy_baseball_manager.web.app import AppContext
     from fantasy_baseball_manager.web.session_manager import SessionManager
 
@@ -99,6 +100,28 @@ def _get_session_manager(info: Info) -> SessionManager:
         msg = "Session management is not configured"
         raise ValueError(msg)
     return mgr
+
+
+def _get_projection_source(ctx: AppContext, season: int) -> tuple[str, str]:
+    """Derive the projection system/version from the configured valuation system.
+
+    Valuations store which projection system they were built from.  Use that
+    to load the correct raw-stat projections for category balance analysis.
+    Falls back to ``ensemble/production`` when no valuations are available.
+    """
+    valuations = ctx.container.valuation_repo.get_by_season(
+        season, system=ctx.default_system, version=ctx.default_version
+    )
+    if valuations:
+        return valuations[0].projection_system, valuations[0].projection_version
+    return "ensemble", "production"
+
+
+def _get_roster_projections(ctx: AppContext, season: int) -> list[Projection]:
+    """Load projections for category-balance analysis, filtered to the correct system."""
+    proj_system, proj_version = _get_projection_source(ctx, season)
+    projections = ctx.container.projection_repo.get_by_season(season, system=proj_system)
+    return [p for p in projections if p.version == proj_version]
 
 
 def _get_keeper_count(mgr: SessionManager, session_id: int) -> int:
@@ -127,7 +150,12 @@ def _build_keeper_planner(ctx: AppContext, season: int, league_name: str) -> Kee
     keeper_costs = ctx.container.keeper_cost_repo.find_by_season_league(season, league_name)
     valuations = ctx.container.valuation_repo.get_by_season(season, system=system, version=version)
     players = ctx.container.player_repo.get_by_ids([v.player_id for v in valuations])
-    projections = ctx.container.projection_repo.get_by_season(season)
+    if valuations:
+        proj_sys, proj_ver = valuations[0].projection_system, valuations[0].projection_version
+    else:
+        proj_sys, proj_ver = "ensemble", "production"
+    projections = ctx.container.projection_repo.get_by_season(season, system=proj_sys)
+    projections = [p for p in projections if p.version == proj_ver]
     eligibility = PlayerEligibilityService(
         ctx.container.position_appearance_repo,
         pitching_stats_repo=ctx.container.pitching_stats_repo,
@@ -280,7 +308,7 @@ def _build_pick_result(
     ctx = _get_context(info)
     roster_ids = [p.player_id for p in roster]
     if roster_ids:
-        projections = ctx.container.projection_repo.get_by_season(engine.state.config.season)
+        projections = _get_roster_projections(ctx, engine.state.config.season)
         analysis = analyze_roster(roster_ids, projections, ctx.league)
         balance_types = [CategoryBalanceType.from_domain(p) for p in analysis.projections]
 
@@ -493,7 +521,7 @@ class Query:
         if not roster_ids:
             return []
 
-        projections = ctx.container.projection_repo.get_by_season(engine.state.config.season)
+        projections = _get_roster_projections(ctx, engine.state.config.season)
         analysis = analyze_roster(roster_ids, projections, ctx.league)
         return [CategoryBalanceType.from_domain(p) for p in analysis.projections]
 
@@ -515,7 +543,7 @@ class Query:
 
         available_rows = engine.available()
         available_ids = [r.player_id for r in available_rows]
-        projections = ctx.container.projection_repo.get_by_season(engine.state.config.season)
+        projections = _get_roster_projections(ctx, engine.state.config.season)
 
         player_ids = {*roster_ids, *available_ids}
         players = ctx.container.player_repo.get_by_ids(list(player_ids))

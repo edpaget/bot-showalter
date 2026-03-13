@@ -119,6 +119,17 @@ def web(  # pragma: no cover
 
     event_bus = EventBus()
 
+    # Derive the underlying projection system from valuations so that
+    # category-balance analysis uses raw-stat projections (e.g. ensemble)
+    # rather than the valuation system (e.g. zar) which has no raw stats.
+    valuations = container.valuation_repo.get_by_season(season, system=system, version=version)
+    if valuations:
+        proj_system = valuations[0].projection_system
+        proj_version = valuations[0].projection_version
+    else:
+        proj_system = "ensemble"
+        proj_version = "production"
+
     session_repo = SqliteDraftSessionRepo(provider)
     valuation_adjuster = _make_valuation_adjuster(container, league)
     session_manager = SessionManager(
@@ -133,6 +144,8 @@ def web(  # pragma: no cover
         league_keeper_repo=container.league_keeper_repo,
         projection_repo=container.projection_repo,
         keeper_cost_repo=container.keeper_cost_repo,
+        projection_system=proj_system,
+        projection_version=proj_version,
     )
 
     # Load breakout/bust predictions if model is trained

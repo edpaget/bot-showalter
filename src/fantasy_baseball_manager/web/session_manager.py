@@ -101,6 +101,8 @@ class SessionManager:
         projection_repo: ProjectionRepo | None = None,
         keeper_cost_deriver: KeeperCostDeriver | None = None,
         keeper_cost_repo: KeeperCostRepo | None = None,
+        projection_system: str | None = None,
+        projection_version: str | None = None,
     ) -> None:
         self._repo = session_repo
         self._valuation_repo = valuation_repo
@@ -114,6 +116,8 @@ class SessionManager:
         self._projection_repo = projection_repo
         self._keeper_cost_deriver = keeper_cost_deriver
         self._keeper_cost_repo = keeper_cost_repo
+        self._projection_system = projection_system
+        self._projection_version = projection_version
         self._engines: dict[int, DraftEngine] = {}
 
     def start_session(
@@ -341,7 +345,9 @@ class SessionManager:
         record = self._repo.load_session(session_id)
         if record is None or not record.keeper_player_ids:
             return None
-        projections = self._projection_repo.get_by_season(record.season)
+        projections = self._projection_repo.get_by_season(record.season, system=self._projection_system)
+        if self._projection_version is not None:
+            projections = [p for p in projections if p.version == self._projection_version]
         if not projections:
             return None
         league = self._league
@@ -358,7 +364,9 @@ class SessionManager:
         record = self._repo.load_session(session_id)
         if record is None or not record.keeper_player_ids:
             return None
-        projections = self._projection_repo.get_by_season(record.season)
+        projections = self._projection_repo.get_by_season(record.season, system=self._projection_system)
+        if self._projection_version is not None:
+            projections = [p for p in projections if p.version == self._projection_version]
         if not projections:
             return None
         analysis = analyze_roster(record.keeper_player_ids, projections, self._league)
