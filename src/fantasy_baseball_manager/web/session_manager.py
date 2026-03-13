@@ -77,6 +77,30 @@ def _keeper_player_ids_only(keeper_set: set[KeeperKey]) -> set[int]:
     return {pid for pid, _ in keeper_set}
 
 
+def _fully_kept_ids(keeper_set: set[KeeperKey], valuations: list[Valuation]) -> set[int]:
+    """Return player IDs where every valuation type for that player is kept.
+
+    For two-way players (e.g. Ohtani) where only batter is kept, the player_id
+    is NOT included — the adjuster would otherwise drop the pitcher valuation
+    entirely.  Untyped keepers (player_type=None) count as keeping all types.
+    """
+    keeper_ids = _keeper_player_ids_only(keeper_set)
+    # Find valuation types per player that is also a keeper
+    types_in_pool: dict[int, set[str]] = {}
+    for v in valuations:
+        if v.player_id in keeper_ids:
+            types_in_pool.setdefault(v.player_id, set()).add(v.player_type)
+
+    fully_kept: set[int] = set()
+    for pid in keeper_ids:
+        pool_types = types_in_pool.get(pid, set())
+        # Check if every type in the pool is kept
+        all_kept = all(_is_kept(pid, pt, keeper_set) for pt in pool_types)
+        if all_kept:
+            fully_kept.add(pid)
+    return fully_kept
+
+
 def _keeper_picks_from_snapshot(
     snapshot: list[dict[str, object]],
     user_team: int,
@@ -465,11 +489,23 @@ class SessionManager:
 
         # Apply keeper adjustments: re-value pool then exclude kept players
         if keeper_player_ids and self._valuation_adjuster is not None:
-            # The adjuster takes plain player IDs for pool reduction
-            plain_ids = _keeper_player_ids_only(keeper_player_ids)
-            valuations = self._valuation_adjuster(plain_ids, valuations, season)
+            # The adjuster removes ALL valuations for a player_id during re-valuation.
+            # For two-way players (e.g. Ohtani) where only one type is kept, we must
+            # NOT pass that player_id to the adjuster — otherwise the non-kept type
+            # disappears from the pool entirely.  Only pass IDs where every type for
+            # that player is kept.
+            plain_ids = _fully_kept_ids(keeper_player_ids, valuations)
+            adjusted = self._valuation_adjuster(plain_ids, valuations, season)
+            # Restore original valuations for non-kept types that the adjuster dropped.
+            # These are two-way players where only one type is kept: the adjuster
+            # removed them entirely, but we need the non-kept type back.
+            adjusted_keys = {(v.player_id, v.player_type) for v in adjusted}
+            for v in valuations:
+                key = (v.player_id, v.player_type)
+                if key not in adjusted_keys and not _is_kept(v.player_id, v.player_type, keeper_player_ids):
+                    adjusted.append(v)
             # Filter by (player_id, player_type) — typed keepers only remove matching type
-            valuations = [v for v in valuations if not _is_kept(v.player_id, v.player_type, keeper_player_ids)]
+            valuations = [v for v in adjusted if not _is_kept(v.player_id, v.player_type, keeper_player_ids)]
 
         player_ids = [v.player_id for v in valuations]
         players = self._player_repo.get_by_ids(player_ids)

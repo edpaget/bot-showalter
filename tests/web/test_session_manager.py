@@ -606,6 +606,129 @@ class TestTradePicksPersists:
         assert restored.team_for_pick(2) == 1
 
 
+class TestTwoWayPlayerKeeper:
+    """Two-way players kept on one side must remain available on the other."""
+
+    def _make_manager_with_two_way(self) -> SessionManager:
+        """Create a manager where player 2 (Ohtani) has both batter and pitcher valuations."""
+        conn = create_connection(":memory:", check_same_thread=False)
+        provider = SingleConnectionProvider(conn)
+
+        player_repo = SqlitePlayerRepo(provider)
+        valuation_repo = SqliteValuationRepo(provider)
+
+        players = [
+            Player(name_first="Mike", name_last="Trout", id=1, mlbam_id=545361),
+            Player(name_first="Shohei", name_last="Ohtani", id=2, mlbam_id=660271),
+            Player(name_first="Gerrit", name_last="Cole", id=3, mlbam_id=543037),
+        ]
+        for p in players:
+            player_repo.upsert(p)
+
+        valuations = [
+            Valuation(
+                player_id=1,
+                season=2026,
+                system="zar",
+                version="1.0",
+                projection_system="steamer",
+                projection_version="2026",
+                player_type="batter",
+                position="OF",
+                value=35.0,
+                rank=1,
+                category_scores={"HR": 2.5, "RBI": 1.8},
+            ),
+            Valuation(
+                player_id=2,
+                season=2026,
+                system="zar",
+                version="1.0",
+                projection_system="steamer",
+                projection_version="2026",
+                player_type="batter",
+                position="OF",
+                value=30.0,
+                rank=2,
+                category_scores={"HR": 2.0, "RBI": 1.5},
+            ),
+            Valuation(
+                player_id=2,
+                season=2026,
+                system="zar",
+                version="1.0",
+                projection_system="steamer",
+                projection_version="2026",
+                player_type="pitcher",
+                position="SP",
+                value=20.0,
+                rank=4,
+                category_scores={"W": 1.0, "K": 1.5},
+            ),
+            Valuation(
+                player_id=3,
+                season=2026,
+                system="zar",
+                version="1.0",
+                projection_system="steamer",
+                projection_version="2026",
+                player_type="pitcher",
+                position="SP",
+                value=25.0,
+                rank=3,
+                category_scores={"W": 1.5, "K": 2.0},
+            ),
+        ]
+        for v in valuations:
+            valuation_repo.upsert(v)
+
+        with provider.connection() as c:
+            c.commit()
+
+        def fake_adjuster(kept_ids: set[int], valuations: list[Valuation], season: int) -> list[Valuation]:
+            return [replace(v, value=round(v.value * 1.1, 2)) for v in valuations if v.player_id not in kept_ids]
+
+        return SessionManager(
+            session_repo=SqliteDraftSessionRepo(provider),
+            valuation_repo=valuation_repo,
+            player_repo=player_repo,
+            adp_repo=SqliteADPRepo(provider),
+            player_profile_service=PlayerProfileService(player_repo),
+            league=_LEAGUE,
+            adp_provider="fantasypros",
+            valuation_adjuster=fake_adjuster,
+        )
+
+    def test_batter_kept_pitcher_remains_available(self) -> None:
+        """Keeping batter-Ohtani should NOT remove pitcher-Ohtani from the pool."""
+        mgr = self._make_manager_with_two_way()
+        _, engine = mgr.start_session(2026, keeper_player_ids={(2, "batter")})
+
+        available = {(r.player_id, r.player_type): r for r in engine.available()}
+        # Batter-Ohtani is kept — should NOT be available
+        assert (2, "batter") not in available
+        # Pitcher-Ohtani is NOT kept — should still be available
+        assert (2, "pitcher") in available
+
+    def test_both_types_kept_removes_both(self) -> None:
+        """Keeping both batter and pitcher Ohtani should remove both from pool."""
+        mgr = self._make_manager_with_two_way()
+        _, engine = mgr.start_session(2026, keeper_player_ids={(2, "batter"), (2, "pitcher")})
+
+        available_ids = {(r.player_id, r.player_type) for r in engine.available()}
+        assert (2, "batter") not in available_ids
+        assert (2, "pitcher") not in available_ids
+
+    def test_untyped_keeper_removes_both_types(self) -> None:
+        """An untyped keeper (player_id, None) should remove all types for that player."""
+        mgr = self._make_manager_with_two_way()
+        _, engine = mgr.start_session(2026, keeper_player_ids={(2, None)})
+
+        available_ids = {(r.player_id, r.player_type) for r in engine.available()}
+        assert (2, "batter") not in available_ids
+        assert (2, "pitcher") not in available_ids
+
+
 class TestNoAutoKeepers:
     """Verify that keepers are only applied when explicitly provided."""
 
