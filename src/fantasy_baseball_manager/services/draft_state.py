@@ -25,6 +25,7 @@ class DraftConfig:
     user_team: int
     season: int
     budget: int = 0
+    draft_order: list[int] | None = None
 
 
 @dataclass(frozen=True)
@@ -216,6 +217,8 @@ class DraftEngine:
         state = self._require_state()
         if pick_number in state.pick_overrides:
             return state.pick_overrides[pick_number]
+        if state.config.draft_order is not None:
+            return self._custom_snake_team(pick_number, state.config.draft_order)
         return self._snake_team(pick_number, state.config.teams)
 
     def trade_picks(
@@ -309,6 +312,17 @@ class DraftEngine:
         if round_number % 2 == 0:
             return position_in_round + 1
         return teams - position_in_round
+
+    @staticmethod
+    def _custom_snake_team(pick_number: int, draft_order: list[int]) -> int:
+        """Snake draft using a custom team order instead of sequential 1..N."""
+        teams = len(draft_order)
+        zero_based = pick_number - 1
+        round_number = zero_based // teams
+        position_in_round = zero_based % teams
+        if round_number % 2 == 0:
+            return draft_order[position_in_round]
+        return draft_order[teams - 1 - position_in_round]
 
 
 def build_draft_roster_slots(league: LeagueSettings) -> dict[str, int]:

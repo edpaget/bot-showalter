@@ -18,6 +18,7 @@ class DraftSessionRecord:
     keeper_player_ids: list[int] | None = None
     keeper_snapshot: list[dict[str, object]] | None = None
     team_names: dict[int, str] | None = None
+    draft_order: list[int] | None = None
     id: int | None = None
 
 

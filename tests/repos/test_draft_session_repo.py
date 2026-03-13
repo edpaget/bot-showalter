@@ -442,6 +442,31 @@ class TestTeamNames:
             assert isinstance(key, int)
 
 
+class TestDraftOrder:
+    def test_roundtrip_with_draft_order(self, repo: SqliteDraftSessionRepo) -> None:
+        record = _make_record(draft_order=[12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1])
+        session_id = repo.create_session(record)
+
+        loaded = repo.load_session(session_id)
+        assert loaded is not None
+        assert loaded.draft_order == [12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1]
+
+    def test_roundtrip_without_draft_order(self, repo: SqliteDraftSessionRepo) -> None:
+        record = _make_record()
+        session_id = repo.create_session(record)
+
+        loaded = repo.load_session(session_id)
+        assert loaded is not None
+        assert loaded.draft_order is None
+
+    def test_list_sessions_includes_draft_order(self, repo: SqliteDraftSessionRepo) -> None:
+        repo.create_session(_make_record(draft_order=[4, 3, 2, 1]))
+
+        sessions = repo.list_sessions()
+        assert len(sessions) == 1
+        assert sessions[0].draft_order == [4, 3, 2, 1]
+
+
 class TestLoadSessionNotFound:
     def test_returns_none(self, repo: SqliteDraftSessionRepo) -> None:
         assert repo.load_session(9999) is None

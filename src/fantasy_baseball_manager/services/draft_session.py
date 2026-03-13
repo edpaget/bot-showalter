@@ -334,6 +334,7 @@ def load_draft_from_db(
         user_team=record.user_team,
         season=record.season,
         budget=record.budget,
+        draft_order=record.draft_order,
     )
 
     engine = DraftEngine()

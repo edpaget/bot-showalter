@@ -98,6 +98,7 @@ class SessionManager:
         keeper_player_ids: set[int] | None = None,
         league_key: str | None = None,
         team_names: dict[int, str] | None = None,
+        draft_order: list[int] | None = None,
     ) -> tuple[int, DraftEngine]:
         teams = teams or self._league.teams
         budget = budget if budget is not None else self._league.budget
@@ -116,6 +117,7 @@ class SessionManager:
             user_team=user_team,
             season=season,
             budget=budget,
+            draft_order=draft_order,
         )
 
         engine = DraftEngine()
@@ -138,6 +140,7 @@ class SessionManager:
             keeper_player_ids=sorted(keeper_player_ids) if keeper_player_ids is not None else None,
             keeper_snapshot=keeper_snapshot,
             team_names=team_names,
+            draft_order=draft_order,
         )
         session_id = self._repo.create_session(record)
         self._engines[session_id] = engine

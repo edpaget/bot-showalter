@@ -1080,3 +1080,98 @@ class TestPickTrades:
         assert trade.team_b == 3
         assert engine.team_for_pick(2) == 3
         assert engine.team_for_pick(3) == 2
+
+
+# ---------------------------------------------------------------------------
+# Custom Draft Order
+# ---------------------------------------------------------------------------
+
+
+class TestCustomDraftOrder:
+    """Tests for draft_order on DraftConfig — custom snake pick ordering."""
+
+    def _make_config(self, draft_order: list[int]) -> DraftConfig:
+        return DraftConfig(
+            teams=len(draft_order),
+            roster_slots={"C": 1, "1B": 1, "OF": 2, "P": 1},
+            format=DraftFormat.SNAKE,
+            user_team=draft_order[0],
+            season=2026,
+            draft_order=draft_order,
+        )
+
+    def test_round_1_follows_draft_order(self) -> None:
+        """With draft_order=[4,3,2,1], pick 1->team 4, pick 2->team 3, etc."""
+        config = self._make_config([4, 3, 2, 1])
+        engine = DraftEngine()
+        engine.start(PLAYERS, config)
+        assert engine.team_for_pick(1) == 4
+        assert engine.team_for_pick(2) == 3
+        assert engine.team_for_pick(3) == 2
+        assert engine.team_for_pick(4) == 1
+
+    def test_round_2_snakes_reverse(self) -> None:
+        """Round 2 reverses the draft order: [4,3,2,1] -> [1,2,3,4]."""
+        config = self._make_config([4, 3, 2, 1])
+        engine = DraftEngine()
+        engine.start(PLAYERS, config)
+        assert engine.team_for_pick(5) == 1
+        assert engine.team_for_pick(6) == 2
+        assert engine.team_for_pick(7) == 3
+        assert engine.team_for_pick(8) == 4
+
+    def test_none_preserves_default(self) -> None:
+        """draft_order=None uses standard sequential snake."""
+        engine = DraftEngine()
+        engine.start(PLAYERS, SNAKE_CONFIG)
+        assert SNAKE_CONFIG.draft_order is None
+        assert engine.team_for_pick(1) == 1
+        assert engine.team_for_pick(4) == 4
+        assert engine.team_for_pick(5) == 4  # snake reversal
+
+    def test_picks_validate_against_custom_order(self) -> None:
+        """pick() enforces the custom draft order team assignment."""
+        config = self._make_config([4, 3, 2, 1])
+        engine = DraftEngine()
+        engine.start(PLAYERS, config)
+        # Pick 1 belongs to team 4 — team 1 is rejected
+        with pytest.raises(DraftError, match="expected team 4"):
+            engine.pick(player_id=1, team=1, position="C")
+        # Team 4 is accepted
+        result = engine.pick(player_id=1, team=4, position="C")
+        assert result.team == 4
+
+    def test_trades_layer_on_custom_order(self) -> None:
+        """Trades override custom draft order assignments."""
+        # draft_order=[4,3,2,1], user_team=4 (picks first)
+        config = self._make_config([4, 3, 2, 1])
+        engine = DraftEngine()
+        engine.start(PLAYERS, config)
+        # Pick 1 -> team 4 (user), pick 2 -> team 3
+        # Trade: user gives pick 1 to team 3, receives pick 2
+        engine.trade_picks(gives=[1], receives=[2], partner_team=3)
+        assert engine.team_for_pick(1) == 3
+        assert engine.team_for_pick(2) == 4
+        # Non-traded picks still follow custom order
+        assert engine.team_for_pick(3) == 2
+        assert engine.team_for_pick(4) == 1
+
+    def test_undo_trade_preserves_custom_order(self) -> None:
+        """After undoing a trade, custom draft order base assignments are restored."""
+        config = self._make_config([4, 3, 2, 1])
+        engine = DraftEngine()
+        engine.start(PLAYERS, config)
+        engine.trade_picks(gives=[1], receives=[2], partner_team=3)
+        engine.undo_trade()
+        # Back to custom order
+        assert engine.team_for_pick(1) == 4
+        assert engine.team_for_pick(2) == 3
+
+    def test_team_on_clock_uses_custom_order(self) -> None:
+        """team_on_clock() respects custom draft order."""
+        config = self._make_config([4, 3, 2, 1])
+        engine = DraftEngine()
+        engine.start(PLAYERS, config)
+        assert engine.team_on_clock() == 4
+        engine.pick(player_id=1, team=4, position="C")
+        assert engine.team_on_clock() == 3

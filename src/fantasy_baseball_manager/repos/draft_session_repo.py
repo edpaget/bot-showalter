@@ -18,9 +18,9 @@ class SqliteDraftSessionRepo:
             cur = conn.execute(
                 "INSERT INTO draft_session"
                 " (league, season, teams, format, user_team, roster_slots,"
-                "  budget, status, created_at, updated_at, system, version, keeper_player_ids, keeper_snapshot,"
-                "  team_names)"
-                " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "  budget, status, created_at, updated_at, system, version,"
+                "  keeper_player_ids, keeper_snapshot, team_names, draft_order)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     record.league,
                     record.season,
@@ -39,6 +39,7 @@ class SqliteDraftSessionRepo:
                     json.dumps({str(k): v for k, v in record.team_names.items()})
                     if record.team_names is not None
                     else None,
+                    json.dumps(record.draft_order) if record.draft_order is not None else None,
                 ),
             )
             assert cur.lastrowid is not None  # noqa: S101
@@ -72,8 +73,8 @@ class SqliteDraftSessionRepo:
         with self._provider.connection() as conn:
             row = conn.execute(
                 "SELECT id, league, season, teams, format, user_team, roster_slots,"
-                " budget, status, created_at, updated_at, system, version, keeper_player_ids, keeper_snapshot,"
-                " team_names"
+                " budget, status, created_at, updated_at, system, version,"
+                " keeper_player_ids, keeper_snapshot, team_names, draft_order"
                 " FROM draft_session WHERE id = ?",
                 (session_id,),
             ).fetchone()
@@ -104,8 +105,8 @@ class SqliteDraftSessionRepo:
         with self._provider.connection() as conn:
             rows = conn.execute(
                 "SELECT id, league, season, teams, format, user_team, roster_slots,"  # noqa: S608
-                " budget, status, created_at, updated_at, system, version, keeper_player_ids,"
-                f" keeper_snapshot, team_names FROM draft_session{where}"
+                " budget, status, created_at, updated_at, system, version,"
+                f" keeper_player_ids, keeper_snapshot, team_names, draft_order FROM draft_session{where}"
                 " ORDER BY created_at DESC",
                 params,
             ).fetchall()
@@ -193,6 +194,8 @@ class SqliteDraftSessionRepo:
         team_names: dict[int, str] | None = (
             {int(k): v for k, v in json.loads(raw_team_names).items()} if raw_team_names else None
         )
+        raw_draft_order = row["draft_order"]
+        draft_order: list[int] | None = json.loads(raw_draft_order) if raw_draft_order is not None else None
         return DraftSessionRecord(
             id=row["id"],
             league=row["league"],
@@ -210,6 +213,7 @@ class SqliteDraftSessionRepo:
             keeper_player_ids=keeper_player_ids,
             keeper_snapshot=keeper_snapshot,
             team_names=team_names,
+            draft_order=draft_order,
         )
 
     @staticmethod
