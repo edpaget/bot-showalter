@@ -64,7 +64,7 @@ def _is_kept(player_id: int, player_type: str, keeper_set: set[KeeperKey]) -> bo
 
 def _keeper_set_to_list(keeper_set: set[KeeperKey]) -> list[list[object]]:
     """Serialize keeper set to sorted list for JSON storage."""
-    return sorted([pid, ptype] for pid, ptype in keeper_set)
+    return sorted(([pid, ptype] for pid, ptype in keeper_set), key=lambda k: (k[0], k[1] or ""))
 
 
 def _list_to_keeper_set(entries: list[list[object]]) -> set[KeeperKey]:
