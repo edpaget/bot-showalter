@@ -58,25 +58,26 @@ export function SessionControls({
 
   useEffect(() => {
     if (!yahooLeague || sessionActive) return;
-    fetchSetup({ variables: { leagueKey: yahooLeague.leagueKey, season: yahooLeague.season } }).then(
-      ({ data, error }) => {
-        if (error || !data) {
-          setPrefillError(true);
-          return;
-        }
-        const setup = data.yahooDraftSetup;
-        setSeason(yahooLeague.season);
-        setTeams(setup.numTeams);
-        const fmt = setup.draftFormat === "auction" ? "auction" : "snake";
-        setFormat(fmt);
-        setUserTeam(setup.userTeamId);
-        setKeeperPlayerIds(setup.keeperPlayerIds);
-        if (setup.teamNames) {
-          setPrefillTeamNames(setup.teamNames as Record<string, string>);
-        }
-        setPrefilled(true);
-      },
-    );
+    fetchSetup({
+      variables: { leagueKey: yahooLeague.leagueKey, season: yahooLeague.season },
+      fetchPolicy: "network-only",
+    }).then(({ data, error }) => {
+      if (error || !data) {
+        setPrefillError(true);
+        return;
+      }
+      const setup = data.yahooDraftSetup;
+      setSeason(yahooLeague.season);
+      setTeams(setup.numTeams);
+      const fmt = setup.draftFormat === "auction" ? "auction" : "snake";
+      setFormat(fmt);
+      setUserTeam(setup.userTeamId);
+      setKeeperPlayerIds(setup.keeperPlayerIds);
+      if (setup.teamNames) {
+        setPrefillTeamNames(setup.teamNames as Record<string, string>);
+      }
+      setPrefilled(true);
+    });
   }, [yahooLeague, sessionActive, fetchSetup]);
 
   if (sessionActive && state) {
