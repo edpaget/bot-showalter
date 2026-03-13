@@ -2,7 +2,6 @@ import { useLazyQuery } from "@apollo/client";
 import { useEffect, useState } from "react";
 import type { DraftSessionSummaryType, DraftStateType, YahooDraftSetupQuery } from "../generated/graphql";
 import { YAHOO_DRAFT_SETUP_QUERY } from "../graphql/queries";
-import { teamForPick } from "../lib/snakePicks";
 import { Spinner } from "./Spinner";
 
 interface SessionControlsProps {
@@ -28,7 +27,6 @@ interface SessionControlsProps {
   tradeDisabled?: boolean;
   isSnakeFormat?: boolean;
   yahooLeague?: { leagueKey: string; leagueName: string; season: number } | null;
-  getTeamName?: (id: number) => string;
 }
 
 export function SessionControls({
@@ -45,7 +43,6 @@ export function SessionControls({
   tradeDisabled,
   isSnakeFormat,
   yahooLeague,
-  getTeamName,
 }: SessionControlsProps) {
   const [season, setSeason] = useState(2026);
   const [teams, setTeams] = useState(12);
@@ -84,21 +81,9 @@ export function SessionControls({
   }, [yahooLeague, sessionActive, fetchSetup]);
 
   if (sessionActive && state) {
-    const currentTeamId = state.format === "snake" ? teamForPick(state.currentPick, state.teams, state.trades) : null;
-    const currentTeamName = currentTeamId ? (getTeamName?.(currentTeamId) ?? `Team ${currentTeamId}`) : null;
-    const isUserPick = currentTeamId === state.userTeam;
-
     return (
       <div className="flex items-center gap-3 p-3 bg-gray-50 rounded border border-gray-200">
         <span className="text-sm font-semibold">Pick #{state.currentPick}</span>
-        {currentTeamName && (
-          <span
-            className={`text-sm font-medium px-2 py-0.5 rounded ${isUserPick ? "bg-blue-100 text-blue-800" : "bg-gray-200 text-gray-700"}`}
-          >
-            {currentTeamName}
-            {isUserPick && " (you)"}
-          </span>
-        )}
         <span className="text-xs text-gray-500">
           {state.format} · {state.teams} teams
         </span>
