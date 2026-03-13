@@ -5,6 +5,7 @@ from fantasy_baseball_manager.db.pool import SingleConnectionProvider
 from fantasy_baseball_manager.domain import (
     CategoryConfig,
     Direction,
+    KeeperCost,
     LeagueFormat,
     LeagueKeeper,
     LeagueSettings,
@@ -16,6 +17,7 @@ from fantasy_baseball_manager.domain import (
 from fantasy_baseball_manager.repos import (
     SqliteADPRepo,
     SqliteDraftSessionRepo,
+    SqliteKeeperCostRepo,
     SqliteLeagueKeeperRepo,
     SqlitePlayerRepo,
     SqliteValuationRepo,
@@ -706,7 +708,7 @@ class TestKeeperAutoDerivation:
 
     def _make_manager_with_deriver(
         self, *, pre_populate_keepers: bool = False
-    ) -> tuple[SessionManager, SqliteLeagueKeeperRepo, list[bool]]:
+    ) -> tuple[SessionManager, SqliteKeeperCostRepo, list[bool]]:
         """Create a manager with a deriver that records whether it was called."""
         conn = create_connection(":memory:", check_same_thread=False)
         provider = SingleConnectionProvider(conn)
@@ -714,6 +716,7 @@ class TestKeeperAutoDerivation:
         player_repo = SqlitePlayerRepo(provider)
         valuation_repo = SqliteValuationRepo(provider)
         league_keeper_repo = SqliteLeagueKeeperRepo(provider)
+        keeper_cost_repo = SqliteKeeperCostRepo(provider)
 
         players = [
             Player(name_first="Mike", name_last="Trout", id=1, mlbam_id=545361),
@@ -779,9 +782,10 @@ class TestKeeperAutoDerivation:
 
         def fake_deriver(season: int, league_key: str) -> None:
             deriver_called.append(True)
-            # Simulate deriving keeper costs by inserting into the repo
-            league_keeper_repo.upsert_batch(
-                [LeagueKeeper(player_id=1, season=season, league="Test League", team_name="Team A", cost=35.0)]
+            # Simulate deriving keeper costs by inserting into keeper_cost repo
+            # (matches what the real deriver does)
+            keeper_cost_repo.upsert_batch(
+                [KeeperCost(player_id=1, season=season, league="Test League", cost=35.0, source="yahoo")]
             )
             with provider.connection() as c:
                 c.commit()
@@ -804,8 +808,9 @@ class TestKeeperAutoDerivation:
             valuation_adjuster=fake_adjuster,
             league_keeper_repo=league_keeper_repo,
             keeper_cost_deriver=fake_deriver,
+            keeper_cost_repo=keeper_cost_repo,
         )
-        return mgr, league_keeper_repo, deriver_called
+        return mgr, keeper_cost_repo, deriver_called
 
     def test_auto_derives_when_costs_missing(self) -> None:
         mgr, _, deriver_called = self._make_manager_with_deriver()

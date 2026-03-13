@@ -31,6 +31,7 @@ if TYPE_CHECKING:
     from fantasy_baseball_manager.repos import (
         ADPRepo,
         DraftSessionRepo,
+        KeeperCostRepo,
         LeagueKeeperRepo,
         PlayerRepo,
         ProjectionRepo,
@@ -68,6 +69,7 @@ class SessionManager:
         league_keeper_repo: LeagueKeeperRepo | None = None,
         projection_repo: ProjectionRepo | None = None,
         keeper_cost_deriver: KeeperCostDeriver | None = None,
+        keeper_cost_repo: KeeperCostRepo | None = None,
     ) -> None:
         self._repo = session_repo
         self._valuation_repo = valuation_repo
@@ -80,6 +82,7 @@ class SessionManager:
         self._league_keeper_repo = league_keeper_repo
         self._projection_repo = projection_repo
         self._keeper_cost_deriver = keeper_cost_deriver
+        self._keeper_cost_repo = keeper_cost_repo
         self._engines: dict[int, DraftEngine] = {}
 
     def start_session(
@@ -107,10 +110,10 @@ class SessionManager:
         # Auto-derive keeper costs from Yahoo if none exist and league_key provided
         if keeper_player_ids is None and league_key is not None and self._keeper_cost_deriver is not None:
             self._keeper_cost_deriver(season, league_key)
-            if self._league_keeper_repo is not None:
-                league_keepers = self._league_keeper_repo.find_by_season_league(season, self._league.name)
-                if league_keepers:
-                    keeper_player_ids = {k.player_id for k in league_keepers}
+            if self._keeper_cost_repo is not None:
+                keeper_costs = self._keeper_cost_repo.find_by_season_league(season, self._league.name)
+                if keeper_costs:
+                    keeper_player_ids = {kc.player_id for kc in keeper_costs}
 
         # Build keeper snapshot before filtering the pool
         keeper_snapshot = self._build_keeper_snapshot(season, keeper_player_ids) if keeper_player_ids else None

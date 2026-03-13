@@ -132,6 +132,7 @@ def web(  # pragma: no cover
         valuation_adjuster=valuation_adjuster,
         league_keeper_repo=container.league_keeper_repo,
         projection_repo=container.projection_repo,
+        keeper_cost_repo=container.keeper_cost_repo,
     )
 
     # Load breakout/bust predictions if model is trained
