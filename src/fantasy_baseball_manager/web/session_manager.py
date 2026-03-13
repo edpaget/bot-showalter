@@ -102,19 +102,7 @@ class SessionManager:
         teams = teams or self._league.teams
         budget = budget if budget is not None else self._league.budget
 
-        # Auto-load keepers from DB when not explicitly provided
-        if keeper_player_ids is None and self._league_keeper_repo is not None:
-            league_keepers = self._league_keeper_repo.find_by_season_league(season, self._league.name)
-            if league_keepers:
-                keeper_player_ids = {k.player_id for k in league_keepers}
-
-        # Auto-derive keeper costs from Yahoo if none exist and league_key provided
-        if keeper_player_ids is None and league_key is not None and self._keeper_cost_deriver is not None:
-            self._keeper_cost_deriver(season, league_key)
-            if self._keeper_cost_repo is not None:
-                keeper_costs = self._keeper_cost_repo.find_by_season_league(season, self._league.name)
-                if keeper_costs:
-                    keeper_player_ids = {kc.player_id for kc in keeper_costs}
+        # Only use explicitly provided keeper IDs — no auto-loading or auto-derivation
 
         # Build keeper snapshot before filtering the pool
         keeper_snapshot = self._build_keeper_snapshot(season, keeper_player_ids) if keeper_player_ids else None
