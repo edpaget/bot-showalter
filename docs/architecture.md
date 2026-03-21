@@ -228,4 +228,4 @@ parameters, league settings, and Yahoo Fantasy API credentials.
 `ModelConfig` dataclass. `config_league.py` parses league settings
 (teams, budget, roster positions, scoring categories). `config_yahoo.py`
 parses Yahoo OAuth credentials and league mappings. Roadmaps and phase
-plans live in `docs/plans/`.
+plans are managed via the rdm MCP server (project: fbm).

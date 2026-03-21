@@ -73,18 +73,18 @@ Committing `.ts`/`.tsx` files under `frontend/` automatically triggers three fro
 
 This project uses two levels of planning:
 
-1. **Roadmaps** (`/roadmap` skill) — High-level multi-phase plans written to `docs/plans/<topic>.md`. These describe what to build and in what order, but not implementation detail. Each roadmap has a **Status** table that tracks phase progress. See [`docs/plans/INDEX.md`](docs/plans/INDEX.md) for an overview of all roadmaps and their dependencies.
+1. **Roadmaps** (`/roadmap` skill) — High-level multi-phase plans managed via the rdm MCP server (`project: fbm`). These describe what to build and in what order, but not implementation detail. Use `mcp__rdm__rdm_roadmap_list` to see all roadmaps and their progress.
 2. **Plan mode** (built-in) — Used when starting implementation of a roadmap phase. Enter plan mode, explore the code, produce a detailed implementation plan, and get user approval before writing code. The plan lives only in the plan-mode session — do not write separate phase-plan files to disk.
 
-When asked to "create a plan", "write a plan", or "plan out" a feature — produce a **roadmap** document. Do NOT start implementing or exploring code for implementation purposes unless explicitly asked to implement.
+When asked to "create a plan", "write a plan", or "plan out" a feature — produce a **roadmap** via the rdm MCP tools. Do NOT start implementing or exploring code for implementation purposes unless explicitly asked to implement.
 
 When implementing from a roadmap, use the `/implement` skill (e.g., `/implement tier-generator phase 1`). It handles reading the roadmap, entering plan mode, worktree setup, and status updates. The full sequence is:
 
-1. Read the roadmap and locate the target phase's steps and acceptance criteria.
+1. Read the roadmap phase via `mcp__rdm__rdm_phase_show` and locate the steps and acceptance criteria.
 2. Enter plan mode to explore the code and design the implementation approach.
 3. After plan-mode approval, implement in a worktree (see Worktree Workflow).
 4. Do not expand scope beyond the roadmap phase unless asked.
-5. After the phase lands, update plan tracking and merge back to main (see Worktree Workflow).
+5. After the phase lands, update phase status via `mcp__rdm__rdm_phase_update` and merge back to main (see Worktree Workflow).
 
 ## Layer Dependencies — Models Must Not Import Services
 
@@ -139,7 +139,7 @@ When working in a worktree, all file reads, searches, and code exploration must 
 
 **After each phase lands:**
 
-1. **Update plan tracking.** Mark the phase `done (<date>)` in the roadmap's Status table and update `docs/plans/INDEX.md` progress (e.g., "phase 1 done" → "phases 1-2 done"). When all phases are done, move the roadmap from the **Active Roadmaps** table to the **Completed Roadmaps** table. Commit these doc changes alongside the implementation or as a separate `docs:` commit.
+1. **Update plan tracking.** Mark the phase done via `mcp__rdm__rdm_phase_update` with `status: "done"`.
 2. **Merge back to main from the main repo checkout:**
 
 ```bash

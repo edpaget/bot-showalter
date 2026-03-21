@@ -1,6 +1,6 @@
 # Draft UI Design
 
-Design specification for the web-based draft dashboard. The implementation roadmap is at [`docs/plans/web-ui-foundation.md`](plans/web-ui-foundation.md).
+Design specification for the web-based draft dashboard. The implementation roadmap is tracked in rdm (roadmap: web-ui-foundation, project: fbm).
 
 ## Architecture
 
