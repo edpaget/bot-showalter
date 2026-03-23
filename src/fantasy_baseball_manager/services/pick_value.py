@@ -93,22 +93,30 @@ def compute_pick_value_curve(
     provider = adp[0].provider if adp else ""
     system = valuations[0].system if valuations else ""
 
-    # Build valuation lookup (use max value if multiple per player)
-    val_by_id: dict[int, float] = {}
+    # Build valuation lookup keyed by (player_id, player_type) to avoid
+    # collisions for two-way players who have both batter and pitcher entries.
+    val_by_id: dict[tuple[int, str], float] = {}
     for v in valuations:
-        if v.player_id not in val_by_id or v.value > val_by_id[v.player_id]:
-            val_by_id[v.player_id] = v.value
+        key = (v.player_id, v.player_type)
+        if key not in val_by_id or v.value > val_by_id[key]:
+            val_by_id[key] = v.value
 
-    # Build raw pick→(values, names) mapping from ADP-valuation join
+    # Index player_ids that have at least one valuation for fast ADP filtering
+    valued_player_ids: set[int] = {pid for pid, _ in val_by_id}
+
+    # Build raw pick→(values, names) mapping from ADP-valuation join.
+    # For two-way players, all type-specific valuations contribute at the same pick.
     raw_values: dict[int, list[float]] = {}
     raw_names: dict[int, list[str]] = {}
     for entry in adp:
-        if entry.player_id not in val_by_id:
+        if entry.player_id not in valued_player_ids:
             continue
         pick_num = round(entry.overall_pick)
         if pick_num < 1:
             continue
-        raw_values.setdefault(pick_num, []).append(val_by_id[entry.player_id])
+        for (pid, _ptype), val in val_by_id.items():
+            if pid == entry.player_id:
+                raw_values.setdefault(pick_num, []).append(val)
         if player_names and entry.player_id in player_names:
             raw_names.setdefault(pick_num, []).append(player_names[entry.player_id])
 

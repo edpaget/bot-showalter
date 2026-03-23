@@ -476,13 +476,15 @@ def trade_impact_cmd(
         players = ctx.player_repo.all()
         candidates = compute_surplus(keeper_costs, valuations, players, threshold=threshold, decay=decay)
 
-        # Build valuation lookup for acquired players
-        val_lookup: dict[int, float] = {}
-        val_pos: dict[int, str] = {}
+        # Build valuation lookup keyed by (player_id, player_type) to avoid
+        # collisions for two-way players.
+        val_lookup: dict[tuple[int, str], float] = {}
+        val_pos: dict[tuple[int, str], str] = {}
         for v in valuations:
-            if v.player_id not in val_lookup or v.value > val_lookup[v.player_id]:
-                val_lookup[v.player_id] = v.value
-                val_pos[v.player_id] = v.position
+            key = (v.player_id, v.player_type)
+            if key not in val_lookup or v.value > val_lookup[key]:
+                val_lookup[key] = v.value
+                val_pos[key] = v.position
 
         acquire_decisions: list[KeeperDecision] = []
         if acquire:
@@ -490,8 +492,13 @@ def trade_impact_cmd(
             for i, name in enumerate(acquire):
                 pid = _resolve_player_id(name, ctx.player_repo)
                 cost = costs[i] if i < len(costs) else 0.0
-                value = val_lookup.get(pid, 0.0)
-                pos = val_pos.get(pid, "util")
+                # Find best value across all player types for this player_id
+                value = 0.0
+                pos = "util"
+                for (vid, _vtype), v in val_lookup.items():
+                    if vid == pid and v > value:
+                        value = v
+                        pos = val_pos[(vid, _vtype)]
                 player = ctx.player_repo.get_by_id(pid)
                 pname = f"{player.name_first} {player.name_last}" if player else name
                 acquire_decisions.append(

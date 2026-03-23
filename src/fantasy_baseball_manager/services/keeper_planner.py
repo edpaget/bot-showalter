@@ -17,7 +17,11 @@ from fantasy_baseball_manager.domain import (
 )
 from fantasy_baseball_manager.services.category_tracker import analyze_roster, identify_needs
 from fantasy_baseball_manager.services.keeper_optimizer import solve_keepers
-from fantasy_baseball_manager.services.keeper_service import compute_adjusted_valuations, compute_surplus
+from fantasy_baseball_manager.services.keeper_service import (
+    _best_valuation_for_player,
+    compute_adjusted_valuations,
+    compute_surplus,
+)
 from fantasy_baseball_manager.services.positional_scarcity import compute_scarcity
 
 if TYPE_CHECKING:
@@ -135,16 +139,18 @@ class KeeperPlannerService:
         # Board preview: top N by adjusted value
         board_preview = tuple(sorted(adjusted, key=lambda a: a.adjusted_value, reverse=True)[:board_preview_size])
 
-        # Convert adjusted valuations to Valuation-like objects for scarcity
-        val_lookup: dict[int, Valuation] = {}
+        # Convert adjusted valuations to Valuation-like objects for scarcity.
+        # Key by (player_id, player_type) to avoid collisions for two-way players.
+        val_lookup: dict[tuple[int, str], Valuation] = {}
         for v in self._valuations:
-            existing = val_lookup.get(v.player_id)
+            key = (v.player_id, v.player_type)
+            existing = val_lookup.get(key)
             if existing is None or v.value > existing.value:
-                val_lookup[v.player_id] = v
+                val_lookup[key] = v
 
         adjusted_as_valuations: list[Valuation] = []
         for adj in adjusted:
-            orig = val_lookup.get(adj.player_id)
+            orig = _best_valuation_for_player(adj.player_id, val_lookup)
             if orig is not None:
                 adjusted_as_valuations.append(replace(orig, value=adj.adjusted_value))
 

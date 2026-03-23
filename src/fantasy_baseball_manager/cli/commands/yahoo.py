@@ -407,10 +407,11 @@ def yahoo_my_roster(  # pragma: no cover
                 proj_by_player[proj.player_id] = proj
 
         valuations = ctx.valuation_repo.get_by_season(season)
-        val_by_player: dict[int, float] = {}
+        val_by_player: dict[tuple[int, str], float] = {}
         for val in valuations:
-            if val.player_id not in val_by_player:
-                val_by_player[val.player_id] = val.value
+            key = (val.player_id, val.player_type)
+            if key not in val_by_player or val.value > val_by_player[key]:
+                val_by_player[key] = val.value
 
         ctx.conn.commit()
 
@@ -428,9 +429,13 @@ def yahoo_my_roster(  # pragma: no cover
         value_str = ""
         system_str = ""
         if entry.player_id is not None:
-            val = val_by_player.get(entry.player_id)
-            if val is not None:
-                value_str = f"{val:.1f}"
+            # Find best value across all player types
+            best_val: float | None = None
+            for (vid, _), v in val_by_player.items():
+                if vid == entry.player_id and (best_val is None or v > best_val):
+                    best_val = v
+            if best_val is not None:
+                value_str = f"{best_val:.1f}"
             proj = proj_by_player.get(entry.player_id)
             if proj is not None:
                 system_str = f"{proj.system}/{proj.version}"

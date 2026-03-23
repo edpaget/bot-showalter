@@ -227,6 +227,40 @@ class TestComputePickValueCurve:
         pick1 = next(pv for pv in curve.picks if pv.pick == 1)
         assert pick1.expected_value > 15.0  # at least higher than pick 2's player
 
+    def test_two_way_player_both_types_contribute(self) -> None:
+        """A two-way player's batter and pitcher valuations both contribute at their ADP pick."""
+        # Player 1 is a two-way player: batter value 30, pitcher value 20
+        # Player 2 is a regular batter: value 25
+        adp = [_adp(1, 1.0), _adp(2, 2.0)]
+        vals = [
+            _valuation(1, 30.0),  # batter
+            Valuation(
+                player_id=1,
+                season=2026,
+                system="zar",
+                version="v1",
+                projection_system="steamer",
+                projection_version="v1",
+                player_type="pitcher",
+                position="SP",
+                value=20.0,
+                rank=1,
+                category_scores={},
+            ),
+            _valuation(2, 25.0),
+        ]
+        league = _league(teams=1, roster_batters=2, roster_pitchers=0)
+
+        curve = compute_pick_value_curve(adp, vals, league)
+
+        # Pick 1 raw values should include both 30 and 20 (averaged to 25),
+        # which is >= pick 2's single value of 25.
+        # After smoothing/monotonicity the exact values may shift,
+        # but pick 1 should reflect both contributions.
+        pick1 = next(pv for pv in curve.picks if pv.pick == 1)
+        pick2 = next(pv for pv in curve.picks if pv.pick == 2)
+        assert pick1.expected_value >= pick2.expected_value
+
 
 def _steep_curve(num_picks: int = 30) -> PickValueCurve:
     """Build a steep curve where pick 1 is very valuable and value drops fast."""

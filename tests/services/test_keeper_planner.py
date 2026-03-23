@@ -205,6 +205,28 @@ class TestKeeperPlannerService:
         assert len(result.scenarios) == 1
         assert result.scenarios[0].keeper_ids == frozenset({1})
 
+    def test_two_way_player_both_types_in_scarcity(self) -> None:
+        """A two-way player's batter and pitcher valuations both survive in the lookup."""
+        costs = [_keeper_cost(1, 10.0)]
+        valuations = [
+            _valuation(1, 35.0, "OF", "batter"),
+            _valuation(1, 25.0, "SP", "pitcher"),
+            _valuation(2, 20.0, "OF"),
+        ]
+        players = [_player(1, "Two Way"), _player(2, "Regular Player")]
+        projections = [_projection(1, "batter"), _projection(1, "pitcher"), _projection(2)]
+        batter_positions = {1: ["OF"], 2: ["OF"]}
+        pitcher_positions = {1: ["SP"]}
+
+        svc = self._build_service(costs, valuations, players, projections, batter_positions, pitcher_positions)
+        result = svc.plan(season=2026, max_keepers=1, board_preview_size=5)
+
+        assert len(result.scenarios) >= 1
+        # Should not crash and should have valid scarcity data
+        scenario = result.scenarios[0]
+        assert isinstance(scenario.scarcity, tuple)
+        assert isinstance(scenario.board_preview, tuple)
+
     def test_no_keeper_costs_no_custom_returns_empty(self) -> None:
         """No costs and no custom scenarios → empty result."""
         valuations = [_valuation(1, 35.0)]

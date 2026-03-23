@@ -38,15 +38,22 @@ def generate_labels(
         if best.rank <= config.min_adp_rank:
             adp_map[pid] = best
 
-    # Valuation lookup: first match per player
-    val_map: dict[int, Valuation] = {}
+    # Valuation lookup keyed by (player_id, player_type) to avoid collisions
+    # for two-way players. Keep best (highest value) per type.
+    val_map: dict[tuple[int, str], Valuation] = {}
     for v in valuations:
-        if v.player_id not in val_map:
-            val_map[v.player_id] = v
+        key = (v.player_id, v.player_type)
+        existing = val_map.get(key)
+        if existing is None or v.value > existing.value:
+            val_map[key] = v
 
     results: list[LabeledSeason] = []
     for pid, a in adp_map.items():
-        v = val_map.get(pid)
+        # Find best valuation across all types for this player
+        v: Valuation | None = None
+        for (vid, _), candidate in val_map.items():
+            if vid == pid and (v is None or candidate.value > v.value):
+                v = candidate
         if v is None:
             continue
 
