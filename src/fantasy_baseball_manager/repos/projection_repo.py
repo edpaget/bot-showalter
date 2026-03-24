@@ -1,7 +1,7 @@
 import dataclasses
 from typing import TYPE_CHECKING
 
-from fantasy_baseball_manager.domain import Projection, StatDistribution
+from fantasy_baseball_manager.domain import PlayerType, Projection, StatDistribution
 
 if TYPE_CHECKING:
     import sqlite3
@@ -243,7 +243,7 @@ class SqliteProjectionRepo:
             season=row["season"],
             system=row["system"],
             version=row["version"],
-            player_type=row["player_type"],
+            player_type=PlayerType(row["player_type"]),
             stat_json=stat_json,
             loaded_at=row["loaded_at"],
             source_type=row["source_type"],

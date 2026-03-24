@@ -1,6 +1,7 @@
 from typing import TYPE_CHECKING
 
 from fantasy_baseball_manager.db.pool import SingleConnectionProvider
+from fantasy_baseball_manager.domain.identity import PlayerType
 from fantasy_baseball_manager.domain.valuation import Valuation
 from fantasy_baseball_manager.repos.valuation_repo import SqliteValuationRepo
 from tests.helpers import seed_player
@@ -97,7 +98,7 @@ class TestSqliteValuationRepo:
         player_id = seed_player(conn)
         repo = SqliteValuationRepo(SingleConnectionProvider(conn))
         repo.upsert(_make_valuation(player_id, version="production"))
-        repo.upsert(_make_valuation(player_id, version="experimental", player_type="pitcher"))
+        repo.upsert(_make_valuation(player_id, version="experimental", player_type=PlayerType.PITCHER))
         # Filter by version
         results = repo.get_by_season(2025, version="production")
         assert len(results) == 1
@@ -110,8 +111,8 @@ class TestSqliteValuationRepo:
         player_id = seed_player(conn)
         repo = SqliteValuationRepo(SingleConnectionProvider(conn))
         repo.upsert(_make_valuation(player_id, system="zar", version="v1"))
-        repo.upsert(_make_valuation(player_id, system="zar", version="v2", player_type="pitcher"))
-        repo.upsert(_make_valuation(player_id, system="other", version="v1", player_type="pitcher"))
+        repo.upsert(_make_valuation(player_id, system="zar", version="v2", player_type=PlayerType.PITCHER))
+        repo.upsert(_make_valuation(player_id, system="other", version="v1", player_type=PlayerType.PITCHER))
         results = repo.get_by_season(2025, system="zar", version="v1")
         assert len(results) == 1
         assert results[0].system == "zar"
@@ -120,8 +121,8 @@ class TestSqliteValuationRepo:
     def test_multiple_player_types(self, conn: sqlite3.Connection) -> None:
         player_id = seed_player(conn)
         repo = SqliteValuationRepo(SingleConnectionProvider(conn))
-        repo.upsert(_make_valuation(player_id, player_type="batter", position="OF"))
-        repo.upsert(_make_valuation(player_id, player_type="pitcher", position="SP"))
+        repo.upsert(_make_valuation(player_id, player_type=PlayerType.BATTER, position="OF"))
+        repo.upsert(_make_valuation(player_id, player_type=PlayerType.PITCHER, position="SP"))
         results = repo.get_by_player_season(player_id, 2025)
         assert len(results) == 2
         types = {r.player_type for r in results}

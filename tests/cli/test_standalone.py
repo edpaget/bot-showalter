@@ -7,6 +7,7 @@ from fantasy_baseball_manager.cli.app import app
 from fantasy_baseball_manager.db.connection import create_connection
 from fantasy_baseball_manager.db.pool import SingleConnectionProvider
 from fantasy_baseball_manager.domain.batting_stats import BattingStats
+from fantasy_baseball_manager.domain.identity import PlayerType
 from fantasy_baseball_manager.domain.projection import Projection
 from fantasy_baseball_manager.models.marcel import MarcelModel
 from fantasy_baseball_manager.models.registry import register
@@ -203,7 +204,7 @@ def _seed_eval_data(conn: sqlite3.Connection, system: str = "steamer", version: 
             season=2025,
             system=system,
             version=version,
-            player_type="batter",
+            player_type=PlayerType.BATTER,
             stat_json={"hr": 30, "avg": 0.280},
             source_type="third_party",
         )
@@ -214,7 +215,7 @@ def _seed_eval_data(conn: sqlite3.Connection, system: str = "steamer", version: 
             season=2025,
             system=system,
             version=version,
-            player_type="batter",
+            player_type=PlayerType.BATTER,
             stat_json={"hr": 45, "avg": 0.310},
             source_type="third_party",
         )
@@ -234,7 +235,7 @@ def _seed_better_system(conn: sqlite3.Connection) -> None:
             season=2025,
             system="better",
             version="v2",
-            player_type="batter",
+            player_type=PlayerType.BATTER,
             stat_json={"hr": 28, "avg": 0.265},
             source_type="third_party",
         )
@@ -245,7 +246,7 @@ def _seed_better_system(conn: sqlite3.Connection) -> None:
             season=2025,
             system="better",
             version="v2",
-            player_type="batter",
+            player_type=PlayerType.BATTER,
             stat_json={"hr": 40, "avg": 0.300},
             source_type="third_party",
         )
@@ -263,7 +264,7 @@ def _seed_worse_system(conn: sqlite3.Connection) -> None:
             season=2025,
             system="worse",
             version="v2",
-            player_type="batter",
+            player_type=PlayerType.BATTER,
             stat_json={"hr": 10, "avg": 0.180},
             source_type="third_party",
         )
@@ -274,7 +275,7 @@ def _seed_worse_system(conn: sqlite3.Connection) -> None:
             season=2025,
             system="worse",
             version="v2",
-            player_type="batter",
+            player_type=PlayerType.BATTER,
             stat_json={"hr": 15, "avg": 0.200},
             source_type="third_party",
         )

@@ -16,7 +16,7 @@ from fantasy_baseball_manager.cli._output import (
     print_experiment_summary,
 )
 from fantasy_baseball_manager.cli.factory import build_experiment_context
-from fantasy_baseball_manager.domain import Experiment, FeatureCheckpoint, TargetResult
+from fantasy_baseball_manager.domain import Experiment, FeatureCheckpoint, PlayerType, TargetResult
 from fantasy_baseball_manager.repos import DuplicateCheckpointError
 from fantasy_baseball_manager.services import summarize_exploration
 
@@ -99,7 +99,7 @@ def experiment_log(
         timestamp=datetime.now(UTC).isoformat(),
         hypothesis=hypothesis,
         model=model,
-        player_type=player_type,
+        player_type=PlayerType(player_type),
         feature_diff=parsed_feature_diff,
         seasons=parsed_seasons,
         params=parsed_params,
@@ -219,7 +219,7 @@ def checkpoint_save(
         checkpoint = FeatureCheckpoint(
             name=name,
             model=model,
-            player_type=player_type,
+            player_type=PlayerType(player_type),
             feature_columns=feature_columns,
             params=experiment.params,
             target_results=experiment.target_results,

@@ -3,6 +3,7 @@ from typing import TYPE_CHECKING
 from fantasy_baseball_manager.db.pool import SingleConnectionProvider
 from fantasy_baseball_manager.domain.checkpoint import FeatureCheckpoint
 from fantasy_baseball_manager.domain.experiment import Experiment, TargetResult
+from fantasy_baseball_manager.domain.identity import PlayerType
 from fantasy_baseball_manager.repos.checkpoint_repo import SqliteCheckpointRepo
 from fantasy_baseball_manager.repos.errors import DuplicateCheckpointError
 from fantasy_baseball_manager.repos.experiment_repo import SqliteExperimentRepo
@@ -19,7 +20,7 @@ def _seed_experiment(conn: sqlite3.Connection) -> int:
             timestamp="2026-03-02T12:00:00",
             hypothesis="test",
             model="statcast-gbm-preseason",
-            player_type="batter",
+            player_type=PlayerType.BATTER,
             feature_diff={"added": ["barrel_rate"], "removed": []},
             seasons={"train": [2023], "holdout": [2024]},
             params={"n_estimators": 500},

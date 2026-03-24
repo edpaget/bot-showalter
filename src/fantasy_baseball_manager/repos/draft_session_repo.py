@@ -1,7 +1,7 @@
 import json
 from typing import TYPE_CHECKING
 
-from fantasy_baseball_manager.domain import DraftSessionPick, DraftSessionRecord, DraftSessionTrade
+from fantasy_baseball_manager.domain import DraftSessionPick, DraftSessionRecord, DraftSessionTrade, PlayerType
 
 if TYPE_CHECKING:
     import sqlite3
@@ -59,7 +59,7 @@ class SqliteDraftSessionRepo:
                     pick.player_id,
                     pick.player_name,
                     pick.position,
-                    pick.player_type,
+                    pick.player_type or "",
                     pick.price,
                 ),
             )
@@ -240,6 +240,6 @@ class SqliteDraftSessionRepo:
             player_id=row["player_id"],
             player_name=row["player_name"],
             position=row["position"],
-            player_type=row["player_type"],
+            player_type=PlayerType(row["player_type"]) if row["player_type"] else None,
             price=row["price"],
         )

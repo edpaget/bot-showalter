@@ -2,6 +2,7 @@ from typing import TYPE_CHECKING
 
 from fantasy_baseball_manager.db.pool import SingleConnectionProvider
 from fantasy_baseball_manager.domain.batting_stats import BattingStats
+from fantasy_baseball_manager.domain.identity import PlayerType
 from fantasy_baseball_manager.domain.pitching_stats import PitchingStats
 from fantasy_baseball_manager.domain.projection import Projection
 from fantasy_baseball_manager.repos.batting_stats_repo import SqliteBattingStatsRepo
@@ -47,7 +48,7 @@ def _seed_batter_data(
                     season=season,
                     system="test-sys",
                     version="v1",
-                    player_type="batter",
+                    player_type=PlayerType.BATTER,
                     stat_json={"avg": est_avg, "obp": est_avg + 0.050, "war": 2.0 + pid * 0.5},
                 )
             )
@@ -86,7 +87,7 @@ def _seed_pitcher_data(
                     season=season,
                     system="test-sys",
                     version="v1",
-                    player_type="pitcher",
+                    player_type=PlayerType.PITCHER,
                     stat_json={"era": est_era, "whip": 1.20 + (pid - 101) * 0.02, "war": 2.0},
                 )
             )
@@ -176,7 +177,7 @@ class TestTopNFiltering:
                     season=2024,
                     system="test-sys",
                     version="v1",
-                    player_type="batter",
+                    player_type=PlayerType.BATTER,
                     stat_json={"avg": 0.280, "war": proj_war},
                 )
             )
@@ -211,7 +212,7 @@ class TestMinPaIpFiltering:
                     season=2024,
                     system="test-sys",
                     version="v1",
-                    player_type="batter",
+                    player_type=PlayerType.BATTER,
                     stat_json={"avg": 0.280},
                 )
             )
@@ -243,7 +244,7 @@ class TestMinPaIpFiltering:
                     season=2024,
                     system="test-sys",
                     version="v1",
-                    player_type="pitcher",
+                    player_type=PlayerType.PITCHER,
                     stat_json={"era": 3.50},
                 )
             )

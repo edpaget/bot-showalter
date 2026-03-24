@@ -491,13 +491,10 @@ def simulate_drafts(
     if league_keeper_ids:
         filtered_valuations = [v for v in filtered_valuations if v.player_id not in league_keeper_ids]
 
-    # Build draft board and normalize player_type for mock draft engine
+    # Build draft board
     raw_board = build_draft_board(filtered_valuations, league, player_names)
-    normalized_rows = [
-        dataclasses.replace(r, player_type="P" if r.player_type == "pitcher" else "B") for r in raw_board.rows
-    ]
     board = DraftBoard(
-        rows=normalized_rows,
+        rows=raw_board.rows,
         batting_categories=raw_board.batting_categories,
         pitching_categories=raw_board.pitching_categories,
     )

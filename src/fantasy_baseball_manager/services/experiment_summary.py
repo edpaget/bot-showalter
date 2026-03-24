@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 from fantasy_baseball_manager.domain import (
     ExplorationSummary,
     FeatureExplorationResult,
+    PlayerType,
     TargetExplorationResult,
 )
 from fantasy_baseball_manager.repos import ExperimentFilter
@@ -32,7 +33,7 @@ def summarize_exploration(
     if not experiments:
         return ExplorationSummary(
             model=model,
-            player_type=player_type,
+            player_type=PlayerType(player_type),
             total_experiments=0,
             features_tested=[],
             targets_explored=[],
@@ -87,7 +88,7 @@ def summarize_exploration(
 
     return ExplorationSummary(
         model=model,
-        player_type=player_type,
+        player_type=PlayerType(player_type),
         total_experiments=len(experiments),
         features_tested=features_tested,
         targets_explored=targets_explored,

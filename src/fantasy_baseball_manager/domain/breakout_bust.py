@@ -1,5 +1,11 @@
+from __future__ import annotations
+
 from dataclasses import dataclass, field
 from enum import StrEnum
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from fantasy_baseball_manager.domain.identity import PlayerType
 
 
 class OutcomeLabel(StrEnum):
@@ -19,7 +25,7 @@ class LabelConfig:
 class LabeledSeason:
     player_id: int
     season: int
-    player_type: str
+    player_type: PlayerType
     adp_rank: int
     adp_pick: float
     actual_value_rank: int
@@ -31,7 +37,7 @@ class LabeledSeason:
 class BreakoutPrediction:
     player_id: int
     player_name: str
-    player_type: str
+    player_type: PlayerType
     position: str
     p_breakout: float
     p_bust: float

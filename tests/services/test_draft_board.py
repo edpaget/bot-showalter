@@ -8,6 +8,7 @@ from fantasy_baseball_manager.domain.draft_board import (
     DraftBoardRow,
     TierAssignment,
 )
+from fantasy_baseball_manager.domain.identity import PlayerType
 from fantasy_baseball_manager.domain.league_settings import (
     CategoryConfig,
     Direction,
@@ -47,7 +48,7 @@ def _league(
 def _valuation(
     player_id: int,
     value: float,
-    player_type: str = "batter",
+    player_type: PlayerType = PlayerType.BATTER,
     position: str = "OF",
     category_scores: dict[str, float] | None = None,
 ) -> Valuation:
@@ -95,7 +96,7 @@ class TestCategoryZScoresFiltered:
             _valuation(
                 1,
                 value=10.0,
-                player_type="batter",
+                player_type=PlayerType.BATTER,
                 category_scores={"hr": 1.5, "r": 0.8, "rbi": 1.2, "w": 0.0, "extra": 9.9},
             ),
         ]
@@ -110,7 +111,7 @@ class TestCategoryZScoresFiltered:
             _valuation(
                 1,
                 value=15.0,
-                player_type="pitcher",
+                player_type=PlayerType.PITCHER,
                 position="SP",
                 category_scores={"w": 2.0, "sv": 0.5, "era": -1.0, "hr": 0.0},
             ),
@@ -223,7 +224,7 @@ class TestADPEnrichment:
 
 class TestTwoWayADP:
     def test_pitcher_valuation_prefers_pitcher_adp(self) -> None:
-        valuations = [_valuation(1, value=25.0, player_type="pitcher", position="SP")]
+        valuations = [_valuation(1, value=25.0, player_type=PlayerType.PITCHER, position="SP")]
         adp_list = [
             ADP(player_id=1, season=2026, provider="fp", overall_pick=50.0, rank=50, positions="DH"),
             ADP(player_id=1, season=2026, provider="fp", overall_pick=20.0, rank=20, positions="SP"),
@@ -235,7 +236,7 @@ class TestTwoWayADP:
         assert board.rows[0].adp_rank == 20
 
     def test_batter_valuation_prefers_batter_adp(self) -> None:
-        valuations = [_valuation(1, value=25.0, player_type="batter", position="DH")]
+        valuations = [_valuation(1, value=25.0, player_type=PlayerType.BATTER, position="DH")]
         adp_list = [
             ADP(player_id=1, season=2026, provider="fp", overall_pick=15.0, rank=15, positions="SP"),
             ADP(player_id=1, season=2026, provider="fp", overall_pick=30.0, rank=30, positions="DH"),
@@ -246,7 +247,7 @@ class TestTwoWayADP:
         assert board.rows[0].adp_rank == 30
 
     def test_fallback_to_lowest_pick_when_no_position_match(self) -> None:
-        valuations = [_valuation(1, value=25.0, player_type="pitcher", position="SP")]
+        valuations = [_valuation(1, value=25.0, player_type=PlayerType.PITCHER, position="SP")]
         adp_list = [
             ADP(player_id=1, season=2026, provider="fp", overall_pick=40.0, rank=40, positions="DH"),
             ADP(player_id=1, season=2026, provider="fp", overall_pick=20.0, rank=20, positions="OF"),
@@ -260,9 +261,11 @@ class TestTwoWayADP:
 class TestMixedPool:
     def test_batters_and_pitchers_interleaved_by_value(self) -> None:
         valuations = [
-            _valuation(1, value=30.0, player_type="batter", category_scores={"hr": 2.0, "r": 1.0}),
-            _valuation(2, value=25.0, player_type="pitcher", position="SP", category_scores={"w": 1.5, "sv": 0.5}),
-            _valuation(3, value=20.0, player_type="batter", category_scores={"hr": 1.0, "r": 0.5}),
+            _valuation(1, value=30.0, player_type=PlayerType.BATTER, category_scores={"hr": 2.0, "r": 1.0}),
+            _valuation(
+                2, value=25.0, player_type=PlayerType.PITCHER, position="SP", category_scores={"w": 1.5, "sv": 0.5}
+            ),
+            _valuation(3, value=20.0, player_type=PlayerType.BATTER, category_scores={"hr": 1.0, "r": 0.5}),
         ]
         league = _league(batting_keys=("hr", "r"), pitching_keys=("w", "sv"))
         board = build_draft_board(valuations, league, _names(1, 2, 3))
@@ -308,7 +311,7 @@ class TestPlayerNames:
 
 class TestRowFields:
     def test_row_carries_position_and_player_type(self) -> None:
-        valuations = [_valuation(1, value=10.0, player_type="batter", position="SS")]
+        valuations = [_valuation(1, value=10.0, player_type=PlayerType.BATTER, position="SS")]
         board = build_draft_board(valuations, _league(), _names(1))
 
         row = board.rows[0]
@@ -322,7 +325,7 @@ class TestRowFields:
             player_id=1,
             player_name="Test",
             rank=1,
-            player_type="batter",
+            player_type=PlayerType.BATTER,
             position="OF",
             value=10.0,
             category_z_scores={},
@@ -345,7 +348,7 @@ class TestExportCsvBasic:
                 player_id=1,
                 player_name="Mike Trout",
                 rank=1,
-                player_type="batter",
+                player_type=PlayerType.BATTER,
                 position="OF",
                 value=42.5,
                 category_z_scores={"hr": 2.1, "r": 1.0, "rbi": 0.8},
@@ -354,7 +357,7 @@ class TestExportCsvBasic:
                 player_id=2,
                 player_name="Gerrit Cole",
                 rank=2,
-                player_type="pitcher",
+                player_type=PlayerType.PITCHER,
                 position="SP",
                 value=35.0,
                 category_z_scores={"w": 1.5, "sv": -0.2, "era": 1.8},
@@ -379,7 +382,7 @@ class TestExportCsvBasic:
                 player_id=1,
                 player_name="Test",
                 rank=1,
-                player_type="batter",
+                player_type=PlayerType.BATTER,
                 position="OF",
                 value=10.0,
                 category_z_scores={"hr": 1.0},
@@ -407,7 +410,7 @@ class TestExportCsvOmitColumns:
                 player_id=1,
                 player_name="Test",
                 rank=1,
-                player_type="batter",
+                player_type=PlayerType.BATTER,
                 position="OF",
                 value=10.0,
                 category_z_scores={},
@@ -430,7 +433,7 @@ class TestExportCsvOmitColumns:
                 player_id=1,
                 player_name="A",
                 rank=1,
-                player_type="batter",
+                player_type=PlayerType.BATTER,
                 position="OF",
                 value=10.0,
                 category_z_scores={},
@@ -440,7 +443,7 @@ class TestExportCsvOmitColumns:
                 player_id=2,
                 player_name="B",
                 rank=2,
-                player_type="batter",
+                player_type=PlayerType.BATTER,
                 position="1B",
                 value=5.0,
                 category_z_scores={},
@@ -464,7 +467,7 @@ class TestExportCsvOmitColumns:
                 player_id=1,
                 player_name="A",
                 rank=1,
-                player_type="batter",
+                player_type=PlayerType.BATTER,
                 position="OF",
                 value=10.0,
                 category_z_scores={},
@@ -507,7 +510,7 @@ class TestExportCsvZScoreFormatting:
                 player_id=1,
                 player_name="Batter",
                 rank=1,
-                player_type="batter",
+                player_type=PlayerType.BATTER,
                 position="OF",
                 value=20.0,
                 category_z_scores={"hr": 1.23, "r": 0.45, "rbi": -0.67},
@@ -534,7 +537,7 @@ class TestExportCsvZScoreFormatting:
                 player_id=1,
                 player_name="Pitcher",
                 rank=1,
-                player_type="pitcher",
+                player_type=PlayerType.PITCHER,
                 position="SP",
                 value=15.0,
                 category_z_scores={"w": 1.50, "sv": 0.00, "era": -1.20},
@@ -566,7 +569,7 @@ class TestExportHtmlBasic:
                 player_id=1,
                 player_name="Mike Trout",
                 rank=1,
-                player_type="batter",
+                player_type=PlayerType.BATTER,
                 position="OF",
                 value=42.5,
                 category_z_scores={"hr": 2.1},
@@ -591,7 +594,7 @@ class TestExportHtmlBasic:
                     player_id=1,
                     player_name="Test",
                     rank=1,
-                    player_type="batter",
+                    player_type=PlayerType.BATTER,
                     position="OF",
                     value=10.0,
                     category_z_scores={},
@@ -611,7 +614,7 @@ class TestExportHtmlBasic:
                 player_id=1,
                 player_name="Mike Trout",
                 rank=1,
-                player_type="batter",
+                player_type=PlayerType.BATTER,
                 position="OF",
                 value=42.5,
                 category_z_scores={},
@@ -620,7 +623,7 @@ class TestExportHtmlBasic:
                 player_id=2,
                 player_name="Gerrit Cole",
                 rank=2,
-                player_type="pitcher",
+                player_type=PlayerType.PITCHER,
                 position="SP",
                 value=35.0,
                 category_z_scores={},
@@ -639,7 +642,7 @@ class TestExportHtmlBasic:
                 player_id=1,
                 player_name="O'Brien <script>",
                 rank=1,
-                player_type="batter",
+                player_type=PlayerType.BATTER,
                 position="OF",
                 value=10.0,
                 category_z_scores={},
@@ -658,7 +661,7 @@ class TestExportHtmlBasic:
                 player_id=1,
                 player_name="Test",
                 rank=1,
-                player_type="batter",
+                player_type=PlayerType.BATTER,
                 position="OF",
                 value=10.0,
                 category_z_scores={},
@@ -679,7 +682,7 @@ class TestExportHtmlBasic:
                 player_id=1,
                 player_name="A",
                 rank=1,
-                player_type="batter",
+                player_type=PlayerType.BATTER,
                 position="OF",
                 value=10.0,
                 category_z_scores={},
@@ -698,7 +701,7 @@ class TestExportHtmlBasic:
                 player_id=1,
                 player_name="A",
                 rank=1,
-                player_type="batter",
+                player_type=PlayerType.BATTER,
                 position="OF",
                 value=10.0,
                 category_z_scores={},
@@ -716,7 +719,7 @@ class TestExportHtmlBasic:
                 player_id=1,
                 player_name="A",
                 rank=1,
-                player_type="batter",
+                player_type=PlayerType.BATTER,
                 position="OF",
                 value=10.0,
                 category_z_scores={},
@@ -739,7 +742,7 @@ class TestExportHtmlBasic:
                 player_id=1,
                 player_name="A",
                 rank=1,
-                player_type="batter",
+                player_type=PlayerType.BATTER,
                 position="OF",
                 value=10.0,
                 category_z_scores={},
@@ -760,7 +763,7 @@ class TestExportHtmlTierColors:
                 player_id=1,
                 player_name="A",
                 rank=1,
-                player_type="batter",
+                player_type=PlayerType.BATTER,
                 position="OF",
                 value=10.0,
                 category_z_scores={},
@@ -770,7 +773,7 @@ class TestExportHtmlTierColors:
                 player_id=2,
                 player_name="B",
                 rank=2,
-                player_type="batter",
+                player_type=PlayerType.BATTER,
                 position="1B",
                 value=5.0,
                 category_z_scores={},
@@ -790,7 +793,7 @@ class TestExportHtmlTierColors:
                 player_id=1,
                 player_name="A",
                 rank=1,
-                player_type="batter",
+                player_type=PlayerType.BATTER,
                 position="OF",
                 value=10.0,
                 category_z_scores={},
@@ -811,7 +814,7 @@ class TestExportHtmlTierColors:
                 player_id=1,
                 player_name="A",
                 rank=1,
-                player_type="batter",
+                player_type=PlayerType.BATTER,
                 position="OF",
                 value=10.0,
                 category_z_scores={},
@@ -831,7 +834,7 @@ class TestExportHtmlTierColors:
                 player_id=1,
                 player_name="A",
                 rank=1,
-                player_type="batter",
+                player_type=PlayerType.BATTER,
                 position="OF",
                 value=10.0,
                 category_z_scores={},
@@ -853,7 +856,7 @@ class TestExportHtmlAdpHighlight:
                 player_id=1,
                 player_name="A",
                 rank=1,
-                player_type="batter",
+                player_type=PlayerType.BATTER,
                 position="OF",
                 value=10.0,
                 category_z_scores={},
@@ -874,7 +877,7 @@ class TestExportHtmlAdpHighlight:
                 player_id=1,
                 player_name="A",
                 rank=1,
-                player_type="batter",
+                player_type=PlayerType.BATTER,
                 position="OF",
                 value=10.0,
                 category_z_scores={},
@@ -895,7 +898,7 @@ class TestExportHtmlAdpHighlight:
                 player_id=1,
                 player_name="A",
                 rank=1,
-                player_type="batter",
+                player_type=PlayerType.BATTER,
                 position="OF",
                 value=10.0,
                 category_z_scores={},
@@ -919,7 +922,7 @@ class TestExportHtmlGrouping:
                 player_id=1,
                 player_name="Pitcher A",
                 rank=1,
-                player_type="pitcher",
+                player_type=PlayerType.PITCHER,
                 position="SP",
                 value=50.0,
                 category_z_scores={},
@@ -928,7 +931,7 @@ class TestExportHtmlGrouping:
                 player_id=2,
                 player_name="Batter A",
                 rank=2,
-                player_type="batter",
+                player_type=PlayerType.BATTER,
                 position="OF",
                 value=40.0,
                 category_z_scores={},
@@ -948,7 +951,7 @@ class TestExportHtmlGrouping:
                 player_id=1,
                 player_name="Batter A",
                 rank=1,
-                player_type="batter",
+                player_type=PlayerType.BATTER,
                 position="OF",
                 value=50.0,
                 category_z_scores={},
@@ -957,7 +960,7 @@ class TestExportHtmlGrouping:
                 player_id=2,
                 player_name="Pitcher A",
                 rank=2,
-                player_type="pitcher",
+                player_type=PlayerType.PITCHER,
                 position="SP",
                 value=40.0,
                 category_z_scores={},
@@ -976,7 +979,7 @@ class TestExportHtmlGrouping:
                 player_id=1,
                 player_name="A",
                 rank=1,
-                player_type="batter",
+                player_type=PlayerType.BATTER,
                 position="C",
                 value=20.0,
                 category_z_scores={},
@@ -985,7 +988,7 @@ class TestExportHtmlGrouping:
                 player_id=2,
                 player_name="B",
                 rank=2,
-                player_type="batter",
+                player_type=PlayerType.BATTER,
                 position="OF",
                 value=15.0,
                 category_z_scores={},
@@ -1004,7 +1007,7 @@ class TestExportHtmlGrouping:
                 player_id=1,
                 player_name="OF guy",
                 rank=1,
-                player_type="batter",
+                player_type=PlayerType.BATTER,
                 position="OF",
                 value=50.0,
                 category_z_scores={},
@@ -1013,7 +1016,7 @@ class TestExportHtmlGrouping:
                 player_id=2,
                 player_name="C guy",
                 rank=2,
-                player_type="batter",
+                player_type=PlayerType.BATTER,
                 position="C",
                 value=40.0,
                 category_z_scores={},
@@ -1033,7 +1036,7 @@ class TestExportHtmlGrouping:
                 player_id=1,
                 player_name="Low OF",
                 rank=2,
-                player_type="batter",
+                player_type=PlayerType.BATTER,
                 position="OF",
                 value=10.0,
                 category_z_scores={},
@@ -1042,7 +1045,7 @@ class TestExportHtmlGrouping:
                 player_id=2,
                 player_name="High OF",
                 rank=1,
-                player_type="batter",
+                player_type=PlayerType.BATTER,
                 position="OF",
                 value=30.0,
                 category_z_scores={},
@@ -1065,7 +1068,7 @@ class TestExportHtmlPrintCss:
                     player_id=1,
                     player_name="A",
                     rank=1,
-                    player_type="batter",
+                    player_type=PlayerType.BATTER,
                     position="OF",
                     value=10.0,
                     category_z_scores={},
@@ -1084,7 +1087,7 @@ class TestExportHtmlPrintCss:
                     player_id=1,
                     player_name="A",
                     rank=1,
-                    player_type="batter",
+                    player_type=PlayerType.BATTER,
                     position="OF",
                     value=10.0,
                     category_z_scores={},
@@ -1104,7 +1107,7 @@ class TestExportHtmlPrintCss:
                     player_id=1,
                     player_name="A",
                     rank=1,
-                    player_type="batter",
+                    player_type=PlayerType.BATTER,
                     position="OF",
                     value=10.0,
                     category_z_scores={},
@@ -1125,7 +1128,7 @@ class TestExportHtmlPrintCss:
                     player_id=1,
                     player_name="A",
                     rank=1,
-                    player_type="batter",
+                    player_type=PlayerType.BATTER,
                     position="OF",
                     value=10.0,
                     category_z_scores={},
@@ -1145,7 +1148,7 @@ class TestExportHtmlSmoke:
                 player_id=1,
                 player_name="Mike Trout",
                 rank=1,
-                player_type="batter",
+                player_type=PlayerType.BATTER,
                 position="OF",
                 value=42.5,
                 category_z_scores={"hr": 2.1, "r": 1.0, "rbi": 0.8},
@@ -1158,7 +1161,7 @@ class TestExportHtmlSmoke:
                 player_id=2,
                 player_name="Aaron Judge",
                 rank=2,
-                player_type="batter",
+                player_type=PlayerType.BATTER,
                 position="OF",
                 value=40.0,
                 category_z_scores={"hr": 2.5, "r": 0.9, "rbi": 1.1},
@@ -1171,7 +1174,7 @@ class TestExportHtmlSmoke:
                 player_id=3,
                 player_name="Trea Turner",
                 rank=3,
-                player_type="batter",
+                player_type=PlayerType.BATTER,
                 position="SS",
                 value=35.0,
                 category_z_scores={"hr": 0.5, "r": 1.8, "rbi": 0.3},
@@ -1184,7 +1187,7 @@ class TestExportHtmlSmoke:
                 player_id=4,
                 player_name="Adley Rutschman",
                 rank=4,
-                player_type="batter",
+                player_type=PlayerType.BATTER,
                 position="C",
                 value=28.0,
                 category_z_scores={"hr": 0.3, "r": 0.5, "rbi": 0.4},
@@ -1197,7 +1200,7 @@ class TestExportHtmlSmoke:
                 player_id=5,
                 player_name="Jose Ramirez",
                 rank=5,
-                player_type="batter",
+                player_type=PlayerType.BATTER,
                 position="3B",
                 value=38.0,
                 category_z_scores={"hr": 1.0, "r": 1.2, "rbi": 1.5},
@@ -1210,7 +1213,7 @@ class TestExportHtmlSmoke:
                 player_id=6,
                 player_name="Gerrit Cole",
                 rank=6,
-                player_type="pitcher",
+                player_type=PlayerType.PITCHER,
                 position="SP",
                 value=30.0,
                 category_z_scores={"w": 1.5, "sv": -0.2, "era": 1.8},
@@ -1223,7 +1226,7 @@ class TestExportHtmlSmoke:
                 player_id=7,
                 player_name="Josh Hader",
                 rank=7,
-                player_type="pitcher",
+                player_type=PlayerType.PITCHER,
                 position="RP",
                 value=20.0,
                 category_z_scores={"w": -0.5, "sv": 2.0, "era": 0.5},
@@ -1236,7 +1239,7 @@ class TestExportHtmlSmoke:
                 player_id=8,
                 player_name="Spencer Strider",
                 rank=8,
-                player_type="pitcher",
+                player_type=PlayerType.PITCHER,
                 position="SP",
                 value=25.0,
                 category_z_scores={"w": 1.0, "sv": 0.0, "era": 1.2},
@@ -1351,7 +1354,7 @@ class TestExportCsvAgeBatsThrows:
                 player_id=1,
                 player_name="Mike Trout",
                 rank=1,
-                player_type="batter",
+                player_type=PlayerType.BATTER,
                 position="OF",
                 value=42.5,
                 category_z_scores={"hr": 2.1},
@@ -1377,7 +1380,7 @@ class TestExportCsvAgeBatsThrows:
                 player_id=1,
                 player_name="Test",
                 rank=1,
-                player_type="batter",
+                player_type=PlayerType.BATTER,
                 position="OF",
                 value=10.0,
                 category_z_scores={},
@@ -1400,7 +1403,7 @@ class TestExportHtmlAgeBatsThrows:
                 player_id=1,
                 player_name="A",
                 rank=1,
-                player_type="batter",
+                player_type=PlayerType.BATTER,
                 position="OF",
                 value=10.0,
                 category_z_scores={},
@@ -1421,7 +1424,7 @@ class TestExportHtmlAgeBatsThrows:
                 player_id=1,
                 player_name="A",
                 rank=1,
-                player_type="batter",
+                player_type=PlayerType.BATTER,
                 position="OF",
                 value=10.0,
                 category_z_scores={},
@@ -1439,7 +1442,7 @@ def _row(
     player_id: int,
     position: str,
     value: float,
-    player_type: str = "batter",
+    player_type: PlayerType = PlayerType.BATTER,
 ) -> DraftBoardRow:
     return DraftBoardRow(
         player_id=player_id,
@@ -1468,8 +1471,8 @@ class TestPositionGrouping:
 
     def test_pitchers_grouped_by_sp_then_rp(self) -> None:
         rows = [
-            _row(1, "RP", 10.0, player_type="pitcher"),
-            _row(2, "SP", 20.0, player_type="pitcher"),
+            _row(1, "RP", 10.0, player_type=PlayerType.PITCHER),
+            _row(2, "SP", 20.0, player_type=PlayerType.PITCHER),
         ]
         groups = _group_rows(rows)
         assert len(groups) == 1
@@ -1492,7 +1495,7 @@ class TestPositionGrouping:
     def test_batters_and_pitchers_in_separate_groups(self) -> None:
         rows = [
             _row(1, "SS", 25.0),
-            _row(2, "SP", 20.0, player_type="pitcher"),
+            _row(2, "SP", 20.0, player_type=PlayerType.PITCHER),
             _row(3, "OF", 15.0),
         ]
         groups = _group_rows(rows)
@@ -1514,7 +1517,7 @@ class TestPositionGrouping:
 
 def _prediction(
     player_id: int,
-    player_type: str = "batter",
+    player_type: PlayerType = PlayerType.BATTER,
     p_breakout: float = 0.1,
     p_bust: float = 0.1,
 ) -> BreakoutPrediction:
@@ -1522,7 +1525,7 @@ def _prediction(
         player_id=player_id,
         player_name=f"Player {player_id}",
         player_type=player_type,
-        position="OF" if player_type == "batter" else "SP",
+        position="OF" if player_type == PlayerType.BATTER else "SP",
         p_breakout=p_breakout,
         p_bust=p_bust,
         p_neutral=1.0 - p_breakout - p_bust,
@@ -1532,14 +1535,14 @@ def _prediction(
 class TestBreakoutBustRanks:
     def test_ranks_assigned_within_player_type(self) -> None:
         valuations = [
-            _valuation(1, value=30.0, player_type="batter"),
-            _valuation(2, value=20.0, player_type="batter"),
-            _valuation(3, value=10.0, player_type="pitcher", position="SP"),
+            _valuation(1, value=30.0, player_type=PlayerType.BATTER),
+            _valuation(2, value=20.0, player_type=PlayerType.BATTER),
+            _valuation(3, value=10.0, player_type=PlayerType.PITCHER, position="SP"),
         ]
         predictions = [
-            _prediction(1, "batter", p_breakout=0.3, p_bust=0.1),
-            _prediction(2, "batter", p_breakout=0.5, p_bust=0.2),
-            _prediction(3, "pitcher", p_breakout=0.4, p_bust=0.3),
+            _prediction(1, PlayerType.BATTER, p_breakout=0.3, p_bust=0.1),
+            _prediction(2, PlayerType.BATTER, p_breakout=0.5, p_bust=0.2),
+            _prediction(3, PlayerType.PITCHER, p_breakout=0.4, p_bust=0.3),
         ]
         board = build_draft_board(valuations, _league(), _names(1, 2, 3), breakout_predictions=predictions)
         by_id = {r.player_id: r for r in board.rows}
@@ -1562,7 +1565,7 @@ class TestBreakoutBustRanks:
 
     def test_predictions_for_missing_player_ignored(self) -> None:
         valuations = [_valuation(1, value=10.0)]
-        predictions = [_prediction(999, "batter", p_breakout=0.9, p_bust=0.9)]
+        predictions = [_prediction(999, PlayerType.BATTER, p_breakout=0.9, p_bust=0.9)]
         board = build_draft_board(valuations, _league(), _names(1), breakout_predictions=predictions)
         assert board.rows[0].breakout_rank is None
         assert board.rows[0].bust_rank is None

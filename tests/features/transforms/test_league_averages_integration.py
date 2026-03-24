@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING
 import pytest
 
 from fantasy_baseball_manager.db.pool import SingleConnectionProvider
+from fantasy_baseball_manager.domain.identity import PlayerType
 from fantasy_baseball_manager.features.assembler import SqliteDatasetAssembler
 from fantasy_baseball_manager.features.types import (
     FeatureSet,
@@ -31,7 +32,7 @@ class TestLeagueAveragesMaterialization:
             features=(*base_features, league),
             seasons=(2023,),
             source_filter="fangraphs",
-            spine_filter=SpineFilter(player_type="batter"),
+            spine_filter=SpineFilter(player_type=PlayerType.BATTER),
         )
         assembler = SqliteDatasetAssembler(SingleConnectionProvider(seeded_conn))
         handle = assembler.materialize(fs)
@@ -49,7 +50,7 @@ class TestLeagueAveragesMaterialization:
             features=(*base_features, league),
             seasons=(2023,),
             source_filter="fangraphs",
-            spine_filter=SpineFilter(player_type="batter"),
+            spine_filter=SpineFilter(player_type=PlayerType.BATTER),
         )
         assembler = SqliteDatasetAssembler(SingleConnectionProvider(seeded_conn))
         handle = assembler.materialize(fs)
@@ -67,7 +68,7 @@ class TestLeagueAveragesMaterialization:
             features=(*base_features, league),
             seasons=(2023,),
             source_filter="fangraphs",
-            spine_filter=SpineFilter(player_type="batter"),
+            spine_filter=SpineFilter(player_type=PlayerType.BATTER),
         )
         assembler = SqliteDatasetAssembler(SingleConnectionProvider(seeded_conn))
         handle = assembler.materialize(fs)
@@ -89,7 +90,7 @@ class TestLeagueAveragesMaterialization:
             features=(*base_features, league),
             seasons=(2022, 2023),
             source_filter="fangraphs",
-            spine_filter=SpineFilter(player_type="batter"),
+            spine_filter=SpineFilter(player_type=PlayerType.BATTER),
         )
         assembler = SqliteDatasetAssembler(SingleConnectionProvider(seeded_conn))
         handle = assembler.materialize(fs)

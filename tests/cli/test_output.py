@@ -88,6 +88,7 @@ from fantasy_baseball_manager.domain import (
     KeeperSolution,
     KeeperTradeImpact,
     LiftResult,
+    PlayerType,
     SensitivityEntry,
     ThresholdMetrics,
 )
@@ -322,7 +323,7 @@ def _make_player_projection(
     system: str = "steamer",
     version: str = "2025.1",
     source_type: str = "third_party",
-    player_type: str = "batter",
+    player_type: PlayerType = PlayerType.BATTER,
 ) -> PlayerProjection:
     return PlayerProjection(
         player_name="Mike Trout",
@@ -403,7 +404,7 @@ def _make_player_valuation(
     version: str = "1.0",
     projection_system: str = "steamer",
     projection_version: str = "2025.1",
-    player_type: str = "batter",
+    player_type: PlayerType = PlayerType.BATTER,
     position: str = "OF",
     value: float = 42.5,
     rank: int = 1,
@@ -468,7 +469,7 @@ def _make_eval_result(
             ValuationAccuracy(
                 player_id=1,
                 player_name="Mike Trout",
-                player_type="batter",
+                player_type=PlayerType.BATTER,
                 position="of",
                 predicted_value=40.0,
                 actual_value=35.0,
@@ -479,7 +480,7 @@ def _make_eval_result(
             ValuationAccuracy(
                 player_id=2,
                 player_name="Aaron Judge",
-                player_type="batter",
+                player_type=PlayerType.BATTER,
                 position="util",
                 predicted_value=30.0,
                 actual_value=38.0,
@@ -837,7 +838,7 @@ class TestPrintAblationResult:
 
 
 def _make_validation_result(
-    player_type: str = "batter",
+    player_type: PlayerType = PlayerType.BATTER,
     go: bool = True,
     n_improved: int = 4,
     n_degraded: int = 2,
@@ -925,7 +926,7 @@ class TestPrintDraftBoard:
                 player_id=1,
                 player_name="Mike Trout",
                 rank=1,
-                player_type="batter",
+                player_type=PlayerType.BATTER,
                 position="OF",
                 value=42.5,
                 category_z_scores={"hr": 2.10, "r": 1.00},
@@ -934,7 +935,7 @@ class TestPrintDraftBoard:
                 player_id=2,
                 player_name="Gerrit Cole",
                 rank=2,
-                player_type="pitcher",
+                player_type=PlayerType.PITCHER,
                 position="SP",
                 value=35.0,
                 category_z_scores={"w": 1.50},
@@ -960,7 +961,7 @@ class TestPrintDraftBoard:
                 player_id=1,
                 player_name="Buy Target",
                 rank=1,
-                player_type="batter",
+                player_type=PlayerType.BATTER,
                 position="OF",
                 value=40.0,
                 category_z_scores={},
@@ -972,7 +973,7 @@ class TestPrintDraftBoard:
                 player_id=2,
                 player_name="Avoid Player",
                 rank=2,
-                player_type="batter",
+                player_type=PlayerType.BATTER,
                 position="1B",
                 value=30.0,
                 category_z_scores={},
@@ -996,7 +997,7 @@ class TestPrintDraftBoard:
                 player_id=1,
                 player_name="Player A",
                 rank=1,
-                player_type="batter",
+                player_type=PlayerType.BATTER,
                 position="OF",
                 value=40.0,
                 category_z_scores={},
@@ -1014,7 +1015,7 @@ class TestPrintDraftBoard:
                 player_id=1,
                 player_name="Even Player",
                 rank=1,
-                player_type="batter",
+                player_type=PlayerType.BATTER,
                 position="OF",
                 value=30.0,
                 category_z_scores={},
@@ -1431,7 +1432,7 @@ def _make_talent_quality_report(
         version="1.0",
         season_n=2023,
         season_n1=2024,
-        player_type="batter",
+        player_type=PlayerType.BATTER,
         stat_metrics=stat_metrics,
         summary=summary,
     )
@@ -1570,7 +1571,7 @@ def _make_value_over_adp_entry(
     return ValueOverADP(
         player_id=1,
         player_name=player_name,
-        player_type="batter",
+        player_type=PlayerType.BATTER,
         position="OF",
         adp_positions="OF",
         zar_rank=zar_rank,
@@ -1776,7 +1777,7 @@ class TestPrintProjectionConfidence:
             PlayerConfidence(
                 player_id=1,
                 player_name="J. Soto",
-                player_type="batter",
+                player_type=PlayerType.BATTER,
                 position="OF",
                 spreads=[
                     StatSpread(stat="hr", min_value=25, max_value=35, mean=30, std=5.0, cv=0.167, systems={}),
@@ -1790,7 +1791,7 @@ class TestPrintProjectionConfidence:
             PlayerConfidence(
                 player_id=2,
                 player_name="M. Trout",
-                player_type="batter",
+                player_type=PlayerType.BATTER,
                 position="CF",
                 spreads=[
                     StatSpread(stat="hr", min_value=15, max_value=40, mean=27.5, std=12.5, cv=0.455, systems={}),
@@ -1928,7 +1929,7 @@ class TestPrintDraftBoardAdpDeltaNone:
                 player_id=1,
                 player_name="No Delta",
                 rank=1,
-                player_type="batter",
+                player_type=PlayerType.BATTER,
                 position="OF",
                 value=30.0,
                 category_z_scores={},
@@ -1966,7 +1967,7 @@ class TestPrintFeaturesDerivedTransform:
 def _make_player_confidence(
     player_id: int = 1,
     player_name: str = "J. Soto",
-    player_type: str = "batter",
+    player_type: PlayerType = PlayerType.BATTER,
     position: str = "OF",
     overall_cv: float = 0.110,
     agreement_level: str = "high",
@@ -2090,13 +2091,28 @@ class TestPrintSystemDisagreements:
         )
         projections = [
             Projection(
-                player_id=1, season=2025, system="steamer", version="1.0", player_type="batter", stat_json={"hr": 25.0}
+                player_id=1,
+                season=2025,
+                system="steamer",
+                version="1.0",
+                player_type=PlayerType.BATTER,
+                stat_json={"hr": 25.0},
             ),
             Projection(
-                player_id=1, season=2025, system="zips", version="1.0", player_type="batter", stat_json={"hr": 35.0}
+                player_id=1,
+                season=2025,
+                system="zips",
+                version="1.0",
+                player_type=PlayerType.BATTER,
+                stat_json={"hr": 35.0},
             ),
             Projection(
-                player_id=1, season=2025, system="atc", version="1.0", player_type="batter", stat_json={"hr": 30.0}
+                player_id=1,
+                season=2025,
+                system="atc",
+                version="1.0",
+                player_type=PlayerType.BATTER,
+                stat_json={"hr": 30.0},
             ),
         ]
         print_system_disagreements(player, projections)
@@ -2137,7 +2153,7 @@ class TestPrintSystemDisagreements:
                 season=2025,
                 system="steamer",
                 version="1.0",
-                player_type="batter",
+                player_type=PlayerType.BATTER,
                 stat_json={"hr": 15.0, "avg": 0.270},
             ),
             Projection(
@@ -2145,7 +2161,7 @@ class TestPrintSystemDisagreements:
                 season=2025,
                 system="zips",
                 version="1.0",
-                player_type="batter",
+                player_type=PlayerType.BATTER,
                 stat_json={"hr": 40.0, "avg": 0.300},
             ),
         ]
@@ -2175,7 +2191,7 @@ def _make_residual_analysis_report(
     stat_analyses = [
         StatResidualAnalysis(
             stat_name="avg",
-            player_type="batter",
+            player_type=PlayerType.BATTER,
             n_observations=100,
             mean_residual=0.0085,
             std_residual=0.025,
@@ -2259,7 +2275,7 @@ class TestPrintResidualAnalysisReport:
 def _make_keeper_decision(
     player_id: int = 1,
     player_name: str = "Mike Trout",
-    player_type: str = "batter",
+    player_type: PlayerType = PlayerType.BATTER,
     position: str = "cf",
     cost: float = 10.0,
     projected_value: float = 25.0,
@@ -2447,11 +2463,11 @@ class TestPrintKeeperTradeImpact:
 
 
 def _make_error_decomposition_report(
-    player_type: str = "batter",
+    player_type: PlayerType = PlayerType.BATTER,
     *,
     with_features: bool = True,
 ) -> ErrorDecompositionReport:
-    vol_key = "ip" if player_type == "pitcher" else "pa"
+    vol_key = "ip" if player_type == PlayerType.PITCHER else "pa"
     features: dict[str, float] = {"age": 32.0, vol_key: 500.0}
     return ErrorDecompositionReport(
         target="avg",
@@ -2489,7 +2505,7 @@ class TestPrintErrorDecompositionReport:
         assert "sprint_speed" in captured.out
 
     def test_pitcher_uses_ip(self, capsys: pytest.CaptureFixture[str]) -> None:
-        print_error_decomposition_report(_make_error_decomposition_report("pitcher"))
+        print_error_decomposition_report(_make_error_decomposition_report(PlayerType.PITCHER))
         captured = capsys.readouterr()
         assert "IP" in captured.out
 
@@ -2503,7 +2519,7 @@ class TestPrintFeatureGapReport:
     def test_shows_in_model_and_not_in_model(self, capsys: pytest.CaptureFixture[str]) -> None:
         report = FeatureGapReport(
             target="avg",
-            player_type="batter",
+            player_type=PlayerType.BATTER,
             season=2024,
             system="fbm",
             version="1.0",
@@ -2522,7 +2538,7 @@ class TestPrintFeatureGapReport:
     def test_empty_gap_section_skipped(self, capsys: pytest.CaptureFixture[str]) -> None:
         report = FeatureGapReport(
             target="avg",
-            player_type="batter",
+            player_type=PlayerType.BATTER,
             season=2024,
             system="fbm",
             version="1.0",
@@ -2536,7 +2552,7 @@ class TestPrintFeatureGapReport:
 def _make_cohort_bias_report(*, significant: bool = True) -> CohortBiasReport:
     return CohortBiasReport(
         target="avg",
-        player_type="batter",
+        player_type=PlayerType.BATTER,
         season=2024,
         system="fbm",
         version="1.0",
@@ -2711,7 +2727,7 @@ class TestPrintDraftBoardWithAge:
                 player_id=1,
                 player_name="Player A",
                 rank=1,
-                player_type="batter",
+                player_type=PlayerType.BATTER,
                 position="OF",
                 value=40.0,
                 category_z_scores={},
@@ -2845,9 +2861,9 @@ class TestPrintScarcityRankings:
     ) -> None:
         monkeypatch.setattr(_output, "console", Console(highlight=False, width=300))
         players = [
-            ScarcityAdjustedPlayer(1, "Player A", "C", "batter", 30.0, 35.0, 5, 2, 0.8),
-            ScarcityAdjustedPlayer(2, "Player B", "OF", "batter", 28.0, 27.0, 3, 4, 0.2),
-            ScarcityAdjustedPlayer(3, "Player C", "1B", "batter", 25.0, 25.0, 4, 4, 0.5),
+            ScarcityAdjustedPlayer(1, "Player A", "C", PlayerType.BATTER, 30.0, 35.0, 5, 2, 0.8),
+            ScarcityAdjustedPlayer(2, "Player B", "OF", PlayerType.BATTER, 28.0, 27.0, 3, 4, 0.2),
+            ScarcityAdjustedPlayer(3, "Player C", "1B", PlayerType.BATTER, 25.0, 25.0, 4, 4, 0.5),
         ]
         print_scarcity_rankings(players, _make_league_settings())
         captured = capsys.readouterr()
@@ -2885,7 +2901,7 @@ def _make_experiment(
         timestamp="2025-03-01T12:00:00",
         hypothesis="Adding sprint_speed improves batting avg prediction",
         model="statcast-gbm",
-        player_type="batter",
+        player_type=PlayerType.BATTER,
         feature_diff={"added": ["sprint_speed"], "removed": []},
         seasons={"train": [2021, 2022], "holdout": [2023]},
         params={"max_depth": 6},
@@ -2944,7 +2960,7 @@ class TestPrintExperimentSummary:
     def test_shows_features_and_targets(self, capsys: pytest.CaptureFixture[str]) -> None:
         summary = ExplorationSummary(
             model="statcast-gbm",
-            player_type="batter",
+            player_type=PlayerType.BATTER,
             total_experiments=5,
             features_tested=[
                 FeatureExplorationResult("sprint_speed", -1.5, 1, 3),
@@ -2969,7 +2985,7 @@ class TestPrintCheckpointList:
             FeatureCheckpoint(
                 name="baseline",
                 model="statcast-gbm",
-                player_type="batter",
+                player_type=PlayerType.BATTER,
                 feature_columns=["hr", "avg"],
                 params={"max_depth": 6},
                 target_results={},
@@ -2993,7 +3009,7 @@ class TestPrintCheckpointDetail:
         cp = FeatureCheckpoint(
             name="v2",
             model="statcast-gbm",
-            player_type="batter",
+            player_type=PlayerType.BATTER,
             feature_columns=["hr", "avg", "sprint_speed"],
             params={"max_depth": 6},
             target_results={"avg": _make_target_result()},
@@ -3012,7 +3028,7 @@ class TestPrintCheckpointDetail:
         cp = FeatureCheckpoint(
             name="v1",
             model="m",
-            player_type="batter",
+            player_type=PlayerType.BATTER,
             feature_columns=["a"],
             params={},
             target_results={},
@@ -3143,11 +3159,11 @@ class TestPrintKeeperDecisions:
 class TestPrintAdjustedRankings:
     def test_various_value_changes(self, capsys: pytest.CaptureFixture[str]) -> None:
         rankings = [
-            AdjustedValuation(1, "Big Up", "batter", "OF", 30.0, 35.0, 5.0),
-            AdjustedValuation(2, "Small Up", "batter", "1B", 25.0, 27.0, 2.0),
-            AdjustedValuation(3, "Small Down", "batter", "SS", 20.0, 18.0, -2.0),
-            AdjustedValuation(4, "No Change", "batter", "C", 15.0, 15.0, 0.0),
-            AdjustedValuation(5, "Big Down", "pitcher", "SP", 22.0, 17.0, -5.0),
+            AdjustedValuation(1, "Big Up", PlayerType.BATTER, "OF", 30.0, 35.0, 5.0),
+            AdjustedValuation(2, "Small Up", PlayerType.BATTER, "1B", 25.0, 27.0, 2.0),
+            AdjustedValuation(3, "Small Down", PlayerType.BATTER, "SS", 20.0, 18.0, -2.0),
+            AdjustedValuation(4, "No Change", PlayerType.BATTER, "C", 15.0, 15.0, 0.0),
+            AdjustedValuation(5, "Big Down", PlayerType.PITCHER, "SP", 22.0, 17.0, -5.0),
         ]
         print_adjusted_rankings(rankings, top=3)
         captured = capsys.readouterr()
@@ -3402,7 +3418,7 @@ class TestPrintBreakoutCandidates:
             BreakoutPrediction(
                 player_id=1,
                 player_name="Mike Trout",
-                player_type="batter",
+                player_type=PlayerType.BATTER,
                 position="OF",
                 p_breakout=0.65,
                 p_bust=0.10,
@@ -3412,7 +3428,7 @@ class TestPrintBreakoutCandidates:
             BreakoutPrediction(
                 player_id=2,
                 player_name="Aaron Judge",
-                player_type="batter",
+                player_type=PlayerType.BATTER,
                 position="OF",
                 p_breakout=0.45,
                 p_bust=0.20,
@@ -3438,7 +3454,7 @@ class TestPrintBreakoutCandidates:
             BreakoutPrediction(
                 player_id=1,
                 player_name="Test",
-                player_type="batter",
+                player_type=PlayerType.BATTER,
                 position="1B",
                 p_breakout=0.1,
                 p_bust=0.8,

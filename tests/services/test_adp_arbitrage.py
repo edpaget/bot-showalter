@@ -1,4 +1,5 @@
 from fantasy_baseball_manager.domain.draft_board import DraftBoardRow
+from fantasy_baseball_manager.domain.identity import PlayerType
 from fantasy_baseball_manager.services.adp_arbitrage import (
     build_arbitrage_report,
     detect_falling_players,
@@ -19,7 +20,7 @@ def _row(
         player_id=player_id,
         player_name=name,
         rank=rank,
-        player_type="batter",
+        player_type=PlayerType.BATTER,
         position=position,
         value=value,
         category_z_scores={},

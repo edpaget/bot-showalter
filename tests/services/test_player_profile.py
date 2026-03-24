@@ -1,3 +1,4 @@
+from fantasy_baseball_manager.domain.identity import PlayerType
 from fantasy_baseball_manager.domain.player import Player
 from fantasy_baseball_manager.domain.valuation import Valuation
 from fantasy_baseball_manager.services.player_profile import PlayerProfileService
@@ -30,7 +31,7 @@ def _valuation(player_id: int, value: float = 10.0) -> Valuation:
         version="1.0",
         projection_system="steamer",
         projection_version="2026.1",
-        player_type="batter",
+        player_type=PlayerType.BATTER,
         position="OF",
         value=value,
         rank=1,

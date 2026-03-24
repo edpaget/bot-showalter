@@ -1,5 +1,10 @@
+from __future__ import annotations
+
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from fantasy_baseball_manager.domain.identity import PlayerType
 
 
 @dataclass(frozen=True)
@@ -21,7 +26,7 @@ class Projection:
     season: int
     system: str
     version: str
-    player_type: str
+    player_type: PlayerType
     stat_json: dict[str, Any]
     source_type: str = "first_party"
     id: int | None = None
@@ -35,7 +40,7 @@ class PlayerProjection:
     system: str
     version: str
     source_type: str
-    player_type: str
+    player_type: PlayerType
     stats: dict[str, Any]
     player_id: int | None = None
 

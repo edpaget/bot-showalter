@@ -2,6 +2,7 @@ from typing import TYPE_CHECKING
 
 from fantasy_baseball_manager.db.pool import SingleConnectionProvider
 from fantasy_baseball_manager.domain.experiment import Experiment, TargetResult
+from fantasy_baseball_manager.domain.identity import PlayerType
 from fantasy_baseball_manager.repos.experiment_repo import SqliteExperimentRepo
 from fantasy_baseball_manager.services.experiment_summary import summarize_exploration
 
@@ -143,9 +144,9 @@ class TestSummarizeExploration:
 
     def test_filters_by_model_and_player_type(self, conn: sqlite3.Connection) -> None:
         repo = SqliteExperimentRepo(SingleConnectionProvider(conn))
-        repo.save(_make_experiment(model="model-a", player_type="batter"))
-        repo.save(_make_experiment(model="model-a", player_type="pitcher"))
-        repo.save(_make_experiment(model="model-b", player_type="batter"))
+        repo.save(_make_experiment(model="model-a", player_type=PlayerType.BATTER))
+        repo.save(_make_experiment(model="model-a", player_type=PlayerType.PITCHER))
+        repo.save(_make_experiment(model="model-b", player_type=PlayerType.BATTER))
 
         summary = summarize_exploration(repo, "model-a", "batter")
         assert summary.total_experiments == 1

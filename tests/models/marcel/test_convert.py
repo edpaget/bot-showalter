@@ -1,5 +1,6 @@
 import pytest
 
+from fantasy_baseball_manager.domain.identity import PlayerType
 from fantasy_baseball_manager.domain.projection import Projection
 from fantasy_baseball_manager.models.marcel.convert import (
     extract_pt_from_rows,
@@ -265,7 +266,7 @@ class TestProjectionToDomain:
             rates={"hr": 0.045, "h": 0.25},
             pa=550,
         )
-        domain = projection_to_domain(proj, version="v1", player_type="batter")
+        domain = projection_to_domain(proj, version="v1", player_type=PlayerType.BATTER)
         assert isinstance(domain, Projection)
         assert domain.player_id == 1
         assert domain.season == 2024
@@ -285,7 +286,7 @@ class TestProjectionToDomain:
             rates={"so": 1.0},
             ip=180.0,
         )
-        domain = projection_to_domain(proj, version="v2", player_type="pitcher")
+        domain = projection_to_domain(proj, version="v2", player_type=PlayerType.PITCHER)
         assert domain.player_type == "pitcher"
         assert domain.stat_json["ip"] == 180.0
         assert domain.stat_json["so"] == 180.0
@@ -312,7 +313,7 @@ class TestProjectionToDomain:
             rates={},
             pa=600,
         )
-        domain = projection_to_domain(proj, version="v1", player_type="batter")
+        domain = projection_to_domain(proj, version="v1", player_type=PlayerType.BATTER)
         # ab = pa - bb - hbp - sf = 600 - 60 - 5 - 5 = 530
         ab = 530
         assert domain.stat_json["ab"] == pytest.approx(ab)
@@ -342,7 +343,7 @@ class TestProjectionToDomain:
             rates={},
             ip=180.0,
         )
-        domain = projection_to_domain(proj, version="v1", player_type="pitcher")
+        domain = projection_to_domain(proj, version="v1", player_type=PlayerType.PITCHER)
         assert domain.stat_json["era"] == pytest.approx(60.0 * 9 / 180.0)
         assert domain.stat_json["whip"] == pytest.approx((150.0 + 45.0) / 180.0)
         assert domain.stat_json["k_per_9"] == pytest.approx(200.0 * 9 / 180.0)
@@ -357,7 +358,7 @@ class TestProjectionToDomain:
             rates={},
             pa=0,
         )
-        domain = projection_to_domain(proj, version="v1", player_type="batter")
+        domain = projection_to_domain(proj, version="v1", player_type=PlayerType.BATTER)
         assert "avg" not in domain.stat_json
         assert "obp" not in domain.stat_json
         assert "slg" not in domain.stat_json
@@ -372,7 +373,7 @@ class TestProjectionToDomain:
             rates={},
             ip=0.0,
         )
-        domain = projection_to_domain(proj, version="v1", player_type="pitcher")
+        domain = projection_to_domain(proj, version="v1", player_type=PlayerType.PITCHER)
         assert "era" not in domain.stat_json
         assert "whip" not in domain.stat_json
         assert "k_per_9" not in domain.stat_json
@@ -398,7 +399,7 @@ class TestComputeBatterRatesWoba:
             rates={},
             pa=500,
         )
-        domain = projection_to_domain(proj, version="v1", player_type="batter")
+        domain = projection_to_domain(proj, version="v1", player_type=PlayerType.BATTER)
         assert "woba" in domain.stat_json
         # singles = 80 - 15 - 2 - 20 = 43
         # ab = 500 - 40 - 5 - 3 = 452
@@ -416,7 +417,7 @@ class TestComputeBatterRatesWoba:
             rates={},
             pa=0,
         )
-        domain = projection_to_domain(proj, version="v1", player_type="batter")
+        domain = projection_to_domain(proj, version="v1", player_type=PlayerType.BATTER)
         assert "woba" not in domain.stat_json
 
 

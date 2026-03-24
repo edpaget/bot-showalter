@@ -1,3 +1,4 @@
+from fantasy_baseball_manager.domain.identity import PlayerType
 from fantasy_baseball_manager.features import RowTransform, batting, pitching, player
 from fantasy_baseball_manager.features.types import (
     Feature,
@@ -53,7 +54,7 @@ class TestEndToEnd:
             features=tuple(features),
             seasons=(2022, 2023, 2024),
             source_filter="fangraphs",
-            spine_filter=SpineFilter(min_pa=50, player_type="batter"),
+            spine_filter=SpineFilter(min_pa=50, player_type=PlayerType.BATTER),
         )
 
         assert feature_set.name == "marcel_batting"

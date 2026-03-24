@@ -1,5 +1,6 @@
 import random
 
+from fantasy_baseball_manager.domain.identity import PlayerType
 from fantasy_baseball_manager.models.playing_time.engine import (
     PlayingTimeCoefficients,
     ResidualBuckets,
@@ -175,7 +176,7 @@ class TestPredictPlayingTime:
             coefficients=(2.0, 3.0),
             intercept=10.0,
             r_squared=1.0,
-            player_type="batter",
+            player_type=PlayerType.BATTER,
         )
         result = predict_playing_time({"x1": 5.0, "x2": 4.0}, coefficients)
         assert abs(result - (10.0 + 2.0 * 5.0 + 3.0 * 4.0)) < 1e-6
@@ -186,7 +187,7 @@ class TestPredictPlayingTime:
             coefficients=(-100.0,),
             intercept=0.0,
             r_squared=1.0,
-            player_type="batter",
+            player_type=PlayerType.BATTER,
         )
         result = predict_playing_time({"x1": 10.0}, coefficients)
         assert result == 0.0
@@ -197,7 +198,7 @@ class TestPredictPlayingTime:
             coefficients=(100.0,),
             intercept=0.0,
             r_squared=1.0,
-            player_type="batter",
+            player_type=PlayerType.BATTER,
         )
         result = predict_playing_time({"x1": 10.0}, coefficients, clamp_max=750.0)
         assert result == 750.0
@@ -208,7 +209,7 @@ class TestPredictPlayingTime:
             coefficients=(2.0, 3.0),
             intercept=10.0,
             r_squared=1.0,
-            player_type="batter",
+            player_type=PlayerType.BATTER,
         )
         result = predict_playing_time({"x1": 5.0, "x2": None}, coefficients)
         assert abs(result - (10.0 + 2.0 * 5.0 + 3.0 * 0.0)) < 1e-6
@@ -251,7 +252,7 @@ def _make_residual_rows(
         coefficients=(2.0,),
         intercept=100.0,
         r_squared=1.0,
-        player_type="batter",
+        player_type=PlayerType.BATTER,
     )
     rows: list[dict[str, float | None]] = []
     for i in range(n):
@@ -368,7 +369,7 @@ class TestPredictPlayingTimeDistribution:
             std=8.0,
             mean_offset=0.0,
         )
-        buckets = ResidualBuckets(buckets={"all": percs}, player_type="batter")
+        buckets = ResidualBuckets(buckets={"all": percs}, player_type=PlayerType.BATTER)
         dist = predict_playing_time_distribution(400.0, {"age": 35.0, "il_days_1": 20.0}, buckets)
         assert dist.p10 == 390.0
         assert dist.p90 == 410.0
@@ -441,7 +442,7 @@ class TestCoefficientReport:
             coefficients=(0.5, -3.0, 1.5),
             intercept=10.0,
             r_squared=0.9,
-            player_type="batter",
+            player_type=PlayerType.BATTER,
         )
 
     def test_returns_one_entry_per_feature(self) -> None:

@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from fantasy_baseball_manager.domain.category_tracker import CategoryNeed
+    from fantasy_baseball_manager.domain.identity import PlayerType
     from fantasy_baseball_manager.domain.positional_scarcity import PositionScarcity
 
 
@@ -15,7 +16,7 @@ class KeeperCost:
     league: str
     cost: float
     source: str
-    player_type: str | None = None
+    player_type: PlayerType | None = None
     years_remaining: int = 1
     original_round: int | None = None
     id: int | None = None
@@ -26,7 +27,7 @@ class KeeperCost:
 class KeeperDecision:
     player_id: int
     player_name: str
-    player_type: str
+    player_type: PlayerType
     position: str
     cost: float
     projected_value: float
@@ -101,7 +102,7 @@ class LeagueKeeper:
     team_name: str
     cost: float | None = None
     source: str | None = None
-    player_type: str | None = None
+    player_type: PlayerType | None = None
     id: int | None = None
 
 
@@ -126,7 +127,7 @@ class KeeperPlanResult:
 class AdjustedValuation:
     player_id: int
     player_name: str
-    player_type: str
+    player_type: PlayerType
     position: str
     original_value: float
     adjusted_value: float

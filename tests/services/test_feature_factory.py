@@ -10,6 +10,7 @@ from fantasy_baseball_manager.db.pool import SingleConnectionProvider
 from fantasy_baseball_manager.db.statcast_connection import create_statcast_connection
 from fantasy_baseball_manager.domain import Err, Ok
 from fantasy_baseball_manager.domain.feature_candidate import BinnedValue, CandidateValue, FeatureCandidate
+from fantasy_baseball_manager.domain.identity import PlayerType
 from fantasy_baseball_manager.repos.feature_candidate_repo import SqliteFeatureCandidateRepo
 from fantasy_baseball_manager.services.feature_factory import (
     aggregate_candidate,
@@ -395,7 +396,7 @@ class TestResolveFeature:
             FeatureCandidate(
                 name="avg_ev",
                 expression="AVG(launch_speed)",
-                player_type="batter",
+                player_type=PlayerType.BATTER,
                 min_pa=None,
                 min_ip=None,
                 created_at="2026-03-03",
@@ -421,7 +422,7 @@ class TestResolveFeature:
             FeatureCandidate(
                 name="strict_ev",
                 expression="AVG(launch_speed)",
-                player_type="batter",
+                player_type=PlayerType.BATTER,
                 min_pa=100,
                 min_ip=None,
                 created_at="2026-03-03",

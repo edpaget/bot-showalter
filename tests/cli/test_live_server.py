@@ -1,5 +1,6 @@
 from fantasy_baseball_manager.cli._live_server import create_live_draft_app
 from fantasy_baseball_manager.domain.adp import ADP
+from fantasy_baseball_manager.domain.identity import PlayerType
 from fantasy_baseball_manager.domain.league_settings import (
     CategoryConfig,
     Direction,
@@ -34,7 +35,7 @@ def _valuations() -> list[Valuation]:
             version="1.0",
             projection_system="steamer",
             projection_version="2026.1",
-            player_type="batter",
+            player_type=PlayerType.BATTER,
             position="OF",
             value=30.0,
             rank=1,
@@ -47,7 +48,7 @@ def _valuations() -> list[Valuation]:
             version="1.0",
             projection_system="steamer",
             projection_version="2026.1",
-            player_type="pitcher",
+            player_type=PlayerType.PITCHER,
             position="SP",
             value=25.0,
             rank=2,
@@ -60,7 +61,7 @@ def _valuations() -> list[Valuation]:
             version="1.0",
             projection_system="steamer",
             projection_version="2026.1",
-            player_type="batter",
+            player_type=PlayerType.BATTER,
             position="1B",
             value=20.0,
             rank=3,

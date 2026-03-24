@@ -20,6 +20,7 @@ from fantasy_baseball_manager.domain.error_decomposition import (
     split_direction,
     split_residuals_by_quality,
 )
+from fantasy_baseball_manager.domain.identity import PlayerType
 
 
 def _make_residual(
@@ -61,7 +62,7 @@ class TestErrorDecompositionReportConstruction:
     def test_construction(self) -> None:
         report = ErrorDecompositionReport(
             target="slg",
-            player_type="batter",
+            player_type=PlayerType.BATTER,
             season=2024,
             system="statcast-gbm",
             version="latest",
@@ -81,7 +82,7 @@ class TestErrorDecompositionReportConstruction:
     def test_immutability(self) -> None:
         report = ErrorDecompositionReport(
             target="slg",
-            player_type="batter",
+            player_type=PlayerType.BATTER,
             season=2024,
             system="test",
             version="v1",
@@ -298,7 +299,7 @@ class TestFeatureGapReportConstruction:
     def test_construction(self) -> None:
         report = FeatureGapReport(
             target="slg",
-            player_type="batter",
+            player_type=PlayerType.BATTER,
             season=2024,
             system="test",
             version="v1",
@@ -392,7 +393,7 @@ class TestCohortBiasReportConstruction:
     def test_construction(self) -> None:
         report = CohortBiasReport(
             target="slg",
-            player_type="batter",
+            player_type=PlayerType.BATTER,
             season=2024,
             system="test",
             version="v1",

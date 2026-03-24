@@ -1,7 +1,7 @@
 import json
 from typing import TYPE_CHECKING
 
-from fantasy_baseball_manager.domain import Valuation
+from fantasy_baseball_manager.domain import PlayerType, Valuation
 
 if TYPE_CHECKING:
     import sqlite3
@@ -96,7 +96,7 @@ class SqliteValuationRepo:
             version=row["version"],
             projection_system=row["projection_system"],
             projection_version=row["projection_version"],
-            player_type=row["player_type"],
+            player_type=PlayerType(row["player_type"]),
             position=row["position"],
             value=row["value"],
             rank=row["rank"],

@@ -4,6 +4,7 @@ import dataclasses
 
 import pytest
 
+from fantasy_baseball_manager.domain.identity import PlayerType
 from fantasy_baseball_manager.domain.projection import Projection
 from fantasy_baseball_manager.models.playing_time.engine import (
     ResidualBuckets,
@@ -32,7 +33,7 @@ def _make_batter_projection(
         season=2026,
         system="composite",
         version="v1",
-        player_type="batter",
+        player_type=PlayerType.BATTER,
         stat_json={
             "pa": pa,
             "hr": hr,
@@ -58,7 +59,7 @@ def _make_pitcher_projection(
         season=2026,
         system="composite",
         version="v1",
-        player_type="pitcher",
+        player_type=PlayerType.PITCHER,
         stat_json={
             "ip": ip,
             "w": w,

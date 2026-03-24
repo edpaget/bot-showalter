@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from fantasy_baseball_manager.domain import FeatureCandidate
+from fantasy_baseball_manager.domain import FeatureCandidate, PlayerType
 
 if TYPE_CHECKING:
     from fantasy_baseball_manager.repos.protocols import ConnectionProvider
@@ -46,7 +46,7 @@ class SqliteFeatureCandidateRepo:
             return FeatureCandidate(
                 name=row[0],
                 expression=row[1],
-                player_type=row[2],
+                player_type=PlayerType(row[2]),
                 min_pa=row[3],
                 min_ip=row[4],
                 created_at=row[5],
@@ -61,7 +61,7 @@ class SqliteFeatureCandidateRepo:
                 FeatureCandidate(
                     name=row[0],
                     expression=row[1],
-                    player_type=row[2],
+                    player_type=PlayerType(row[2]),
                     min_pa=row[3],
                     min_ip=row[4],
                     created_at=row[5],

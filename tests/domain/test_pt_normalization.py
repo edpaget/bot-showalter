@@ -1,5 +1,6 @@
 import pytest
 
+from fantasy_baseball_manager.domain.identity import PlayerType
 from fantasy_baseball_manager.domain.projection import Projection
 from fantasy_baseball_manager.domain.pt_normalization import (
     build_consensus_lookup,
@@ -25,7 +26,7 @@ def _batter_projection(player_id: int = 1, **stat_overrides: object) -> Projecti
         season=2025,
         system="steamer",
         version="2025.1",
-        player_type="batter",
+        player_type=PlayerType.BATTER,
         stat_json=stats,
     )
 
@@ -46,7 +47,7 @@ def _pitcher_projection(player_id: int = 1, **stat_overrides: object) -> Project
         season=2025,
         system="steamer",
         version="2025.1",
-        player_type="pitcher",
+        player_type=PlayerType.PITCHER,
         stat_json=stats,
     )
 
@@ -79,7 +80,7 @@ class TestNormalizeProjectionPtBatter:
             season=2025,
             system="steamer",
             version="2025.1",
-            player_type="batter",
+            player_type=PlayerType.BATTER,
             stat_json=stats,
         )
         result = normalize_projection_pt(proj, 500)

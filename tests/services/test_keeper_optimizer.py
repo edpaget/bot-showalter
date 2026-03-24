@@ -8,6 +8,7 @@ from fantasy_baseball_manager.domain import (
     Player,
     Valuation,
 )
+from fantasy_baseball_manager.domain.identity import PlayerType
 from fantasy_baseball_manager.services import (
     compare_scenarios,
     compute_adjusted_draft_pool,
@@ -29,7 +30,7 @@ def _decision(
     return KeeperDecision(
         player_id=player_id,
         player_name=name or f"Player {player_id}",
-        player_type="batter",
+        player_type=PlayerType.BATTER,
         position=position,
         cost=cost,
         projected_value=cost + surplus,
@@ -463,7 +464,7 @@ def _valuation(
         version="v1",
         projection_system="test",
         projection_version="v1",
-        player_type="batter" if position != "SP" else "pitcher",
+        player_type=PlayerType.BATTER if position != "SP" else PlayerType.PITCHER,
         position=position,
         value=value,
         rank=0,

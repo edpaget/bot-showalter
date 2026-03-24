@@ -4,6 +4,7 @@ import pytest
 
 from fantasy_baseball_manager.db.pool import SingleConnectionProvider
 from fantasy_baseball_manager.domain.adp import ADP
+from fantasy_baseball_manager.domain.identity import PlayerType
 from fantasy_baseball_manager.domain.league_settings import (
     CategoryConfig,
     Direction,
@@ -37,7 +38,7 @@ def _seed_projection(
     *,
     season: int = 2026,
     version: str = "latest",
-    player_type: str = "batter",
+    player_type: PlayerType = PlayerType.BATTER,
 ) -> None:
     repo = SqliteProjectionRepo(SingleConnectionProvider(conn))
     repo.upsert(
@@ -264,9 +265,15 @@ class TestPitcherStats:
     def test_pitcher_uses_pitching_categories(self, conn: sqlite3.Connection) -> None:
         """Pitchers should use pitching categories (ERA, SO), not batting."""
         pid = seed_player(conn, name_first="Gerrit", name_last="Cole", mlbam_id=543037)
-        _seed_projection(conn, pid, "steamer", {"era": 3.00, "so": 200, "ip": 180, "er": 60}, player_type="pitcher")
-        _seed_projection(conn, pid, "zips", {"era": 3.20, "so": 190, "ip": 175, "er": 62}, player_type="pitcher")
-        _seed_projection(conn, pid, "marcel", {"era": 3.50, "so": 180, "ip": 170, "er": 66}, player_type="pitcher")
+        _seed_projection(
+            conn, pid, "steamer", {"era": 3.00, "so": 200, "ip": 180, "er": 60}, player_type=PlayerType.PITCHER
+        )
+        _seed_projection(
+            conn, pid, "zips", {"era": 3.20, "so": 190, "ip": 175, "er": 62}, player_type=PlayerType.PITCHER
+        )
+        _seed_projection(
+            conn, pid, "marcel", {"era": 3.50, "so": 180, "ip": 170, "er": 66}, player_type=PlayerType.PITCHER
+        )
         conn.commit()
 
         report = compute_confidence(
@@ -330,7 +337,7 @@ def _player_confidence(
     return PlayerConfidence(
         player_id=player_id,
         player_name=player_name,
-        player_type="batter",
+        player_type=PlayerType.BATTER,
         position="OF",
         spreads=[],
         overall_cv=overall_cv,
@@ -354,7 +361,7 @@ def _cv_valuation(
         version="latest",
         projection_system=projection_system,
         projection_version="latest",
-        player_type="batter",
+        player_type=PlayerType.BATTER,
         position="OF",
         value=value,
         rank=1,

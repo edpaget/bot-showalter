@@ -2,6 +2,7 @@ from typing import TYPE_CHECKING
 
 from fantasy_baseball_manager.db.pool import SingleConnectionProvider
 from fantasy_baseball_manager.domain.experiment import Experiment, TargetResult
+from fantasy_baseball_manager.domain.identity import PlayerType
 from fantasy_baseball_manager.repos.experiment_repo import ExperimentFilter, SqliteExperimentRepo
 
 if TYPE_CHECKING:
@@ -83,10 +84,10 @@ class TestSqliteExperimentRepo:
 
     def test_list_filter_by_player_type(self, conn: sqlite3.Connection) -> None:
         repo = SqliteExperimentRepo(SingleConnectionProvider(conn))
-        repo.save(_make_experiment(player_type="batter"))
-        repo.save(_make_experiment(player_type="pitcher"))
+        repo.save(_make_experiment(player_type=PlayerType.BATTER))
+        repo.save(_make_experiment(player_type=PlayerType.PITCHER))
 
-        results = repo.list(ExperimentFilter(player_type="pitcher"))
+        results = repo.list(ExperimentFilter(player_type=PlayerType.PITCHER))
         assert len(results) == 1
         assert results[0].player_type == "pitcher"
 
@@ -111,11 +112,11 @@ class TestSqliteExperimentRepo:
 
     def test_list_combined_filters(self, conn: sqlite3.Connection) -> None:
         repo = SqliteExperimentRepo(SingleConnectionProvider(conn))
-        repo.save(_make_experiment(model="model-a", player_type="batter", tags=["feature"]))
-        repo.save(_make_experiment(model="model-a", player_type="pitcher", tags=["feature"]))
-        repo.save(_make_experiment(model="model-b", player_type="batter", tags=["feature"]))
+        repo.save(_make_experiment(model="model-a", player_type=PlayerType.BATTER, tags=["feature"]))
+        repo.save(_make_experiment(model="model-a", player_type=PlayerType.PITCHER, tags=["feature"]))
+        repo.save(_make_experiment(model="model-b", player_type=PlayerType.BATTER, tags=["feature"]))
 
-        results = repo.list(ExperimentFilter(model="model-a", player_type="batter"))
+        results = repo.list(ExperimentFilter(model="model-a", player_type=PlayerType.BATTER))
         assert len(results) == 1
         assert results[0].model == "model-a"
         assert results[0].player_type == "batter"

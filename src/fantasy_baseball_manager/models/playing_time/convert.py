@@ -1,4 +1,4 @@
-from fantasy_baseball_manager.domain import Projection
+from fantasy_baseball_manager.domain import PlayerType, Projection
 
 
 def pt_projection_to_domain(
@@ -21,6 +21,6 @@ def pt_projection_to_domain(
         season=projected_season,
         system="playing_time",
         version=version,
-        player_type=player_type,
+        player_type=PlayerType(player_type),
         stat_json=stat_json,
     )

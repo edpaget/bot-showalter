@@ -4,6 +4,7 @@ import random
 import pytest
 
 from fantasy_baseball_manager.domain.draft_board import DraftBoardRow
+from fantasy_baseball_manager.domain.identity import PlayerType
 from fantasy_baseball_manager.domain.league_settings import (
     CategoryConfig,
     Direction,
@@ -40,7 +41,7 @@ def _make_row(
         player_id=player_id,
         player_name=name,
         rank=player_id,
-        player_type="B" if position != "SP" else "P",
+        player_type=PlayerType.BATTER if position != "SP" else PlayerType.PITCHER,
         position=position,
         value=value,
         category_z_scores=category_z_scores or {},

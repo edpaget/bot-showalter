@@ -9,6 +9,7 @@ from fantasy_baseball_manager.domain import (
     KeeperDecision,
     LeagueKeeperOverview,
     Ok,
+    PlayerType,
     ProjectedKeeper,
     Roster,
     RosterAnalysis,
@@ -151,7 +152,7 @@ def compute_surplus(
             KeeperDecision(
                 player_id=kc.player_id,
                 player_name=player_name,
-                player_type=val.player_type if val is not None else "",
+                player_type=val.player_type if val is not None else (kc.player_type or PlayerType.BATTER),
                 position=position,
                 cost=kc.cost,
                 projected_value=projected_value,
@@ -596,7 +597,7 @@ def _value_pool(
     budget: float,
     *,
     pitcher_roster_spots: dict[str, int] | None = None,
-) -> list[tuple[int, float, str, str]]:
+) -> list[tuple[int, float, PlayerType, str]]:
     """Run ZAR pipeline on a player pool, return (player_id, dollars, player_type, position)."""
     if not projections:
         return []
@@ -615,7 +616,7 @@ def _value_pool(
 
     result = run_zar_pipeline(stats_list, categories, player_positions, roster_spots, league.teams, budget)
 
-    valuations: list[tuple[int, float, str, str]] = []
+    valuations: list[tuple[int, float, PlayerType, str]] = []
     for i, proj in enumerate(projections):
         pos = best_position(player_positions[i], result.replacement)
         valuations.append((proj.player_id, round(result.dollar_values[i], 2), proj.player_type, pos))

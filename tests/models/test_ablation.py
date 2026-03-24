@@ -3,6 +3,7 @@ from typing import Any
 import pytest
 
 from fantasy_baseball_manager.domain.evaluation import StatMetrics, SystemMetrics
+from fantasy_baseball_manager.domain.identity import PlayerType
 from fantasy_baseball_manager.features.types import DatasetHandle, DatasetSplits, FeatureSet
 from fantasy_baseball_manager.models.ablation import (
     PlayerTypeConfig,
@@ -238,14 +239,14 @@ class TestRunAblation:
     def ablation_result(self) -> AblationResult:
         assembler = _build_assembler(30, 30, [2022, 2023])
         bat_config = PlayerTypeConfig(
-            player_type="batter",
+            player_type=PlayerType.BATTER,
             train_fs=FeatureSet(name="test_batter_train", features=(), seasons=(2022, 2023)),
             columns=BAT_COLS,
             targets=BAT_TARGETS,
             params={},
         )
         pitch_config = PlayerTypeConfig(
-            player_type="pitcher",
+            player_type=PlayerType.PITCHER,
             train_fs=FeatureSet(name="test_pitcher_train", features=(), seasons=(2022, 2023)),
             columns=PITCH_COLS,
             targets=PITCH_TARGETS,

@@ -11,6 +11,7 @@ from fantasy_baseball_manager.domain import (
     Predictable,
     Trainable,
 )
+from fantasy_baseball_manager.domain.identity import PlayerType
 from fantasy_baseball_manager.domain.league_settings import (
     CategoryConfig,
     Direction,
@@ -73,7 +74,7 @@ def _build_projections() -> list[Projection]:
             season=2025,
             system="steamer",
             version="v1",
-            player_type="batter",
+            player_type=PlayerType.BATTER,
             stat_json={"pa": 600, "hr": 40.0, "r": 100.0, "h": 160.0, "ab": 550.0, "avg": 0.291},
         ),
         Projection(
@@ -81,7 +82,7 @@ def _build_projections() -> list[Projection]:
             season=2025,
             system="steamer",
             version="v1",
-            player_type="batter",
+            player_type=PlayerType.BATTER,
             stat_json={"pa": 550, "hr": 20.0, "r": 70.0, "h": 140.0, "ab": 500.0, "avg": 0.280},
         ),
         Projection(
@@ -89,7 +90,7 @@ def _build_projections() -> list[Projection]:
             season=2025,
             system="steamer",
             version="v1",
-            player_type="batter",
+            player_type=PlayerType.BATTER,
             stat_json={"pa": 570, "hr": 10.0, "r": 50.0, "h": 130.0, "ab": 520.0, "avg": 0.250},
         ),
         Projection(
@@ -97,7 +98,7 @@ def _build_projections() -> list[Projection]:
             season=2025,
             system="steamer",
             version="v1",
-            player_type="pitcher",
+            player_type=PlayerType.PITCHER,
             stat_json={"ip": 200, "w": 15.0, "sv": 0.0},
         ),
         Projection(
@@ -105,7 +106,7 @@ def _build_projections() -> list[Projection]:
             season=2025,
             system="steamer",
             version="v1",
-            player_type="pitcher",
+            player_type=PlayerType.PITCHER,
             stat_json={"ip": 70, "w": 8.0, "sv": 30.0},
         ),
     ]
@@ -282,7 +283,7 @@ class TestZarModelPredict:
                 season=2025,
                 system="steamer",
                 version="v1",
-                player_type="batter",
+                player_type=PlayerType.BATTER,
                 stat_json={"pa": 550, "hr": 25.0, "r": 80.0, "h": 150.0, "ab": 500.0},
             ),
         ]
@@ -300,7 +301,7 @@ class TestZarModelPredict:
                 season=2025,
                 system="steamer",
                 version="v1",
-                player_type="batter",
+                player_type=PlayerType.BATTER,
                 stat_json={"pa": 600, "hr": 40.0, "r": 100.0, "h": 160.0, "ab": 550.0},
             ),
             Projection(
@@ -308,7 +309,7 @@ class TestZarModelPredict:
                 season=2025,
                 system="steamer",
                 version="v2",
-                player_type="batter",
+                player_type=PlayerType.BATTER,
                 stat_json={"pa": 580, "hr": 35.0, "r": 90.0, "h": 150.0, "ab": 530.0},
             ),
             Projection(
@@ -316,7 +317,7 @@ class TestZarModelPredict:
                 season=2025,
                 system="steamer",
                 version="v1",
-                player_type="pitcher",
+                player_type=PlayerType.PITCHER,
                 stat_json={"ip": 200, "w": 15.0, "sv": 0.0},
             ),
             Projection(
@@ -324,7 +325,7 @@ class TestZarModelPredict:
                 season=2025,
                 system="steamer",
                 version="v2",
-                player_type="pitcher",
+                player_type=PlayerType.PITCHER,
                 stat_json={"ip": 180, "w": 12.0, "sv": 5.0},
             ),
         ]
@@ -351,7 +352,7 @@ class TestZarModelPredict:
                 season=2025,
                 system="steamer",
                 version="v1",
-                player_type="batter",
+                player_type=PlayerType.BATTER,
                 stat_json={"pa": 600, "hr": 40.0, "r": 100.0, "h": 160.0, "ab": 550.0},
             ),
             Projection(
@@ -359,7 +360,7 @@ class TestZarModelPredict:
                 season=2025,
                 system="steamer",
                 version="v2",
-                player_type="batter",
+                player_type=PlayerType.BATTER,
                 stat_json={"pa": 550, "hr": 20.0, "r": 70.0, "h": 140.0, "ab": 500.0},
             ),
         ]
@@ -377,7 +378,7 @@ class TestZarModelPredict:
                 season=2025,
                 system="steamer",
                 version="v1",
-                player_type="batter",
+                player_type=PlayerType.BATTER,
                 stat_json={"pa": 600, "hr": 40.0, "r": 100.0, "h": 160.0, "ab": 550.0},
             ),
             Projection(
@@ -385,7 +386,7 @@ class TestZarModelPredict:
                 season=2025,
                 system="steamer",
                 version="v1",
-                player_type="batter",
+                player_type=PlayerType.BATTER,
                 stat_json={"pa": 0, "hr": 0.0, "r": 0.0, "h": 0.0, "ab": 0.0},
             ),
             Projection(
@@ -393,7 +394,7 @@ class TestZarModelPredict:
                 season=2025,
                 system="steamer",
                 version="v1",
-                player_type="pitcher",
+                player_type=PlayerType.PITCHER,
                 stat_json={"ip": 200, "w": 15.0, "sv": 0.0},
             ),
         ]
@@ -411,7 +412,7 @@ class TestZarModelPredict:
                 season=2025,
                 system="steamer",
                 version="v1",
-                player_type="batter",
+                player_type=PlayerType.BATTER,
                 stat_json={"pa": 600, "hr": 40.0, "r": 100.0, "h": 160.0, "ab": 550.0},
             ),
             Projection(
@@ -419,7 +420,7 @@ class TestZarModelPredict:
                 season=2025,
                 system="steamer",
                 version="v1",
-                player_type="pitcher",
+                player_type=PlayerType.PITCHER,
                 stat_json={"ip": 200, "w": 15.0, "sv": 0.0},
             ),
             Projection(
@@ -427,7 +428,7 @@ class TestZarModelPredict:
                 season=2025,
                 system="steamer",
                 version="v1",
-                player_type="pitcher",
+                player_type=PlayerType.PITCHER,
                 stat_json={"ip": 0, "w": 0.0, "sv": 0.0},
             ),
         ]
@@ -447,7 +448,7 @@ class TestZarModelPredict:
                 season=2025,
                 system="steamer",
                 version="v1",
-                player_type="batter",
+                player_type=PlayerType.BATTER,
                 stat_json={"pa": 550, "hr": 20.0, "r": 70.0, "h": 140.0, "ab": 500.0, "avg": 0.280},
             ),
         ]
@@ -476,7 +477,7 @@ class TestZarModelPredict:
                 season=2025,
                 system="steamer",
                 version="v1",
-                player_type="batter",
+                player_type=PlayerType.BATTER,
                 stat_json={"pa": 600, "hr": 40.0, "r": 100.0, "h": 160.0, "ab": 550.0},
             ),
             Projection(
@@ -484,7 +485,7 @@ class TestZarModelPredict:
                 season=2024,
                 system="steamer",
                 version="v1",
-                player_type="batter",
+                player_type=PlayerType.BATTER,
                 stat_json={"pa": 550, "hr": 20.0, "r": 70.0, "h": 140.0, "ab": 500.0},
             ),
         ]
@@ -600,7 +601,7 @@ class TestZarModelEligibilityService:
                 season=2026,
                 system="steamer",
                 version="v1",
-                player_type="batter",
+                player_type=PlayerType.BATTER,
                 stat_json={"pa": 600, "hr": 40.0, "r": 100.0, "h": 160.0, "ab": 550.0, "avg": 0.291},
             ),
             Projection(
@@ -608,7 +609,7 @@ class TestZarModelEligibilityService:
                 season=2026,
                 system="steamer",
                 version="v1",
-                player_type="batter",
+                player_type=PlayerType.BATTER,
                 stat_json={"pa": 550, "hr": 20.0, "r": 70.0, "h": 140.0, "ab": 500.0, "avg": 0.280},
             ),
             Projection(
@@ -616,7 +617,7 @@ class TestZarModelEligibilityService:
                 season=2026,
                 system="steamer",
                 version="v1",
-                player_type="pitcher",
+                player_type=PlayerType.PITCHER,
                 stat_json={"ip": 200, "w": 15.0, "sv": 0.0},
             ),
         ]
@@ -760,7 +761,7 @@ class TestZarModelPlayingTimeCutoffs:
                 season=2025,
                 system="steamer",
                 version="v1",
-                player_type="batter",
+                player_type=PlayerType.BATTER,
                 stat_json={"pa": 600, "hr": 40.0, "r": 100.0, "h": 160.0, "ab": 550.0},
             ),
             Projection(
@@ -768,7 +769,7 @@ class TestZarModelPlayingTimeCutoffs:
                 season=2025,
                 system="steamer",
                 version="v1",
-                player_type="batter",
+                player_type=PlayerType.BATTER,
                 stat_json={"pa": 50, "hr": 2.0, "r": 5.0, "h": 10.0, "ab": 45.0},
             ),
             Projection(
@@ -776,7 +777,7 @@ class TestZarModelPlayingTimeCutoffs:
                 season=2025,
                 system="steamer",
                 version="v1",
-                player_type="pitcher",
+                player_type=PlayerType.PITCHER,
                 stat_json={"ip": 200, "w": 15.0, "sv": 0.0},
             ),
         ]
@@ -803,7 +804,7 @@ class TestZarModelPlayingTimeCutoffs:
                 season=2025,
                 system="steamer",
                 version="v1",
-                player_type="batter",
+                player_type=PlayerType.BATTER,
                 stat_json={"pa": 600, "hr": 40.0, "r": 100.0, "h": 160.0, "ab": 550.0},
             ),
             Projection(
@@ -811,7 +812,7 @@ class TestZarModelPlayingTimeCutoffs:
                 season=2025,
                 system="steamer",
                 version="v1",
-                player_type="pitcher",
+                player_type=PlayerType.PITCHER,
                 stat_json={"ip": 200, "w": 15.0, "sv": 0.0},
             ),
             Projection(
@@ -819,7 +820,7 @@ class TestZarModelPlayingTimeCutoffs:
                 season=2025,
                 system="steamer",
                 version="v1",
-                player_type="pitcher",
+                player_type=PlayerType.PITCHER,
                 stat_json={"ip": 10, "w": 1.0, "sv": 2.0},
             ),
         ]
@@ -842,7 +843,7 @@ class TestZarModelPlayingTimeCutoffs:
                 season=2025,
                 system="steamer",
                 version="v1",
-                player_type="batter",
+                player_type=PlayerType.BATTER,
                 stat_json={"pa": 1, "hr": 0.0, "r": 0.0, "h": 0.0, "ab": 1.0},
             ),
             Projection(
@@ -850,7 +851,7 @@ class TestZarModelPlayingTimeCutoffs:
                 season=2025,
                 system="steamer",
                 version="v1",
-                player_type="batter",
+                player_type=PlayerType.BATTER,
                 stat_json={"pa": 0, "hr": 0.0, "r": 0.0, "h": 0.0, "ab": 0.0},
             ),
             Projection(
@@ -858,7 +859,7 @@ class TestZarModelPlayingTimeCutoffs:
                 season=2025,
                 system="steamer",
                 version="v1",
-                player_type="pitcher",
+                player_type=PlayerType.PITCHER,
                 stat_json={"ip": 200, "w": 15.0, "sv": 0.0},
             ),
         ]

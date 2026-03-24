@@ -1,6 +1,7 @@
 from typing import TYPE_CHECKING
 
 from fantasy_baseball_manager.db.pool import SingleConnectionProvider
+from fantasy_baseball_manager.domain.identity import PlayerType
 from fantasy_baseball_manager.domain.projection import Projection, StatDistribution
 from fantasy_baseball_manager.repos.projection_repo import SqliteProjectionRepo
 from tests.helpers import seed_player
@@ -18,7 +19,7 @@ class TestSqliteProjectionRepo:
             season=2025,
             system="steamer",
             version="2025.1",
-            player_type="batter",
+            player_type=PlayerType.BATTER,
             stat_json={"hr": 30, "avg": 0.280},
         )
         repo.upsert(proj)
@@ -37,7 +38,7 @@ class TestSqliteProjectionRepo:
                 season=2025,
                 system="steamer",
                 version="2025.1",
-                player_type="batter",
+                player_type=PlayerType.BATTER,
                 stat_json={"hr": 30},
             )
         )
@@ -47,7 +48,7 @@ class TestSqliteProjectionRepo:
                 season=2025,
                 system="zips",
                 version="2025.1",
-                player_type="batter",
+                player_type=PlayerType.BATTER,
                 stat_json={"hr": 25},
             )
         )
@@ -64,7 +65,7 @@ class TestSqliteProjectionRepo:
                 season=2025,
                 system="steamer",
                 version="2025.1",
-                player_type="batter",
+                player_type=PlayerType.BATTER,
                 stat_json={"hr": 30},
             )
         )
@@ -74,7 +75,7 @@ class TestSqliteProjectionRepo:
                 season=2025,
                 system="steamer",
                 version="2025.2",
-                player_type="batter",
+                player_type=PlayerType.BATTER,
                 stat_json={"hr": 32},
             )
         )
@@ -91,7 +92,7 @@ class TestSqliteProjectionRepo:
                 season=2025,
                 system="steamer",
                 version="2025.1",
-                player_type="batter",
+                player_type=PlayerType.BATTER,
                 stat_json={"hr": 30},
             )
         )
@@ -101,7 +102,7 @@ class TestSqliteProjectionRepo:
                 season=2025,
                 system="steamer",
                 version="2025.1",
-                player_type="batter",
+                player_type=PlayerType.BATTER,
                 stat_json={"hr": 35},
             )
         )
@@ -119,7 +120,7 @@ class TestSqliteProjectionRepo:
                 season=2025,
                 system="custom",
                 version="v1",
-                player_type="batter",
+                player_type=PlayerType.BATTER,
                 stat_json=stats,
             )
         )
@@ -137,7 +138,7 @@ class TestSqliteProjectionRepo:
                 season=2025,
                 system="custom",
                 version="v1",
-                player_type="batter",
+                player_type=PlayerType.BATTER,
                 stat_json={"hr": 30, "unknown_stat": 999},
             )
         )
@@ -154,7 +155,7 @@ class TestSqliteProjectionRepo:
                 season=2025,
                 system="steamer",
                 version="2025.1",
-                player_type="batter",
+                player_type=PlayerType.BATTER,
                 stat_json={"hr": 30},
             )
         )
@@ -164,7 +165,7 @@ class TestSqliteProjectionRepo:
                 season=2024,
                 system="steamer",
                 version="2024.1",
-                player_type="batter",
+                player_type=PlayerType.BATTER,
                 stat_json={"hr": 28},
             )
         )
@@ -181,7 +182,7 @@ class TestSqliteProjectionRepo:
                 season=2025,
                 system="steamer",
                 version="2025.1",
-                player_type="batter",
+                player_type=PlayerType.BATTER,
                 stat_json={"hr": 30},
             )
         )
@@ -198,7 +199,7 @@ class TestSqliteProjectionRepo:
                 season=2025,
                 system="steamer",
                 version="2025.1",
-                player_type="batter",
+                player_type=PlayerType.BATTER,
                 stat_json={"hr": 30},
                 source_type="third_party",
             )
@@ -216,7 +217,7 @@ class TestSqliteProjectionRepo:
                 season=2025,
                 system="steamer",
                 version="2025.1",
-                player_type="batter",
+                player_type=PlayerType.BATTER,
                 stat_json={"hr": 30},
             )
         )
@@ -226,7 +227,7 @@ class TestSqliteProjectionRepo:
                 season=2025,
                 system="zips",
                 version="2025.1",
-                player_type="batter",
+                player_type=PlayerType.BATTER,
                 stat_json={"hr": 25},
             )
         )
@@ -245,7 +246,7 @@ def _seed_projection(conn: sqlite3.Connection) -> tuple[int, int]:
             season=2025,
             system="steamer",
             version="2025.1",
-            player_type="batter",
+            player_type=PlayerType.BATTER,
             stat_json={"hr": 30},
         )
     )
@@ -344,7 +345,7 @@ class TestDeleteBySystemVersion:
                 season=2025,
                 system="gate-model",
                 version="gate-h2024",
-                player_type="batter",
+                player_type=PlayerType.BATTER,
                 stat_json={"hr": 30},
             )
         )
@@ -361,7 +362,7 @@ class TestDeleteBySystemVersion:
                 season=2025,
                 system="gate-model",
                 version="gate-h2024",
-                player_type="batter",
+                player_type=PlayerType.BATTER,
                 stat_json={"hr": 30},
             )
         )
@@ -371,7 +372,7 @@ class TestDeleteBySystemVersion:
                 season=2025,
                 system="gate-model",
                 version="latest",
-                player_type="batter",
+                player_type=PlayerType.BATTER,
                 stat_json={"hr": 28},
             )
         )
@@ -388,7 +389,7 @@ class TestDeleteBySystemVersion:
                     season=2025,
                     system="gate-model",
                     version="gate-h2024",
-                    player_type="batter",
+                    player_type=PlayerType.BATTER,
                     stat_json={"hr": 30 + i},
                 )
             )
@@ -404,7 +405,7 @@ class TestDeleteBySystemVersion:
                 season=2025,
                 system="gate-model",
                 version="gate-h2024",
-                player_type="batter",
+                player_type=PlayerType.BATTER,
                 stat_json={"hr": 30},
             )
         )
@@ -427,7 +428,7 @@ class TestPctStatsRoundTrip:
                 season=2025,
                 system="mle",
                 version="v1",
-                player_type="batter",
+                player_type=PlayerType.BATTER,
                 stat_json=stats,
             )
         )

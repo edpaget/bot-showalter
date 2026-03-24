@@ -30,6 +30,7 @@ from fantasy_baseball_manager.db.pool import ConnectionPool, SingleConnectionPro
 from fantasy_baseball_manager.domain import (
     Err,
     Ok,
+    PlayerType,
     YahooDraftPick,
     YahooPlayerMap,
     current_season,
@@ -296,7 +297,7 @@ def yahoo_map_player(  # pragma: no cover
         mapping = YahooPlayerMap(
             yahoo_player_key=yahoo_key,
             player_id=player.id,
-            player_type=player_type,
+            player_type=PlayerType(player_type),
             yahoo_name=player_name,
             yahoo_team="",
             yahoo_positions="",

@@ -1,6 +1,7 @@
 import pytest
 
 from fantasy_baseball_manager.domain.column_profile import ColumnProfile
+from fantasy_baseball_manager.domain.identity import PlayerType
 
 
 class TestColumnProfile:
@@ -8,7 +9,7 @@ class TestColumnProfile:
         profile = ColumnProfile(
             column="launch_speed",
             season=2023,
-            player_type="batter",
+            player_type=PlayerType.BATTER,
             count=100,
             null_count=5,
             null_pct=4.762,
@@ -44,7 +45,7 @@ class TestColumnProfile:
         profile = ColumnProfile(
             column="launch_speed",
             season=2023,
-            player_type="batter",
+            player_type=PlayerType.BATTER,
             count=100,
             null_count=5,
             null_pct=4.762,
@@ -66,7 +67,7 @@ class TestColumnProfile:
         profile = ColumnProfile(
             column="release_speed",
             season=2024,
-            player_type="pitcher",
+            player_type=PlayerType.PITCHER,
             count=200,
             null_count=0,
             null_pct=0.0,

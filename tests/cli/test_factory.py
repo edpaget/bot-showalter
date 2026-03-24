@@ -24,6 +24,7 @@ from fantasy_baseball_manager.db.pool import ConnectionPool, SingleConnectionPro
 from fantasy_baseball_manager.db.statcast_connection import create_statcast_connection
 from fantasy_baseball_manager.domain.adp import ADP
 from fantasy_baseball_manager.domain.errors import ConfigError
+from fantasy_baseball_manager.domain.identity import PlayerType
 from fantasy_baseball_manager.domain.result import Err, Ok
 from fantasy_baseball_manager.domain.valuation import Valuation
 from fantasy_baseball_manager.models.breakout_bust.model import BreakoutBustModel
@@ -569,7 +570,7 @@ def _seed_adp_and_valuation(conn: sqlite3.Connection) -> None:
             version="1.0",
             projection_system="actual",
             projection_version="1.0",
-            player_type="batter",
+            player_type=PlayerType.BATTER,
             position="OF",
             value=25.0,
             rank=10,
@@ -587,7 +588,7 @@ def _seed_adp_and_valuation(conn: sqlite3.Connection) -> None:
             version="1.0",
             projection_system="actual",
             projection_version="1.0",
-            player_type="batter",
+            player_type=PlayerType.BATTER,
             position="1B",
             value=5.0,
             rank=80,
@@ -605,7 +606,7 @@ def _seed_adp_and_valuation(conn: sqlite3.Connection) -> None:
             version="1.0",
             projection_system="actual",
             projection_version="1.0",
-            player_type="batter",
+            player_type=PlayerType.BATTER,
             position="SS",
             value=1.0,
             rank=105,

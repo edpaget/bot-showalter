@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from fantasy_baseball_manager.domain import ReplacementProfile
+from fantasy_baseball_manager.domain import PlayerType, ReplacementProfile
 from fantasy_baseball_manager.models.zar.engine import (
     compute_z_scores,
     convert_rate_stats,
@@ -48,7 +48,7 @@ def compute_replacement_profiles(
             stat_line = {c.key: 0.0 for c in categories}
             result[position] = ReplacementProfile(
                 position=position,
-                player_type=player_type,
+                player_type=PlayerType(player_type),
                 stat_line=stat_line,
             )
             continue
@@ -58,7 +58,7 @@ def compute_replacement_profiles(
 
         result[position] = ReplacementProfile(
             position=position,
-            player_type=player_type,
+            player_type=PlayerType(player_type),
             stat_line=stats_list[repl_index],
         )
 

@@ -14,6 +14,7 @@ import numpy as np
 from sklearn.ensemble import HistGradientBoostingRegressor
 from threadpoolctl import threadpool_limits
 
+from fantasy_baseball_manager.domain import PlayerType
 from fantasy_baseball_manager.models.protocols import TargetComparison, TargetVector, ValidationResult
 from fantasy_baseball_manager.models.sample_weight_transforms import WeightTransform, get_transform
 from fantasy_baseball_manager.models.sampling import holdout_metrics
@@ -761,7 +762,7 @@ def validate_pruning(
     if not pruned_cols:
         logger.warning("All features prunable — skipping validation for %s", player_type)
         return ValidationResult(
-            player_type=player_type,
+            player_type=PlayerType(player_type),
             comparisons=(),
             pruned_features=tuple(sorted(prune_set)),
             n_improved=0,
@@ -772,7 +773,7 @@ def validate_pruning(
 
     if not prune_set:
         return ValidationResult(
-            player_type=player_type,
+            player_type=PlayerType(player_type),
             comparisons=(),
             pruned_features=(),
             n_improved=0,
@@ -824,7 +825,7 @@ def validate_pruning(
     go = (n_improved > n_degraded) and (max_deg <= max_degradation_pct)
 
     return ValidationResult(
-        player_type=player_type,
+        player_type=PlayerType(player_type),
         comparisons=tuple(comparisons),
         pruned_features=tuple(sorted(prune_set)),
         n_improved=n_improved,

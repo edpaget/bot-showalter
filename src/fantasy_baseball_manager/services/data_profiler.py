@@ -14,6 +14,7 @@ from fantasy_baseball_manager.domain import (
     ColumnProfile,
     CorrelationScanResult,
     MultiColumnRanking,
+    PlayerType,
     PooledCorrelationResult,
     SeasonCorrelationResult,
     StabilityResult,
@@ -122,7 +123,7 @@ class StatcastColumnProfiler:
             return ColumnProfile(
                 column=column,
                 season=season,
-                player_type=player_type,
+                player_type=PlayerType(player_type),
                 count=0,
                 null_count=null_count,
                 null_pct=null_pct,
@@ -160,7 +161,7 @@ class StatcastColumnProfiler:
         return ColumnProfile(
             column=column,
             season=season,
-            player_type=player_type,
+            player_type=PlayerType(player_type),
             count=count,
             null_count=null_count,
             null_pct=null_pct,
@@ -253,7 +254,7 @@ class CorrelationScanner:
                 SeasonCorrelationResult(
                     column_spec=column_spec,
                     season=season,
-                    player_type=player_type,
+                    player_type=PlayerType(player_type),
                     correlations=tuple(correlations),
                 )
             )
@@ -262,13 +263,13 @@ class CorrelationScanner:
         pooled_correlations = self._correlate_pooled(candidate_values, target_values, mlbam_to_pid, targets, seasons)
         pooled = PooledCorrelationResult(
             column_spec=column_spec,
-            player_type=player_type,
+            player_type=PlayerType(player_type),
             correlations=tuple(pooled_correlations),
         )
 
         return CorrelationScanResult(
             column_spec=column_spec,
-            player_type=player_type,
+            player_type=PlayerType(player_type),
             per_season=tuple(per_season),
             pooled=pooled,
         )
@@ -313,7 +314,7 @@ class CorrelationScanner:
                 SeasonCorrelationResult(
                     column_spec=label,
                     season=season,
-                    player_type=player_type,
+                    player_type=PlayerType(player_type),
                     correlations=tuple(correlations),
                 )
             )
@@ -321,13 +322,13 @@ class CorrelationScanner:
         pooled_correlations = self._correlate_pooled(candidate_values, target_values, mlbam_to_pid, targets, seasons)
         pooled = PooledCorrelationResult(
             column_spec=label,
-            player_type=player_type,
+            player_type=PlayerType(player_type),
             correlations=tuple(pooled_correlations),
         )
 
         return CorrelationScanResult(
             column_spec=label,
-            player_type=player_type,
+            player_type=PlayerType(player_type),
             per_season=tuple(per_season),
             pooled=pooled,
         )
@@ -672,7 +673,7 @@ class TemporalStabilityChecker:
 
         return StabilityResult(
             column_spec=column_spec,
-            player_type=player_type,
+            player_type=PlayerType(player_type),
             seasons=tuple(sorted(seasons)),
             target_stabilities=tuple(stabilities),
         )

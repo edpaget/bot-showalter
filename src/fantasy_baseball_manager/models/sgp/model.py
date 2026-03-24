@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING, Any, Protocol
 from fantasy_baseball_manager.domain import (
     ArtifactType,
     EligibilityProvider,
+    PlayerType,
     Position,
     SgpDenominators,
     StatType,
@@ -291,7 +292,7 @@ class SgpModel:
                     version=version,
                     projection_system=proj_system,
                     projection_version=proj.version,
-                    player_type=player_type,
+                    player_type=PlayerType(player_type),
                     position=pos,
                     value=round(result.dollar_values[i], 2),
                     rank=0,

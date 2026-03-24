@@ -2,7 +2,14 @@ import dataclasses
 import statistics
 from typing import TYPE_CHECKING, Any
 
-from fantasy_baseball_manager.domain import ArtifactType, BudgetSplitMode, EligibilityProvider, Position, Valuation
+from fantasy_baseball_manager.domain import (
+    ArtifactType,
+    BudgetSplitMode,
+    EligibilityProvider,
+    PlayerType,
+    Position,
+    Valuation,
+)
 from fantasy_baseball_manager.models.protocols import ModelConfig, PredictResult
 from fantasy_baseball_manager.models.registry import register
 from fantasy_baseball_manager.models.zar.engine import (
@@ -272,7 +279,7 @@ class ZarModel:
                     version=version,
                     projection_system=proj_system,
                     projection_version=proj.version,
-                    player_type=player_type,
+                    player_type=PlayerType(player_type),
                     position=pos,
                     value=round(result.dollar_values[i], 2),
                     rank=0,

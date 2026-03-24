@@ -1,5 +1,6 @@
 import pytest
 
+from fantasy_baseball_manager.domain.identity import PlayerType
 from fantasy_baseball_manager.domain.player import Player
 from fantasy_baseball_manager.domain.tier import PlayerTier
 from fantasy_baseball_manager.domain.valuation import Valuation
@@ -19,7 +20,7 @@ def _valuation(player_id: int, position: str, value: float, rank: int) -> Valuat
         version="1.0",
         projection_system="steamer",
         projection_version="2026",
-        player_type="batter",
+        player_type=PlayerType.BATTER,
         position=position,
         value=value,
         rank=rank,

@@ -8,6 +8,7 @@ from fantasy_baseball_manager.domain.draft_recommendation import (
     Recommendation,
     RecommendationWeights,
 )
+from fantasy_baseball_manager.domain.identity import PlayerIdentity, PlayerType
 from fantasy_baseball_manager.services.draft_recommender import (
     _compute_scarcity,
     _compute_tier_urgency_map,
@@ -20,6 +21,7 @@ from fantasy_baseball_manager.services.draft_state import (
     DraftFormat,
     DraftPick,
     DraftState,
+    PoolKey,
 )
 
 # ---------------------------------------------------------------------------
@@ -33,7 +35,7 @@ def _make_player(
     position: str,
     value: float,
     *,
-    player_type: str = "batter",
+    player_type: PlayerType = PlayerType.BATTER,
     tier: int | None = None,
     adp_overall: float | None = None,
 ) -> DraftBoardRow:
@@ -69,7 +71,7 @@ def _make_state(
         season=2026,
         budget=budget,
     )
-    pool = {(p.player_id, p.player_type): p for p in players}
+    pool: dict[PoolKey, DraftBoardRow] = {PlayerIdentity(p.player_id, p.player_type): p for p in players}
     pick_list = picks or []
     # Build team rosters from picks
     rosters: dict[int, list[DraftPick]] = {t: [] for t in range(1, teams + 1)}
@@ -157,7 +159,7 @@ POOL = [
     _make_player(2, "Player B", "1B", 25.0),
     _make_player(3, "Player C", "OF", 20.0),
     _make_player(4, "Player D", "OF", 18.0),
-    _make_player(5, "Player E", "SP", 15.0, player_type="pitcher"),
+    _make_player(5, "Player E", "SP", 15.0, player_type=PlayerType.PITCHER),
     _make_player(6, "Player F", "C", 12.0),
     _make_player(7, "Player G", "OF", 10.0),
     _make_player(8, "Player H", "1B", 8.0),
@@ -280,7 +282,7 @@ class TestNeedBonus:
     def test_flex_p_keeps_pitcher_recommendable(self) -> None:
         """Pitcher at filled SP slot still recommended if P flex slot is open."""
         players = [
-            _make_player(1, "Pitcher A", "SP", 25.0, player_type="pitcher"),
+            _make_player(1, "Pitcher A", "SP", 25.0, player_type=PlayerType.PITCHER),
         ]
         pick = DraftPick(pick_number=1, team=1, player_id=99, player_name="X", position="SP")
         state = _make_state(
@@ -321,7 +323,7 @@ class TestScarcity:
             _make_player(5, "OF-4", "OF", 22.0),
             _make_player(6, "OF-5", "OF", 21.0),
         ]
-        pool = {(p.player_id, p.player_type): p for p in players}
+        pool: dict[PoolKey, DraftBoardRow] = {PlayerIdentity(p.player_id, p.player_type): p for p in players}
         scarcity = _compute_scarcity(pool, {"C": 1, "OF": 2})
         assert scarcity["C"] == 1.0
 
@@ -341,7 +343,7 @@ class TestScarcity:
             _make_player(13, "SS-4", "SS", 5.0),
             _make_player(14, "SS-5", "SS", 2.0),
         ]
-        pool = {(p.player_id, p.player_type): p for p in players}
+        pool: dict[PoolKey, DraftBoardRow] = {PlayerIdentity(p.player_id, p.player_type): p for p in players}
         scarcity = _compute_scarcity(pool, {"OF": 2, "SS": 1})
         assert scarcity["OF"] < 0.3
         assert scarcity["SS"] > 0.7
@@ -356,7 +358,7 @@ class TestScarcity:
             _make_player(4, "SS-4", "SS", 5.0),
             _make_player(5, "SS-5", "SS", 2.0),
         ]
-        pool = {(p.player_id, p.player_type): p for p in players}
+        pool: dict[PoolKey, DraftBoardRow] = {PlayerIdentity(p.player_id, p.player_type): p for p in players}
         scarcity = _compute_scarcity(pool, {"SS": 1})
         assert scarcity["SS"] > 0.7
 
@@ -393,7 +395,7 @@ class TestScarcity:
             _make_player(1, "C-1", "C", 30.0),
             _make_player(2, "1B-1", "1B", 25.0),
         ]
-        pool = {(p.player_id, p.player_type): p for p in players}
+        pool: dict[PoolKey, DraftBoardRow] = {PlayerIdentity(p.player_id, p.player_type): p for p in players}
         scarcity = _compute_scarcity(pool, {"C": 1})
         assert "C" in scarcity
         assert "1B" not in scarcity
@@ -687,7 +689,7 @@ class TestIntegration:
             _make_player(5, "Second 1B", "1B", 14.0, tier=2),
             _make_player(6, "Second OF", "OF", 12.0, tier=2),
             _make_player(7, "Third OF", "OF", 10.0, tier=2),
-            _make_player(8, "SP Ace", "SP", 20.0, tier=1, player_type="pitcher"),
+            _make_player(8, "SP Ace", "SP", 20.0, tier=1, player_type=PlayerType.PITCHER),
         ]
         config = DraftConfig(
             teams=2,
@@ -810,7 +812,7 @@ class TestIntegration:
         pick = DraftPick(pick_number=1, team=2, player_id=1, player_name="C-1", position="C")
         state.picks.append(pick)
         state.team_rosters[2].append(pick)
-        del state.available_pool[(1, "batter")]
+        del state.available_pool[PlayerIdentity(1, PlayerType.BATTER)]
         state.current_pick = 2
 
         # Now C-2 is the only catcher — maximum scarcity

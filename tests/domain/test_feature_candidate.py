@@ -4,6 +4,7 @@ from fantasy_baseball_manager.domain.feature_candidate import (
     CandidateValue,
     FeatureCandidate,
 )
+from fantasy_baseball_manager.domain.identity import PlayerType
 
 
 class TestFeatureCandidate:
@@ -11,7 +12,7 @@ class TestFeatureCandidate:
         fc = FeatureCandidate(
             name="barrel_ev",
             expression="AVG(launch_speed) FILTER (WHERE barrel = 1)",
-            player_type="batter",
+            player_type=PlayerType.BATTER,
             min_pa=100,
             min_ip=None,
             created_at="2026-03-02",
@@ -27,7 +28,7 @@ class TestFeatureCandidate:
         fc = FeatureCandidate(
             name="barrel_ev",
             expression="AVG(launch_speed)",
-            player_type="batter",
+            player_type=PlayerType.BATTER,
             min_pa=None,
             min_ip=None,
             created_at="2026-03-02",
@@ -39,7 +40,7 @@ class TestFeatureCandidate:
         fc = FeatureCandidate(
             name="test",
             expression="COUNT(*)",
-            player_type="pitcher",
+            player_type=PlayerType.PITCHER,
             min_pa=None,
             min_ip=None,
             created_at="2026-03-02",
@@ -51,7 +52,7 @@ class TestFeatureCandidate:
         fc = FeatureCandidate(
             name="k_rate",
             expression="COUNT(*) FILTER (WHERE description = 'swinging_strike') * 1.0 / COUNT(*)",
-            player_type="pitcher",
+            player_type=PlayerType.PITCHER,
             min_pa=None,
             min_ip=50.0,
             created_at="2026-03-02",

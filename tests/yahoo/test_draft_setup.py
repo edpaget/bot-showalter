@@ -8,6 +8,7 @@ from fantasy_baseball_manager.domain import (
     YahooLeague,
     YahooTeam,
 )
+from fantasy_baseball_manager.domain.identity import PlayerType
 from fantasy_baseball_manager.domain.league_settings import (
     CategoryConfig,
     Direction,
@@ -127,7 +128,7 @@ def _seed_data(conn: sqlite3.Connection) -> None:
             version="1.0",
             projection_system="test",
             projection_version="1.0",
-            player_type="batter",
+            player_type=PlayerType.BATTER,
             position="OF",
             value=30.0,
             rank=1,

@@ -1,7 +1,7 @@
 import math
 from typing import TYPE_CHECKING
 
-from fantasy_baseball_manager.domain import Projection
+from fantasy_baseball_manager.domain import PlayerType, Projection
 from fantasy_baseball_manager.models.marcel.types import MarcelInput, MarcelProjection, SeasonLine
 from fantasy_baseball_manager.models.stat_utils import (
     best_rows_per_player,
@@ -126,6 +126,6 @@ def projection_to_domain(
         season=proj.projected_season,
         system="marcel",
         version=version,
-        player_type=player_type,
+        player_type=PlayerType(player_type),
         stat_json=stat_json,
     )

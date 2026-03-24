@@ -1,7 +1,7 @@
 import logging
 from typing import TYPE_CHECKING, Any
 
-from fantasy_baseball_manager.domain import YahooPlayerMap
+from fantasy_baseball_manager.domain import PlayerType, YahooPlayerMap
 from fantasy_baseball_manager.name_utils import normalize_name, strip_accents, strip_name_decorations
 
 if TYPE_CHECKING:
@@ -104,7 +104,7 @@ class YahooPlayerMapper:
         self,
         player: Player,
         yahoo_key: str,
-        player_type: str,
+        player_type: PlayerType,
         name: str,
         team: str,
         positions_str: str,
@@ -122,10 +122,10 @@ class YahooPlayerMapper:
         return self._map_repo.get_by_yahoo_key(yahoo_key)
 
     @staticmethod
-    def infer_player_type(positions: list[str]) -> str:
+    def infer_player_type(positions: list[str]) -> PlayerType:
         filtered = [p for p in positions if p not in ("Util", "BN", "IL", "IL+", "NA", "DL")]
         if not filtered:
-            return "batter"
+            return PlayerType.BATTER
         if all(p in _PITCHING_POSITIONS for p in filtered):
-            return "pitcher"
-        return "batter"
+            return PlayerType.PITCHER
+        return PlayerType.BATTER

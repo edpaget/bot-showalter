@@ -2,6 +2,7 @@ from typing import TYPE_CHECKING
 
 from fantasy_baseball_manager.db.pool import SingleConnectionProvider
 from fantasy_baseball_manager.domain.adp import ADP
+from fantasy_baseball_manager.domain.identity import PlayerType
 from fantasy_baseball_manager.domain.valuation import Valuation
 from fantasy_baseball_manager.repos.adp_repo import SqliteADPRepo
 from fantasy_baseball_manager.repos.player_repo import SqlitePlayerRepo
@@ -19,7 +20,7 @@ def _seed_valuation(
     season: int = 2026,
     system: str = "zar",
     version: str = "1.0",
-    player_type: str = "batter",
+    player_type: PlayerType = PlayerType.BATTER,
     position: str = "OF",
     value: float = 25.0,
     rank: int = 1,
@@ -177,13 +178,13 @@ class TestFilterByPlayerType:
     def test_only_batters(self, conn: sqlite3.Connection) -> None:
         pid_bat = seed_player(conn, name_first="Juan", name_last="Soto", mlbam_id=665742)
         pid_pit = seed_player(conn, name_first="Gerrit", name_last="Cole", mlbam_id=543037)
-        _seed_valuation(conn, pid_bat, rank=1, value=40.0, player_type="batter")
-        _seed_valuation(conn, pid_pit, rank=2, value=30.0, player_type="pitcher", position="SP")
+        _seed_valuation(conn, pid_bat, rank=1, value=40.0, player_type=PlayerType.BATTER)
+        _seed_valuation(conn, pid_pit, rank=2, value=30.0, player_type=PlayerType.PITCHER, position="SP")
         _seed_adp(conn, pid_bat, overall_pick=5.0, rank=5, positions="OF")
         _seed_adp(conn, pid_pit, overall_pick=10.0, rank=10, positions="SP")
 
         svc = _make_service(conn)
-        report = svc.compute_value_over_adp(2026, "zar", "1.0", player_type="batter")
+        report = svc.compute_value_over_adp(2026, "zar", "1.0", player_type=PlayerType.BATTER)
 
         assert report.n_matched == 1
         assert report.buy_targets[0].player_type == "batter" or report.avoid_list[0].player_type == "batter"
@@ -194,13 +195,13 @@ class TestFilterByPlayerType:
     def test_only_pitchers(self, conn: sqlite3.Connection) -> None:
         pid_bat = seed_player(conn, name_first="Juan", name_last="Soto", mlbam_id=665742)
         pid_pit = seed_player(conn, name_first="Gerrit", name_last="Cole", mlbam_id=543037)
-        _seed_valuation(conn, pid_bat, rank=1, value=40.0, player_type="batter")
-        _seed_valuation(conn, pid_pit, rank=2, value=30.0, player_type="pitcher", position="SP")
+        _seed_valuation(conn, pid_bat, rank=1, value=40.0, player_type=PlayerType.BATTER)
+        _seed_valuation(conn, pid_pit, rank=2, value=30.0, player_type=PlayerType.PITCHER, position="SP")
         _seed_adp(conn, pid_bat, overall_pick=5.0, rank=5, positions="OF")
         _seed_adp(conn, pid_pit, overall_pick=10.0, rank=10, positions="SP")
 
         svc = _make_service(conn)
-        report = svc.compute_value_over_adp(2026, "zar", "1.0", player_type="pitcher")
+        report = svc.compute_value_over_adp(2026, "zar", "1.0", player_type=PlayerType.PITCHER)
 
         assert report.n_matched == 1
         all_entries = report.buy_targets + report.avoid_list + report.unranked_valuable
@@ -317,7 +318,7 @@ class TestTwoWayPlayer:
     def test_picks_lowest_rank_adp(self, conn: sqlite3.Connection) -> None:
         """Ohtani has batter and pitcher ADP entries; use lowest overall_pick."""
         pid = seed_player(conn, name_first="Shohei", name_last="Ohtani", mlbam_id=660271)
-        _seed_valuation(conn, pid, rank=5, value=50.0, player_type="batter")
+        _seed_valuation(conn, pid, rank=5, value=50.0, player_type=PlayerType.BATTER)
         # Batter ADP: pick 2, rank 2 (better)
         _seed_adp(conn, pid, overall_pick=2.0, rank=2, positions="DH")
         # Pitcher ADP: pick 25, rank 25
@@ -336,14 +337,14 @@ class TestTwoWayPlayer:
     def test_two_way_player_type_filter_picks_matching(self, conn: sqlite3.Connection) -> None:
         """When filtering by player_type, pick the ADP entry matching that type."""
         pid = seed_player(conn, name_first="Shohei", name_last="Ohtani", mlbam_id=660271)
-        _seed_valuation(conn, pid, rank=3, value=35.0, player_type="pitcher", position="SP")
+        _seed_valuation(conn, pid, rank=3, value=35.0, player_type=PlayerType.PITCHER, position="SP")
         # Batter ADP: pick 1
         _seed_adp(conn, pid, overall_pick=1.0, rank=1, positions="DH")
         # Pitcher ADP: pick 25
         _seed_adp(conn, pid, overall_pick=25.0, rank=25, positions="SP")
 
         svc = _make_service(conn)
-        report = svc.compute_value_over_adp(2026, "zar", "1.0", player_type="pitcher")
+        report = svc.compute_value_over_adp(2026, "zar", "1.0", player_type=PlayerType.PITCHER)
 
         assert report.n_matched == 1
         all_entries = report.buy_targets + report.avoid_list

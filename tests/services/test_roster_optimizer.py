@@ -1,3 +1,4 @@
+from fantasy_baseball_manager.domain.identity import PlayerType
 from fantasy_baseball_manager.domain.league_settings import (
     CategoryConfig,
     Direction,
@@ -43,7 +44,7 @@ def _league(
     )
 
 
-def _valuation(player_id: int, position: str, value: float, player_type: str = "batter") -> Valuation:
+def _valuation(player_id: int, position: str, value: float, player_type: PlayerType = PlayerType.BATTER) -> Valuation:
     return Valuation(
         player_id=player_id,
         season=2025,
@@ -104,13 +105,13 @@ def _make_valuations() -> tuple[list[Valuation], dict[int, str]]:
         (12.0, "SP D"),
         (5.0, "SP E"),
     ]:
-        valuations.append(_valuation(pid, "sp", val, player_type="pitcher"))
+        valuations.append(_valuation(pid, "sp", val, player_type=PlayerType.PITCHER))
         names[pid] = name
         pid += 1
 
     # RP: 4 players
     for val, name in [(22.0, "RP A"), (14.0, "RP B"), (7.0, "RP C"), (2.0, "RP D")]:
-        valuations.append(_valuation(pid, "rp", val, player_type="pitcher"))
+        valuations.append(_valuation(pid, "rp", val, player_type=PlayerType.PITCHER))
         names[pid] = name
         pid += 1
 
@@ -254,7 +255,7 @@ def _make_deep_valuations() -> tuple[list[Valuation], dict[int, str]]:
     for pos, (top_val, dropoff) in pitcher_specs.items():
         for i in range(30):
             val = top_val - i * dropoff
-            valuations.append(_valuation(pid, pos, max(val, 1.0), player_type="pitcher"))
+            valuations.append(_valuation(pid, pos, max(val, 1.0), player_type=PlayerType.PITCHER))
             names[pid] = f"{pos.upper()} {i + 1}"
             pid += 1
 
@@ -439,7 +440,7 @@ def _sim_league() -> LeagueSettings:
 
 
 def _sim_valuation(player_id: int, position: str, value: float) -> Valuation:
-    player_type = "pitcher" if position in ("SP", "RP") else "batter"
+    player_type = PlayerType.PITCHER if position in ("SP", "RP") else PlayerType.BATTER
     return Valuation(
         player_id=player_id,
         season=2025,

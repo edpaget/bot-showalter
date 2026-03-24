@@ -2,6 +2,7 @@ from typing import TYPE_CHECKING
 
 from fantasy_baseball_manager.analysis_container import AnalysisContainer
 from fantasy_baseball_manager.db.pool import SingleConnectionProvider
+from fantasy_baseball_manager.domain.identity import PlayerType
 from fantasy_baseball_manager.domain.valuation import Valuation
 from fantasy_baseball_manager.repos.valuation_repo import SqliteValuationRepo
 from fantasy_baseball_manager.tools.valuation_tools import create_get_rankings_tool, create_lookup_valuations_tool
@@ -17,7 +18,7 @@ def _seed_valuation(
     season: int = 2025,
     system: str = "zar",
     version: str = "v1.0",
-    player_type: str = "batter",
+    player_type: PlayerType = PlayerType.BATTER,
     position: str = "OF",
     value: float = 42.50,
     rank: int = 1,

@@ -2,6 +2,7 @@ import pytest
 
 from fantasy_baseball_manager.domain.draft_board import DraftBoardRow
 from fantasy_baseball_manager.domain.draft_report import DraftReport
+from fantasy_baseball_manager.domain.identity import PlayerType
 from fantasy_baseball_manager.services.draft_report import (
     draft_report,
 )
@@ -19,7 +20,7 @@ def _player(
     position: str,
     value: float,
     *,
-    player_type: str = "batter",
+    player_type: PlayerType = PlayerType.BATTER,
     z_scores: dict[str, float] | None = None,
     adp_rank: int | None = None,
     adp_overall: float | None = None,
@@ -44,9 +45,9 @@ PLAYERS = [
     _player(3, "Judge", "OF", 40.0, z_scores={"HR": 4.0, "AVG": -1.0}),
     _player(4, "Acuna", "OF", 35.0, z_scores={"HR": 1.5, "AVG": 1.5}),
     _player(5, "Soto", "OF", 30.0, z_scores={"HR": 2.5, "AVG": 0.5}),
-    _player(6, "Cole", "SP", 42.0, z_scores={"ERA": 3.0, "K": 2.0}, player_type="pitcher"),
-    _player(7, "Burnes", "SP", 38.0, z_scores={"ERA": 2.5, "K": 1.5}, player_type="pitcher"),
-    _player(8, "Alcantara", "SP", 20.0, z_scores={"ERA": 1.0, "K": 0.5}, player_type="pitcher"),
+    _player(6, "Cole", "SP", 42.0, z_scores={"ERA": 3.0, "K": 2.0}, player_type=PlayerType.PITCHER),
+    _player(7, "Burnes", "SP", 38.0, z_scores={"ERA": 2.5, "K": 1.5}, player_type=PlayerType.PITCHER),
+    _player(8, "Alcantara", "SP", 20.0, z_scores={"ERA": 1.0, "K": 0.5}, player_type=PlayerType.PITCHER),
 ]
 
 
@@ -137,9 +138,9 @@ class TestComputeOptimalValue:
     def test_pitcher_flex(self) -> None:
         """Pitcher can fill P flex slot."""
         pool = [
-            _player(1, "A", "SP", 50.0, player_type="pitcher"),
-            _player(2, "B", "SP", 40.0, player_type="pitcher"),
-            _player(3, "C", "RP", 30.0, player_type="pitcher"),
+            _player(1, "A", "SP", 50.0, player_type=PlayerType.PITCHER),
+            _player(2, "B", "SP", 40.0, player_type=PlayerType.PITCHER),
+            _player(3, "C", "RP", 30.0, player_type=PlayerType.PITCHER),
         ]
         config = DraftConfig(
             teams=2,

@@ -3,6 +3,7 @@ from typing import TYPE_CHECKING
 from fantasy_baseball_manager.db.pool import SingleConnectionProvider
 from fantasy_baseball_manager.domain.batting_stats import BattingStats
 from fantasy_baseball_manager.domain.evaluation import StratifiedComparisonResult
+from fantasy_baseball_manager.domain.identity import PlayerType
 from fantasy_baseball_manager.domain.pitching_stats import PitchingStats
 from fantasy_baseball_manager.domain.projection import Projection
 from fantasy_baseball_manager.domain.pt_normalization import ConsensusLookup
@@ -42,7 +43,7 @@ def _seed_batter_projection(
             season=season,
             system=system,
             version=version,
-            player_type="batter",
+            player_type=PlayerType.BATTER,
             stat_json={"hr": hr, "avg": avg},
             source_type=source_type,
         )
@@ -87,7 +88,7 @@ def _seed_pitcher_projection(
             season=season,
             system=system,
             version=version,
-            player_type="pitcher",
+            player_type=PlayerType.PITCHER,
             stat_json={"era": era, "so": so},
             source_type="third_party",
         )
@@ -649,7 +650,7 @@ class TestEvaluateWithNormalizePt:
                 season=2025,
                 system="steamer",
                 version="2025.1",
-                player_type="batter",
+                player_type=PlayerType.BATTER,
                 stat_json={"hr": 30, "pa": 600, "avg": 0.280},
                 source_type="third_party",
             )
@@ -680,7 +681,7 @@ class TestEvaluateWithNormalizePt:
                 season=2025,
                 system="steamer",
                 version="2025.1",
-                player_type="batter",
+                player_type=PlayerType.BATTER,
                 stat_json={"hr": 30, "pa": 600, "avg": 0.280},
                 source_type="third_party",
             )
@@ -704,7 +705,7 @@ class TestEvaluateWithNormalizePt:
                     season=2025,
                     system=system,
                     version="2025.1",
-                    player_type="batter",
+                    player_type=PlayerType.BATTER,
                     stat_json={"hr": 30, "pa": 600, "avg": 0.280},
                     source_type="third_party",
                 )

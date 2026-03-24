@@ -210,7 +210,7 @@ class DraftPickType:
             team=pick.team,
             player_id=pick.player_id,
             player_name=pick.player_name,
-            player_type=pick.player_type,
+            player_type=pick.player_type.value if pick.player_type else "",
             position=position_from_raw(pick.position),
             price=pick.price,
         )
@@ -383,7 +383,7 @@ class RecommendationType:
             value=rec.value,
             score=rec.score,
             reason=rec.reason,
-            player_type=rec.player_type,
+            player_type=rec.player_type.value if rec.player_type else "",
         )
 
 
@@ -469,7 +469,7 @@ class FallingPlayerType:
             value=fp.value,
             value_rank=fp.value_rank,
             arbitrage_score=fp.arbitrage_score,
-            player_type=fp.player_type,
+            player_type=fp.player_type.value if fp.player_type else "",
         )
 
 

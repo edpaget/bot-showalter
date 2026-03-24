@@ -2,6 +2,7 @@ import pytest
 
 from fantasy_baseball_manager.domain.adp import ADP
 from fantasy_baseball_manager.domain.draft_board import DraftBoard, DraftBoardRow
+from fantasy_baseball_manager.domain.identity import PlayerType
 from fantasy_baseball_manager.domain.keeper import KeeperCost
 from fantasy_baseball_manager.domain.league_settings import (
     CategoryConfig,
@@ -72,7 +73,7 @@ def _valuation(player_id: int, value: float) -> Valuation:
         version="v1",
         projection_system="steamer",
         projection_version="v1",
-        player_type="batter",
+        player_type=PlayerType.BATTER,
         position="OF",
         value=value,
         rank=1,
@@ -241,7 +242,7 @@ class TestComputePickValueCurve:
                 version="v1",
                 projection_system="steamer",
                 projection_version="v1",
-                player_type="pitcher",
+                player_type=PlayerType.PITCHER,
                 position="SP",
                 value=20.0,
                 rank=1,
@@ -354,7 +355,7 @@ def _board_row(player_id: int, name: str, rank: int, position: str, value: float
         player_id=player_id,
         player_name=name,
         rank=rank,
-        player_type="batter",
+        player_type=PlayerType.BATTER,
         position=position,
         value=value,
         category_z_scores={},
@@ -550,7 +551,7 @@ def _cascade_board() -> DraftBoard:
                 player_id=pid,
                 player_name=f"P-{i + 1}",
                 rank=pid,
-                player_type="pitcher",
+                player_type=PlayerType.PITCHER,
                 position="SP",
                 value=40.0 - i * 3,
                 category_z_scores={},

@@ -3,6 +3,7 @@
 import random
 
 from fantasy_baseball_manager.domain.draft_board import DraftBoard, DraftBoardRow
+from fantasy_baseball_manager.domain.identity import PlayerType
 from fantasy_baseball_manager.domain.league_settings import (
     CategoryConfig,
     Direction,
@@ -52,7 +53,7 @@ def _make_row(
         player_id=player_id,
         player_name=name,
         rank=player_id,
-        player_type="B" if position not in ("SP", "RP") else "P",
+        player_type=PlayerType.BATTER if position not in ("SP", "RP") else PlayerType.PITCHER,
         position=position,
         value=value,
         category_z_scores={},
@@ -133,7 +134,7 @@ def _12_team_board() -> DraftBoard:
     pid = 1
     for i in range(360):
         pos = positions[i % len(positions)]
-        ptype = "B" if pos not in ("SP", "RP") else "P"
+        ptype = PlayerType.BATTER if pos not in ("SP", "RP") else PlayerType.PITCHER
         rows.append(
             DraftBoardRow(
                 player_id=pid,
@@ -417,7 +418,7 @@ def _ac_board() -> DraftBoard:
     pid = 1
     for i in range(30):
         pos = non_c_positions[i % len(non_c_positions)]
-        ptype = "B" if pos != "SP" else "P"
+        ptype = PlayerType.BATTER if pos != "SP" else PlayerType.PITCHER
         rows.append(
             DraftBoardRow(
                 player_id=pid,
@@ -438,7 +439,7 @@ def _ac_board() -> DraftBoard:
                 player_id=pid,
                 player_name=f"Catcher {pid}",
                 rank=pid,
-                player_type="B",
+                player_type=PlayerType.BATTER,
                 position="C",
                 value=5.0 - i * 0.5,
                 category_z_scores={},
@@ -491,7 +492,7 @@ class TestCompositeBotCategoryNeed:
                 player_id=1,
                 player_name="HR Star",
                 rank=1,
-                player_type="B",
+                player_type=PlayerType.BATTER,
                 position="1B",
                 value=20.0,
                 category_z_scores={"HR": 3.0, "SB": 0.0},
@@ -501,7 +502,7 @@ class TestCompositeBotCategoryNeed:
                 player_id=2,
                 player_name="SB Star",
                 rank=2,
-                player_type="B",
+                player_type=PlayerType.BATTER,
                 position="OF",
                 value=19.0,
                 category_z_scores={"HR": 0.0, "SB": 3.0},
@@ -511,7 +512,7 @@ class TestCompositeBotCategoryNeed:
                 player_id=3,
                 player_name="Balanced",
                 rank=3,
-                player_type="B",
+                player_type=PlayerType.BATTER,
                 position="C",
                 value=18.0,
                 category_z_scores={"HR": 1.0, "SB": 1.0},
@@ -557,7 +558,7 @@ class TestCompositeBotComposability:
                 player_id=1,
                 player_name="1B Target",
                 rank=1,
-                player_type="B",
+                player_type=PlayerType.BATTER,
                 position="1B",
                 value=20.0,
                 category_z_scores={},
@@ -568,7 +569,7 @@ class TestCompositeBotComposability:
                 player_id=2,
                 player_name="Tier 1 C",
                 rank=2,
-                player_type="B",
+                player_type=PlayerType.BATTER,
                 position="C",
                 value=25.0,
                 category_z_scores={},
@@ -579,7 +580,7 @@ class TestCompositeBotComposability:
                 player_id=3,
                 player_name="Good OF",
                 rank=3,
-                player_type="B",
+                player_type=PlayerType.BATTER,
                 position="OF",
                 value=22.0,
                 category_z_scores={},

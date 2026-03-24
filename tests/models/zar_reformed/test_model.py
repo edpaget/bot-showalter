@@ -1,5 +1,6 @@
 import dataclasses
 
+from fantasy_baseball_manager.domain.identity import PlayerType
 from fantasy_baseball_manager.domain.league_settings import (
     CategoryConfig,
     Direction,
@@ -50,7 +51,7 @@ def _build_projections() -> list[Projection]:
             season=2025,
             system="steamer",
             version="v1",
-            player_type="batter",
+            player_type=PlayerType.BATTER,
             stat_json={"pa": 600, "hr": 40.0, "r": 100.0},
         ),
         Projection(
@@ -58,7 +59,7 @@ def _build_projections() -> list[Projection]:
             season=2025,
             system="steamer",
             version="v1",
-            player_type="batter",
+            player_type=PlayerType.BATTER,
             stat_json={"pa": 550, "hr": 20.0, "r": 70.0},
         ),
         Projection(
@@ -66,7 +67,7 @@ def _build_projections() -> list[Projection]:
             season=2025,
             system="steamer",
             version="v1",
-            player_type="batter",
+            player_type=PlayerType.BATTER,
             stat_json={"pa": 570, "hr": 10.0, "r": 50.0},
         ),
         # Starter with high IP, no saves
@@ -75,7 +76,7 @@ def _build_projections() -> list[Projection]:
             season=2025,
             system="steamer",
             version="v1",
-            player_type="pitcher",
+            player_type=PlayerType.PITCHER,
             stat_json={"ip": 200, "w": 15.0, "sv": 0.0, "hld": 0.0},
         ),
         # Reliever with moderate IP (65), high saves
@@ -84,7 +85,7 @@ def _build_projections() -> list[Projection]:
             season=2025,
             system="steamer",
             version="v1",
-            player_type="pitcher",
+            player_type=PlayerType.PITCHER,
             stat_json={"ip": 65, "w": 4.0, "sv": 35.0, "hld": 5.0},
         ),
         # Reliever with low IP (40), some saves — should be excluded by min_ip=60
@@ -93,7 +94,7 @@ def _build_projections() -> list[Projection]:
             season=2025,
             system="steamer",
             version="v1",
-            player_type="pitcher",
+            player_type=PlayerType.PITCHER,
             stat_json={"ip": 40, "w": 2.0, "sv": 15.0, "hld": 10.0},
         ),
     ]

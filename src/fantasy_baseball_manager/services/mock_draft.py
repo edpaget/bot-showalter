@@ -11,6 +11,7 @@ from fantasy_baseball_manager.domain import (
     DraftPick,
     DraftResult,
     PlayerDraftFrequency,
+    PlayerType,
     SimulationSummary,
     StrategyComparison,
 )
@@ -80,14 +81,14 @@ def _assign_position(player: DraftBoardRow, needs: dict[str, int]) -> str | None
         return pos
 
     # Check composite slots (MI, CI)
-    if player.player_type == "B":
+    if player.player_type == PlayerType.BATTER:
         for composite in _COMPOSITE_SLOTS.get(pos, []):
             if composite in needs and needs[composite] > 0:
                 return composite
         # Flex: UTIL for batters
         if "UTIL" in needs and needs["UTIL"] > 0:
             return "UTIL"
-    elif player.player_type == "P":
+    elif player.player_type == PlayerType.PITCHER:
         if "P" in needs and needs["P"] > 0:
             return "P"
 

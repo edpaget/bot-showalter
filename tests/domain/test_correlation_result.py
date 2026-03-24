@@ -7,6 +7,7 @@ from fantasy_baseball_manager.domain.correlation_result import (
     SeasonCorrelationResult,
     TargetCorrelation,
 )
+from fantasy_baseball_manager.domain.identity import PlayerType
 
 
 class TestTargetCorrelation:
@@ -38,7 +39,7 @@ class TestSeasonCorrelationResult:
         result = SeasonCorrelationResult(
             column_spec="launch_speed",
             season=2023,
-            player_type="batter",
+            player_type=PlayerType.BATTER,
             correlations=(corr,),
         )
         assert result.column_spec == "launch_speed"
@@ -51,7 +52,7 @@ class TestSeasonCorrelationResult:
         result = SeasonCorrelationResult(
             column_spec="launch_speed",
             season=2023,
-            player_type="batter",
+            player_type=PlayerType.BATTER,
             correlations=(),
         )
         with pytest.raises(AttributeError):
@@ -62,7 +63,7 @@ class TestPooledCorrelationResult:
     def test_construction(self) -> None:
         result = PooledCorrelationResult(
             column_spec="launch_speed",
-            player_type="batter",
+            player_type=PlayerType.BATTER,
             correlations=(),
         )
         assert result.column_spec == "launch_speed"
@@ -74,12 +75,12 @@ class TestCorrelationScanResult:
     def test_construction(self) -> None:
         pooled = PooledCorrelationResult(
             column_spec="launch_speed",
-            player_type="batter",
+            player_type=PlayerType.BATTER,
             correlations=(),
         )
         result = CorrelationScanResult(
             column_spec="launch_speed",
-            player_type="batter",
+            player_type=PlayerType.BATTER,
             per_season=(),
             pooled=pooled,
         )
@@ -89,8 +90,8 @@ class TestCorrelationScanResult:
         assert result.pooled is pooled
 
     def test_frozen(self) -> None:
-        pooled = PooledCorrelationResult(column_spec="x", player_type="batter", correlations=())
-        result = CorrelationScanResult(column_spec="x", player_type="batter", per_season=(), pooled=pooled)
+        pooled = PooledCorrelationResult(column_spec="x", player_type=PlayerType.BATTER, correlations=())
+        result = CorrelationScanResult(column_spec="x", player_type=PlayerType.BATTER, per_season=(), pooled=pooled)
         with pytest.raises(AttributeError):
             result.column_spec = "y"  # type: ignore[misc]
 

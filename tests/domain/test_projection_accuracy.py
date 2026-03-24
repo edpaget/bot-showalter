@@ -1,6 +1,7 @@
 import pytest
 
 from fantasy_baseball_manager.domain.batting_stats import BattingStats
+from fantasy_baseball_manager.domain.identity import PlayerType
 from fantasy_baseball_manager.domain.pitching_stats import PitchingStats
 from fantasy_baseball_manager.domain.projection import Projection
 from fantasy_baseball_manager.domain.projection_accuracy import (
@@ -26,7 +27,7 @@ def _batting_projection(*, player_id: int = 1, **stat_overrides: object) -> Proj
         season=2025,
         system="steamer",
         version="2025.1",
-        player_type="batter",
+        player_type=PlayerType.BATTER,
         stat_json=stats,
     )
 
@@ -105,7 +106,7 @@ class TestCompareToBattingActuals:
             season=2025,
             system="steamer",
             version="2025.1",
-            player_type="batter",
+            player_type=PlayerType.BATTER,
             stat_json={},
         )
         actual = _batting_actuals()
@@ -128,7 +129,7 @@ class TestCompareToPitchingActuals:
             season=2025,
             system="steamer",
             version="2025.1",
-            player_type="pitcher",
+            player_type=PlayerType.PITCHER,
             stat_json={"era": 3.20, "so": 200, "w": 12},
         )
         actual = PitchingStats(

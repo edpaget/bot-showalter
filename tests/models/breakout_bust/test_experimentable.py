@@ -4,6 +4,7 @@ from typing import Any
 from unittest.mock import MagicMock
 
 from fantasy_baseball_manager.domain import LabeledSeason, OutcomeLabel
+from fantasy_baseball_manager.domain.identity import PlayerType
 from fantasy_baseball_manager.domain.model_protocol import Experimentable, TrainingBackend
 from fantasy_baseball_manager.models.breakout_bust.model import BreakoutBustModel
 
@@ -55,7 +56,7 @@ class TestBreakoutBustExperimentable:
                 player_id=1,
                 season=2023,
                 label=OutcomeLabel.BREAKOUT,
-                player_type="batter",
+                player_type=PlayerType.BATTER,
                 adp_rank=10,
                 adp_pick=10,
                 actual_value_rank=5,
@@ -65,7 +66,7 @@ class TestBreakoutBustExperimentable:
                 player_id=2,
                 season=2024,
                 label=OutcomeLabel.NEUTRAL,
-                player_type="batter",
+                player_type=PlayerType.BATTER,
                 adp_rank=20,
                 adp_pick=20,
                 actual_value_rank=20,

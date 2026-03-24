@@ -6,6 +6,7 @@ from fantasy_baseball_manager.cli.app import app
 from fantasy_baseball_manager.db.connection import create_connection
 from fantasy_baseball_manager.db.pool import SingleConnectionProvider
 from fantasy_baseball_manager.domain.batting_stats import BattingStats
+from fantasy_baseball_manager.domain.identity import PlayerType
 from fantasy_baseball_manager.domain.league_settings import (
     CategoryConfig,
     Direction,
@@ -35,7 +36,7 @@ def _seed_valuation_data(
     conn: sqlite3.Connection,
     system: str = "zar",
     version: str = "1.0",
-    player_type: str = "batter",
+    player_type: PlayerType = PlayerType.BATTER,
 ) -> None:
     """Seed player and valuation data for valuations commands."""
     player_repo = SqlitePlayerRepo(SingleConnectionProvider(conn))
@@ -122,7 +123,7 @@ class TestValuationsRankingsCommand:
 
     def test_rankings_filter_by_player_type(self, monkeypatch: pytest.MonkeyPatch) -> None:
         db_conn = create_connection(":memory:")
-        _seed_valuation_data(db_conn, player_type="batter")
+        _seed_valuation_data(db_conn, player_type=PlayerType.BATTER)
         monkeypatch.setattr("fantasy_baseball_manager.cli.factory.create_connection", lambda path: db_conn)
 
         result = runner.invoke(
@@ -162,7 +163,7 @@ def _seed_valuation_eval_data(conn: sqlite3.Connection) -> None:
             version="production",
             projection_system="steamer",
             projection_version="v1",
-            player_type="batter",
+            player_type=PlayerType.BATTER,
             position="of",
             value=40.0,
             rank=1,
@@ -177,7 +178,7 @@ def _seed_valuation_eval_data(conn: sqlite3.Connection) -> None:
             version="production",
             projection_system="steamer",
             projection_version="v1",
-            player_type="batter",
+            player_type=PlayerType.BATTER,
             position="util",
             value=30.0,
             rank=2,
@@ -192,7 +193,7 @@ def _seed_valuation_eval_data(conn: sqlite3.Connection) -> None:
             version="production",
             projection_system="steamer",
             projection_version="v1",
-            player_type="pitcher",
+            player_type=PlayerType.PITCHER,
             position="p",
             value=25.0,
             rank=3,

@@ -1,6 +1,6 @@
 from typing import Any
 
-from fantasy_baseball_manager.domain import Projection
+from fantasy_baseball_manager.domain import PlayerType, Projection
 from fantasy_baseball_manager.models.stat_utils import (
     best_rows_per_player,
     compute_batter_rates,
@@ -115,6 +115,6 @@ def composite_projection_to_domain(
         season=projected_season,
         system=system,
         version=version,
-        player_type=player_type,
+        player_type=PlayerType(player_type),
         stat_json=stat_json,
     )

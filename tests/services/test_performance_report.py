@@ -4,6 +4,7 @@ import pytest
 
 from fantasy_baseball_manager.db.pool import SingleConnectionProvider
 from fantasy_baseball_manager.domain.batting_stats import BattingStats
+from fantasy_baseball_manager.domain.identity import PlayerType
 from fantasy_baseball_manager.domain.pitching_stats import PitchingStats
 from fantasy_baseball_manager.domain.projection import Projection
 from fantasy_baseball_manager.repos.batting_stats_repo import SqliteBattingStatsRepo
@@ -42,7 +43,7 @@ class TestComputeDeltasBatterDirectStats:
                 season=2025,
                 system="test",
                 version="v1",
-                player_type="batter",
+                player_type=PlayerType.BATTER,
                 stat_json={"avg": 0.280, "obp": 0.350},
             )
         )
@@ -52,7 +53,7 @@ class TestComputeDeltasBatterDirectStats:
                 season=2025,
                 system="test",
                 version="v1",
-                player_type="batter",
+                player_type=PlayerType.BATTER,
                 stat_json={"avg": 0.300, "obp": 0.370},
             )
         )
@@ -84,7 +85,7 @@ class TestComputeDeltasPitcherDirectStats:
                 season=2025,
                 system="test",
                 version="v1",
-                player_type="pitcher",
+                player_type=PlayerType.PITCHER,
                 stat_json={"era": 3.50, "fip": 3.20},
             )
         )
@@ -94,7 +95,7 @@ class TestComputeDeltasPitcherDirectStats:
                 season=2025,
                 system="test",
                 version="v1",
-                player_type="pitcher",
+                player_type=PlayerType.PITCHER,
                 stat_json={"era": 4.00, "fip": 3.80},
             )
         )
@@ -118,7 +119,7 @@ class TestComputeDeltasDerivedBatterIso:
                 season=2025,
                 system="test",
                 version="v1",
-                player_type="batter",
+                player_type=PlayerType.BATTER,
                 stat_json={"iso": 0.200},
             )
         )
@@ -143,7 +144,7 @@ class TestComputeDeltasDerivedBatterBabip:
                 season=2025,
                 system="test",
                 version="v1",
-                player_type="batter",
+                player_type=PlayerType.BATTER,
                 stat_json={"babip": 0.300},
             )
         )
@@ -180,7 +181,7 @@ class TestComputeDeltasDerivedPitcherHrPer9:
                 season=2025,
                 system="test",
                 version="v1",
-                player_type="pitcher",
+                player_type=PlayerType.PITCHER,
                 stat_json={"hr_per_9": 1.00},
             )
         )
@@ -205,7 +206,7 @@ class TestComputeDeltasDerivedPitcherBabip:
                 season=2025,
                 system="test",
                 version="v1",
-                player_type="pitcher",
+                player_type=PlayerType.PITCHER,
                 stat_json={"babip": 0.290},
             )
         )
@@ -242,7 +243,7 @@ class TestComputeDeltasSkipsMissingProjection:
                 season=2025,
                 system="test",
                 version="v1",
-                player_type="batter",
+                player_type=PlayerType.BATTER,
                 stat_json={"avg": 0.280},
             )
         )
@@ -267,7 +268,7 @@ class TestComputeDeltasSkipsMissingActual:
                 season=2025,
                 system="test",
                 version="v1",
-                player_type="batter",
+                player_type=PlayerType.BATTER,
                 stat_json={"avg": 0.280},
             )
         )
@@ -277,7 +278,7 @@ class TestComputeDeltasSkipsMissingActual:
                 season=2025,
                 system="test",
                 version="v1",
-                player_type="batter",
+                player_type=PlayerType.BATTER,
                 stat_json={"avg": 0.300},
             )
         )
@@ -304,7 +305,7 @@ class TestComputeDeltasPercentileRanking:
                     season=2025,
                     system="test",
                     version="v1",
-                    player_type="batter",
+                    player_type=PlayerType.BATTER,
                     stat_json={"avg": 0.280},
                 )
             )
@@ -337,7 +338,7 @@ class TestComputeDeltasInvertedStatPerformanceDelta:
                 season=2025,
                 system="test",
                 version="v1",
-                player_type="pitcher",
+                player_type=PlayerType.PITCHER,
                 stat_json={"era": 4.00},
             )
         )
@@ -347,7 +348,7 @@ class TestComputeDeltasInvertedStatPerformanceDelta:
                 season=2025,
                 system="test",
                 version="v1",
-                player_type="pitcher",
+                player_type=PlayerType.PITCHER,
                 stat_json={"era": 3.50},
             )
         )
@@ -380,7 +381,7 @@ class TestComputeDeltasFiltersByStat:
                 season=2025,
                 system="test",
                 version="v1",
-                player_type="pitcher",
+                player_type=PlayerType.PITCHER,
                 stat_json={"era": 3.50, "fip": 3.20, "whip": 1.10},
             )
         )
@@ -414,7 +415,7 @@ class TestMinPaFiltersBatters:
                     season=2025,
                     system="test",
                     version="v1",
-                    player_type="batter",
+                    player_type=PlayerType.BATTER,
                     stat_json={"avg": 0.280},
                 )
             )
@@ -440,7 +441,7 @@ class TestMinPaFiltersLowIpPitchers:
                     season=2025,
                     system="test",
                     version="v1",
-                    player_type="pitcher",
+                    player_type=PlayerType.PITCHER,
                     stat_json={"era": 3.50},
                 )
             )
@@ -464,7 +465,7 @@ class TestUsesPitcherTargetsWhenStatsIsNone:
                 season=2025,
                 system="test",
                 version="v1",
-                player_type="pitcher",
+                player_type=PlayerType.PITCHER,
                 stat_json={
                     "era": 3.50,
                     "fip": 3.20,
@@ -512,7 +513,7 @@ class TestIsoNoneWhenSlgMissing:
                 season=2025,
                 system="test",
                 version="v1",
-                player_type="batter",
+                player_type=PlayerType.BATTER,
                 stat_json={"iso": 0.200},
             )
         )
@@ -535,7 +536,7 @@ class TestBabipNoneWhenDenomIsZero:
                 season=2025,
                 system="test",
                 version="v1",
-                player_type="batter",
+                player_type=PlayerType.BATTER,
                 stat_json={"babip": 0.300},
             )
         )
@@ -558,7 +559,7 @@ class TestPitcherHrPer9NoneWhenIpIsZero:
                 season=2025,
                 system="test",
                 version="v1",
-                player_type="pitcher",
+                player_type=PlayerType.PITCHER,
                 stat_json={"hr_per_9": 1.00},
             )
         )
@@ -580,7 +581,7 @@ class TestPitcherBabipNoneWhenComponentsMissing:
                 season=2025,
                 system="test",
                 version="v1",
-                player_type="pitcher",
+                player_type=PlayerType.PITCHER,
                 stat_json={"babip": 0.290},
             )
         )
@@ -607,7 +608,7 @@ class TestMinPaNoneIncludesAll:
                     season=2025,
                     system="test",
                     version="v1",
-                    player_type="batter",
+                    player_type=PlayerType.BATTER,
                     stat_json={"avg": 0.280},
                 )
             )

@@ -8,6 +8,7 @@ from fantasy_baseball_manager.domain import (
     ADPAccuracyPlayer,
     ADPAccuracyReport,
     ADPAccuracyResult,
+    PlayerType,
     SystemAccuracyResult,
 )
 from fantasy_baseball_manager.models.zar.engine import compute_budget_split, run_zar_pipeline
@@ -214,7 +215,7 @@ class ADPAccuracyEvaluator:
                 ADPAccuracyPlayer(
                     player_id=adp.player_id,
                     player_name=name,
-                    player_type=player_type,
+                    player_type=PlayerType(player_type),
                     adp_rank=adp_rank,
                     actual_rank=actual_rank,
                     actual_value=round(actual_val, 2),

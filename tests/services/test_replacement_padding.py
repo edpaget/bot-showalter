@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import pytest
 
+from fantasy_baseball_manager.domain.identity import PlayerType
 from fantasy_baseball_manager.domain.projection import Projection
 from fantasy_baseball_manager.domain.replacement_profile import ReplacementProfile
 from fantasy_baseball_manager.services.replacement_padding import (
@@ -16,7 +17,7 @@ from fantasy_baseball_manager.services.replacement_padding import (
 
 def _make_projection(
     player_id: int,
-    player_type: str,
+    player_type: PlayerType,
     stat_json: dict,
     *,
     season: int = 2026,
@@ -124,10 +125,10 @@ class TestBlendStatLine:
 
 class TestBlendProjections:
     def test_applies_per_player(self) -> None:
-        p1 = _make_projection(1, "batter", {"hr": 40.0, "avg": 0.300, "pa": 600.0})
-        p2 = _make_projection(2, "batter", {"hr": 20.0, "avg": 0.280, "pa": 550.0})
+        p1 = _make_projection(1, PlayerType.BATTER, {"hr": 40.0, "avg": 0.300, "pa": 600.0})
+        p2 = _make_projection(2, PlayerType.BATTER, {"hr": 20.0, "avg": 0.280, "pa": 550.0})
         profiles = {
-            "OF": ReplacementProfile("OF", "batter", {"hr": 10.0, "avg": 0.250}),
+            "OF": ReplacementProfile("OF", PlayerType.BATTER, {"hr": 10.0, "avg": 0.250}),
         }
         injury_map = {1: 183 * 0.2, 2: 183 * 0.5}  # 20%, 50%
         position_map = {1: ["OF"], 2: ["OF"]}
@@ -137,10 +138,10 @@ class TestBlendProjections:
         assert result[1].stat_json["hr"] == pytest.approx(20 * 0.5 + 10 * 0.5)
 
     def test_skips_players_not_in_injury_map(self) -> None:
-        p1 = _make_projection(1, "batter", {"hr": 40.0, "pa": 600.0})
-        p2 = _make_projection(2, "batter", {"hr": 20.0, "pa": 550.0})
+        p1 = _make_projection(1, PlayerType.BATTER, {"hr": 40.0, "pa": 600.0})
+        p2 = _make_projection(2, PlayerType.BATTER, {"hr": 20.0, "pa": 550.0})
         profiles = {
-            "OF": ReplacementProfile("OF", "batter", {"hr": 10.0}),
+            "OF": ReplacementProfile("OF", PlayerType.BATTER, {"hr": 10.0}),
         }
         injury_map = {1: 36.6}  # only player 1
         position_map = {1: ["OF"], 2: ["OF"]}
@@ -149,10 +150,10 @@ class TestBlendProjections:
         assert result[1].stat_json == p2.stat_json  # unchanged
 
     def test_picks_correct_position_replacement(self) -> None:
-        p1 = _make_projection(1, "batter", {"hr": 30.0, "pa": 600.0})
+        p1 = _make_projection(1, PlayerType.BATTER, {"hr": 30.0, "pa": 600.0})
         profiles = {
-            "1B": ReplacementProfile("1B", "batter", {"hr": 15.0}),
-            "OF": ReplacementProfile("OF", "batter", {"hr": 8.0}),
+            "1B": ReplacementProfile("1B", PlayerType.BATTER, {"hr": 15.0}),
+            "OF": ReplacementProfile("OF", PlayerType.BATTER, {"hr": 8.0}),
         }
         injury_map = {1: 183 * 0.5}
         # First position is 1B → use 1B replacement
@@ -163,9 +164,9 @@ class TestBlendProjections:
 
     def test_falls_back_to_second_position(self) -> None:
         """If first position has no profile, use next available."""
-        p1 = _make_projection(1, "batter", {"hr": 30.0, "pa": 600.0})
+        p1 = _make_projection(1, PlayerType.BATTER, {"hr": 30.0, "pa": 600.0})
         profiles = {
-            "OF": ReplacementProfile("OF", "batter", {"hr": 8.0}),
+            "OF": ReplacementProfile("OF", PlayerType.BATTER, {"hr": 8.0}),
         }
         injury_map = {1: 183 * 0.5}
         position_map = {1: ["1B", "OF"]}  # 1B has no profile
@@ -174,15 +175,15 @@ class TestBlendProjections:
         assert result[0].stat_json["hr"] == pytest.approx(30 * 0.5 + 8 * 0.5)
 
     def test_empty_injury_map(self) -> None:
-        p1 = _make_projection(1, "batter", {"hr": 40.0, "pa": 600.0})
-        profiles = {"OF": ReplacementProfile("OF", "batter", {"hr": 10.0})}
+        p1 = _make_projection(1, PlayerType.BATTER, {"hr": 40.0, "pa": 600.0})
+        profiles = {"OF": ReplacementProfile("OF", PlayerType.BATTER, {"hr": 10.0})}
 
         result = blend_projections([p1], profiles, {}, {1: ["OF"]})
         assert result[0].stat_json == p1.stat_json
 
     def test_preserves_volume_stats(self) -> None:
-        p1 = _make_projection(1, "batter", {"hr": 30.0, "pa": 600.0, "ab": 550.0})
-        profiles = {"OF": ReplacementProfile("OF", "batter", {"hr": 10.0, "pa": 500.0, "ab": 450.0})}
+        p1 = _make_projection(1, PlayerType.BATTER, {"hr": 30.0, "pa": 600.0, "ab": 550.0})
+        profiles = {"OF": ReplacementProfile("OF", PlayerType.BATTER, {"hr": 10.0, "pa": 500.0, "ab": 450.0})}
         injury_map = {1: 183 * 0.3}
         position_map = {1: ["OF"]}
 

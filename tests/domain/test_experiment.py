@@ -5,6 +5,7 @@ from fantasy_baseball_manager.domain.experiment import (
     TargetExplorationResult,
     TargetResult,
 )
+from fantasy_baseball_manager.domain.identity import PlayerType
 
 
 class TestTargetResult:
@@ -30,7 +31,7 @@ class TestExperiment:
             timestamp="2026-03-01T12:00:00",
             hypothesis="adding barrel rate will improve SLG",
             model="statcast-gbm-preseason",
-            player_type="batter",
+            player_type=PlayerType.BATTER,
             feature_diff={"added": ["barrel_rate"], "removed": []},
             seasons={"train": [2021, 2022, 2023], "holdout": [2024]},
             params={"n_estimators": 500, "learning_rate": 0.05},
@@ -60,7 +61,7 @@ class TestExperiment:
             timestamp="2026-03-01T12:00:00",
             hypothesis="test",
             model="test-model",
-            player_type="batter",
+            player_type=PlayerType.BATTER,
             feature_diff={"added": [], "removed": []},
             seasons={"train": [2023], "holdout": [2024]},
             params={},
@@ -76,7 +77,7 @@ class TestExperiment:
             timestamp="2026-03-01T12:00:00",
             hypothesis="test",
             model="test-model",
-            player_type="batter",
+            player_type=PlayerType.BATTER,
             feature_diff={"added": [], "removed": []},
             seasons={"train": [2023], "holdout": [2024]},
             params={},
@@ -157,7 +158,7 @@ class TestExplorationSummary:
         )
         s = ExplorationSummary(
             model="statcast-gbm-preseason",
-            player_type="batter",
+            player_type=PlayerType.BATTER,
             total_experiments=10,
             features_tested=[feat],
             targets_explored=[tgt],
@@ -177,7 +178,7 @@ class TestExplorationSummary:
     def test_none_defaults(self) -> None:
         s = ExplorationSummary(
             model="m",
-            player_type="batter",
+            player_type=PlayerType.BATTER,
             total_experiments=0,
             features_tested=[],
             targets_explored=[],
@@ -190,7 +191,7 @@ class TestExplorationSummary:
     def test_frozen(self) -> None:
         s = ExplorationSummary(
             model="m",
-            player_type="batter",
+            player_type=PlayerType.BATTER,
             total_experiments=0,
             features_tested=[],
             targets_explored=[],

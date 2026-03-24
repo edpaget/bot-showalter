@@ -3,6 +3,10 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass, field
 from statistics import mean, median, quantiles
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from fantasy_baseball_manager.domain.identity import PlayerType
 
 
 @dataclass(frozen=True)
@@ -34,7 +38,7 @@ class MissPopulationSummary:
 @dataclass(frozen=True)
 class ErrorDecompositionReport:
     target: str
-    player_type: str
+    player_type: PlayerType
     season: int
     system: str
     version: str
@@ -148,7 +152,7 @@ class FeatureGap:
 @dataclass(frozen=True)
 class FeatureGapReport:
     target: str
-    player_type: str
+    player_type: PlayerType
     season: int
     system: str
     version: str
@@ -197,7 +201,7 @@ class CohortBias:
 @dataclass(frozen=True)
 class CohortBiasReport:
     target: str
-    player_type: str
+    player_type: PlayerType
     season: int
     system: str
     version: str

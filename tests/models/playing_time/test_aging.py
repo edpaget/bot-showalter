@@ -1,5 +1,6 @@
 import pytest
 
+from fantasy_baseball_manager.domain.identity import PlayerType
 from fantasy_baseball_manager.models.playing_time.aging import (
     AgingCurve,
     compute_age_pt_factor,
@@ -10,25 +11,25 @@ from fantasy_baseball_manager.models.playing_time.aging import (
 
 class TestComputeAgePtFactor:
     def test_factor_at_peak_is_one(self) -> None:
-        curve = AgingCurve(peak_age=27.0, improvement_rate=0.01, decline_rate=0.005, player_type="batter")
+        curve = AgingCurve(peak_age=27.0, improvement_rate=0.01, decline_rate=0.005, player_type=PlayerType.BATTER)
         assert compute_age_pt_factor(27, curve) == 1.0
 
     def test_factor_below_peak_greater_than_one(self) -> None:
-        curve = AgingCurve(peak_age=27.0, improvement_rate=0.01, decline_rate=0.005, player_type="batter")
+        curve = AgingCurve(peak_age=27.0, improvement_rate=0.01, decline_rate=0.005, player_type=PlayerType.BATTER)
         result = compute_age_pt_factor(24, curve)
         assert result == pytest.approx(1.03)
 
     def test_factor_above_peak_less_than_one(self) -> None:
-        curve = AgingCurve(peak_age=27.0, improvement_rate=0.01, decline_rate=0.005, player_type="batter")
+        curve = AgingCurve(peak_age=27.0, improvement_rate=0.01, decline_rate=0.005, player_type=PlayerType.BATTER)
         result = compute_age_pt_factor(32, curve)
         assert result == pytest.approx(0.975)
 
     def test_factor_none_age_returns_one(self) -> None:
-        curve = AgingCurve(peak_age=27.0, improvement_rate=0.01, decline_rate=0.005, player_type="batter")
+        curve = AgingCurve(peak_age=27.0, improvement_rate=0.01, decline_rate=0.005, player_type=PlayerType.BATTER)
         assert compute_age_pt_factor(None, curve) == 1.0
 
     def test_factor_monotonically_decreasing_after_peak(self) -> None:
-        curve = AgingCurve(peak_age=27.0, improvement_rate=0.01, decline_rate=0.005, player_type="batter")
+        curve = AgingCurve(peak_age=27.0, improvement_rate=0.01, decline_rate=0.005, player_type=PlayerType.BATTER)
         factors = [compute_age_pt_factor(age, curve) for age in range(27, 40)]
         for i in range(len(factors) - 1):
             assert factors[i] > factors[i + 1]
@@ -144,20 +145,20 @@ class TestFitPlayingTimeAgingCurve:
 
 class TestEnrichRowsWithAgePtFactor:
     def test_enrich_adds_age_pt_factor(self) -> None:
-        curve = AgingCurve(peak_age=27.0, improvement_rate=0.01, decline_rate=0.005, player_type="batter")
+        curve = AgingCurve(peak_age=27.0, improvement_rate=0.01, decline_rate=0.005, player_type=PlayerType.BATTER)
         rows = [{"age": 25, "pa_1": 500.0}]
         result = enrich_rows_with_age_pt_factor(rows, curve)
         assert "age_pt_factor" in result[0]
         assert result[0]["age_pt_factor"] == pytest.approx(1.02)
 
     def test_enrich_does_not_mutate_input(self) -> None:
-        curve = AgingCurve(peak_age=27.0, improvement_rate=0.01, decline_rate=0.005, player_type="batter")
+        curve = AgingCurve(peak_age=27.0, improvement_rate=0.01, decline_rate=0.005, player_type=PlayerType.BATTER)
         rows = [{"age": 25, "pa_1": 500.0}]
         enrich_rows_with_age_pt_factor(rows, curve)
         assert "age_pt_factor" not in rows[0]
 
     def test_enrich_handles_none_age(self) -> None:
-        curve = AgingCurve(peak_age=27.0, improvement_rate=0.01, decline_rate=0.005, player_type="batter")
+        curve = AgingCurve(peak_age=27.0, improvement_rate=0.01, decline_rate=0.005, player_type=PlayerType.BATTER)
         rows = [{"age": None, "pa_1": 500.0}]
         result = enrich_rows_with_age_pt_factor(rows, curve)
         assert result[0]["age_pt_factor"] == 1.0

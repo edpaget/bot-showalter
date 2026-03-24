@@ -1,5 +1,6 @@
 import pytest
 
+from fantasy_baseball_manager.domain.identity import PlayerType
 from fantasy_baseball_manager.domain.league_settings import (
     CategoryConfig,
     Direction,
@@ -521,7 +522,7 @@ class TestProjectionFallback:
                 season=2026,
                 system="steamer",
                 version="2026",
-                player_type="pitcher",
+                player_type=PlayerType.PITCHER,
                 stat_json={"g": 32, "gs": 32, "ip": 190},
             ),
         ]
@@ -542,7 +543,7 @@ class TestProjectionFallback:
                 season=2026,
                 system="steamer",
                 version="2026",
-                player_type="pitcher",
+                player_type=PlayerType.PITCHER,
                 stat_json={"g": 60, "gs": 0, "ip": 65},
             ),
         ]
@@ -564,7 +565,7 @@ class TestProjectionFallback:
                 season=2026,
                 system="steamer",
                 version="2026",
-                player_type="pitcher",
+                player_type=PlayerType.PITCHER,
                 stat_json={"g": 32, "gs": 32},
             ),
         ]
@@ -596,7 +597,7 @@ class TestProjectionFallback:
                 season=2026,
                 system="ensemble",
                 version="production",
-                player_type="pitcher",
+                player_type=PlayerType.PITCHER,
                 stat_json={"ip": 190, "era": 2.80},
             ),
         ]
@@ -617,7 +618,7 @@ class TestProjectionFallback:
                 season=2026,
                 system="ensemble",
                 version="production",
-                player_type="pitcher",
+                player_type=PlayerType.PITCHER,
                 stat_json={"ip": 190, "era": 2.80},
             ),
         ]

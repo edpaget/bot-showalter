@@ -2,6 +2,7 @@ from statistics import mean
 
 import pytest
 
+from fantasy_baseball_manager.domain.identity import PlayerType
 from fantasy_baseball_manager.domain.league_settings import (
     LeagueFormat,
     LeagueSettings,
@@ -28,7 +29,7 @@ def _make_valuation(
         version="1.0",
         projection_system="steamer",
         projection_version="1.0",
-        player_type="batter",
+        player_type=PlayerType.BATTER,
         position=position,
         value=value,
         rank=1,

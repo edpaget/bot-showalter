@@ -16,6 +16,7 @@ from fantasy_baseball_manager.domain import (
     PitchingStats,
     Player,
     PlayerResidual,
+    PlayerType,
     bucket_by_age,
     bucket_by_experience,
     bucket_by_handedness,
@@ -88,7 +89,7 @@ class ResidualAnalyzer:
 
         return ErrorDecompositionReport(
             target=target,
-            player_type=player_type,
+            player_type=PlayerType(player_type),
             season=season,
             system=system,
             version=version,
@@ -115,7 +116,7 @@ class ResidualAnalyzer:
         if not all_residuals:
             return FeatureGapReport(
                 target=target,
-                player_type=player_type,
+                player_type=PlayerType(player_type),
                 season=season,
                 system=system,
                 version=version,
@@ -134,7 +135,7 @@ class ResidualAnalyzer:
         if not well or not poor:
             return FeatureGapReport(
                 target=target,
-                player_type=player_type,
+                player_type=PlayerType(player_type),
                 season=season,
                 system=system,
                 version=version,
@@ -176,7 +177,7 @@ class ResidualAnalyzer:
 
         return FeatureGapReport(
             target=target,
-            player_type=player_type,
+            player_type=PlayerType(player_type),
             season=season,
             system=system,
             version=version,
@@ -324,7 +325,7 @@ class ResidualAnalyzer:
         if not all_residuals:
             return CohortBiasReport(
                 target=target,
-                player_type=player_type,
+                player_type=PlayerType(player_type),
                 season=season,
                 system=system,
                 version=version,
@@ -373,7 +374,7 @@ class ResidualAnalyzer:
 
         return CohortBiasReport(
             target=target,
-            player_type=player_type,
+            player_type=PlayerType(player_type),
             season=season,
             system=system,
             version=version,
@@ -443,7 +444,7 @@ class ResidualAnalyzer:
     ) -> ErrorDecompositionReport:
         return ErrorDecompositionReport(
             target=target,
-            player_type=player_type,
+            player_type=PlayerType(player_type),
             season=season,
             system=system,
             version=version,

@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING
 import pytest
 
 import fantasy_baseball_manager.features.group_library
+from fantasy_baseball_manager.domain.identity import PlayerType
 from fantasy_baseball_manager.features.group_library import (
     make_batting_counting_lags,
     make_batting_rate_lags,
@@ -205,7 +206,7 @@ class TestProjectionGroupRoundTrip:
             features=group.features,
             seasons=(2023,),
             source_filter="fangraphs",
-            spine_filter=SpineFilter(player_type="batter"),
+            spine_filter=SpineFilter(player_type=PlayerType.BATTER),
         )
         rows = self._execute_dicts(conn, fs)
         trout = next(r for r in rows if r["player_id"] == 1)
@@ -227,7 +228,7 @@ class TestProjectionGroupRoundTrip:
             features=group.features,
             seasons=(2023,),
             source_filter="fangraphs",
-            spine_filter=SpineFilter(player_type="batter"),
+            spine_filter=SpineFilter(player_type=PlayerType.BATTER),
         )
         rows = self._execute_dicts(conn, fs)
         betts = next(r for r in rows if r["player_id"] == 2)
@@ -244,7 +245,7 @@ class TestProjectionGroupRoundTrip:
             features=group.features,
             seasons=(2023,),
             source_filter="fangraphs",
-            spine_filter=SpineFilter(player_type="batter"),
+            spine_filter=SpineFilter(player_type=PlayerType.BATTER),
         )
         rows = self._execute_dicts(conn, fs)
         trout = next(r for r in rows if r["player_id"] == 1)
@@ -265,7 +266,7 @@ class TestProjectionGroupRoundTrip:
             features=group.features,
             seasons=(2023,),
             source_filter="fangraphs",
-            spine_filter=SpineFilter(player_type="pitcher"),
+            spine_filter=SpineFilter(player_type=PlayerType.PITCHER),
         )
         rows = self._execute_dicts(conn, fs)
         cole = next(r for r in rows if r["player_id"] == 3)
@@ -288,7 +289,7 @@ class TestProjectionGroupRoundTrip:
             features=group.features,
             seasons=(2023,),
             source_filter="fangraphs",
-            spine_filter=SpineFilter(player_type="batter"),
+            spine_filter=SpineFilter(player_type=PlayerType.BATTER),
         )
         rows = self._execute_dicts(conn, fs)
         trout = next(r for r in rows if r["player_id"] == 1)
@@ -308,7 +309,7 @@ class TestProjectionGroupRoundTrip:
             features=group.features,
             seasons=(2023,),
             source_filter="fangraphs",
-            spine_filter=SpineFilter(player_type="pitcher"),
+            spine_filter=SpineFilter(player_type=PlayerType.PITCHER),
         )
         rows = self._execute_dicts(conn, fs)
         cole = next(r for r in rows if r["player_id"] == 3)

@@ -11,6 +11,7 @@ from fantasy_baseball_manager.domain.draft_board import DraftBoardRow
 from fantasy_baseball_manager.domain.draft_recommendation import Recommendation
 from fantasy_baseball_manager.domain.draft_report import DraftReport
 from fantasy_baseball_manager.domain.draft_session import DraftSessionPick, DraftSessionRecord, DraftSessionTrade
+from fantasy_baseball_manager.domain.identity import PlayerType
 from fantasy_baseball_manager.domain.league_settings import (
     CategoryConfig,
     Direction,
@@ -92,7 +93,7 @@ def _make_player(
     name: str,
     position: str,
     value: float,
-    player_type: str = "batter",
+    player_type: PlayerType = PlayerType.BATTER,
     adp_overall: float | None = None,
 ) -> DraftBoardRow:
     return DraftBoardRow(
@@ -109,7 +110,7 @@ def _make_player(
 
 PLAYERS = [
     _make_player(1, "Mike Trout", "OF", 30.0),
-    _make_player(2, "Shohei Ohtani", "SP", 28.0, player_type="pitcher"),
+    _make_player(2, "Shohei Ohtani", "SP", 28.0, player_type=PlayerType.PITCHER),
     _make_player(3, "Mookie Betts", "SS", 25.0),
     _make_player(4, "Ronald Acuna Jr.", "OF", 22.0),
     _make_player(5, "Freddie Freeman", "1B", 20.0),
@@ -347,7 +348,7 @@ class TestAutoDetectPosition:
 
     def test_flex_p_for_pitcher(self) -> None:
         """If pitcher and P slot open, use P."""
-        player = _make_player(2, "Shohei Ohtani", "SP", 28.0, player_type="pitcher")
+        player = _make_player(2, "Shohei Ohtani", "SP", 28.0, player_type=PlayerType.PITCHER)
         needs = {"P": 1}
         result = auto_detect_position(player, needs, SNAKE_CONFIG.roster_slots)
         assert result == "P"
@@ -390,7 +391,7 @@ class TestAutoDetectPosition:
 
     def test_bench_fallback_for_pitcher(self) -> None:
         """If primary and P are full, overflow to BN."""
-        player = _make_player(2, "Shohei Ohtani", "SP", 28.0, player_type="pitcher")
+        player = _make_player(2, "Shohei Ohtani", "SP", 28.0, player_type=PlayerType.PITCHER)
         needs = {"BN": 2}
         result = auto_detect_position(player, needs, SNAKE_CONFIG.roster_slots)
         assert result == "BN"
@@ -754,7 +755,7 @@ class TestCategoryBalanceREPL:
                     season=2026,
                     system="steamer",
                     version="1.0",
-                    player_type="batter",
+                    player_type=PlayerType.BATTER,
                     stat_json={"hr": 20.0, "sb": 15.0},
                 )
                 for i in range(100, 200)
@@ -1163,7 +1164,7 @@ class TestDraftSessionPersistence:
 # Players with ADP data for arbitrage testing
 ADP_PLAYERS = [
     _make_player(1, "Mike Trout", "OF", 30.0, adp_overall=5.0),
-    _make_player(2, "Shohei Ohtani", "SP", 28.0, player_type="pitcher", adp_overall=3.0),
+    _make_player(2, "Shohei Ohtani", "SP", 28.0, player_type=PlayerType.PITCHER, adp_overall=3.0),
     _make_player(3, "Mookie Betts", "SS", 25.0, adp_overall=8.0),
     _make_player(4, "Ronald Acuna Jr.", "OF", 22.0, adp_overall=2.0),
     _make_player(5, "Freddie Freeman", "1B", 20.0, adp_overall=12.0),

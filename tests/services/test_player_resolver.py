@@ -1,4 +1,5 @@
 from fantasy_baseball_manager.domain.draft_board import DraftBoardRow
+from fantasy_baseball_manager.domain.identity import PlayerType
 from fantasy_baseball_manager.services.player_resolver import resolve_player
 
 
@@ -7,7 +8,7 @@ def _make_player(player_id: int, name: str, position: str = "OF") -> DraftBoardR
         player_id=player_id,
         player_name=name,
         rank=player_id,
-        player_type="batter",
+        player_type=PlayerType.BATTER,
         position=position,
         value=10.0,
         category_z_scores={},

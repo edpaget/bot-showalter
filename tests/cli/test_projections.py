@@ -6,6 +6,7 @@ from typer.testing import CliRunner
 from fantasy_baseball_manager.cli.app import app
 from fantasy_baseball_manager.db.connection import create_connection
 from fantasy_baseball_manager.db.pool import SingleConnectionProvider
+from fantasy_baseball_manager.domain.identity import PlayerType
 from fantasy_baseball_manager.domain.player import Player
 from fantasy_baseball_manager.domain.projection import Projection
 from fantasy_baseball_manager.ingest.fangraphs_projection_source import FgProjectionSource
@@ -33,7 +34,7 @@ def _seed_projections_data(conn: sqlite3.Connection, system: str = "steamer", ve
             season=2025,
             system=system,
             version=version,
-            player_type="batter",
+            player_type=PlayerType.BATTER,
             stat_json={"hr": 30, "avg": 0.280},
             source_type="third_party",
         )

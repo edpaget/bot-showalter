@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING
 from fantasy_baseball_manager.domain import (
     BattingStats,
     PitchingStats,
+    PlayerType,
     StatTalentMetrics,
     TalentQualitySummary,
     TrueTalentQualityReport,
@@ -199,7 +200,7 @@ class TrueTalentEvaluator:
             version=version,
             season_n=season_n,
             season_n1=season_n1,
-            player_type=player_type,
+            player_type=PlayerType(player_type),
             stat_metrics=stat_metrics_list,
             summary=summary,
         )

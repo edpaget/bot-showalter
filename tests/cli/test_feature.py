@@ -10,6 +10,7 @@ from fantasy_baseball_manager.db.connection import create_connection
 from fantasy_baseball_manager.db.pool import SingleConnectionProvider
 from fantasy_baseball_manager.db.statcast_connection import create_statcast_connection
 from fantasy_baseball_manager.domain import FeatureCandidate
+from fantasy_baseball_manager.domain.identity import PlayerType
 from fantasy_baseball_manager.repos.feature_candidate_repo import (
     SqliteFeatureCandidateRepo,
 )
@@ -227,7 +228,7 @@ class TestFeatureInteractCommand:
             FeatureCandidate(
                 name="avg_ev",
                 expression="AVG(launch_speed)",
-                player_type="batter",
+                player_type=PlayerType.BATTER,
                 min_pa=None,
                 min_ip=None,
                 created_at=date.today().isoformat(),

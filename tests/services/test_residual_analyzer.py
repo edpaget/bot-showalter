@@ -4,6 +4,7 @@ import pytest
 
 from fantasy_baseball_manager.db.pool import SingleConnectionProvider
 from fantasy_baseball_manager.domain.batting_stats import BattingStats
+from fantasy_baseball_manager.domain.identity import PlayerType
 from fantasy_baseball_manager.domain.pitching_stats import PitchingStats
 from fantasy_baseball_manager.domain.position_appearance import PositionAppearance
 from fantasy_baseball_manager.domain.projection import Projection
@@ -70,7 +71,7 @@ def _seed_batter_data(
             season=2024,
             system="test-model",
             version="v1",
-            player_type="batter",
+            player_type=PlayerType.BATTER,
             stat_json={"slg": predicted_slg},
         )
     )
@@ -312,7 +313,7 @@ class TestAnalyzeNoMatchingData:
                 season=2024,
                 system="test-model",
                 version="v1",
-                player_type="batter",
+                player_type=PlayerType.BATTER,
                 stat_json={"slg": 0.400},
             )
         )
@@ -332,7 +333,7 @@ class TestAnalyzePitcher:
                 season=2024,
                 system="test-model",
                 version="v1",
-                player_type="pitcher",
+                player_type=PlayerType.PITCHER,
                 stat_json={"era": 3.50},
             )
         )
@@ -402,7 +403,7 @@ class TestDetectFeatureGaps:
             version="v1",
             season=2024,
             target="slg",
-            player_type="batter",
+            player_type=PlayerType.BATTER,
             model_feature_names=frozenset(["age", "pa", "avg", "obp", "slg"]),
             extra_features=extra_features,
         )
@@ -430,7 +431,7 @@ class TestDetectFeatureGaps:
             version="v1",
             season=2024,
             target="slg",
-            player_type="batter",
+            player_type=PlayerType.BATTER,
             model_feature_names=frozenset(["age"]),
             extra_features=extra_features,
         )
@@ -449,7 +450,7 @@ class TestDetectFeatureGaps:
             version="v1",
             season=2024,
             target="slg",
-            player_type="batter",
+            player_type=PlayerType.BATTER,
             model_feature_names=model_features,
         )
         for gap in report.gaps:
@@ -468,7 +469,7 @@ class TestDetectFeatureGaps:
             version="v1",
             season=2024,
             target="slg",
-            player_type="batter",
+            player_type=PlayerType.BATTER,
             model_feature_names=frozenset(),
             extra_features=extra_features,
         )
@@ -482,7 +483,7 @@ class TestDetectFeatureGaps:
             version="v1",
             season=2024,
             target="slg",
-            player_type="batter",
+            player_type=PlayerType.BATTER,
             model_feature_names=frozenset(),
         )
         assert report.gaps == []
@@ -496,7 +497,7 @@ class TestDetectFeatureGaps:
             version="v1",
             season=2024,
             target="slg",
-            player_type="batter",
+            player_type=PlayerType.BATTER,
             model_feature_names=frozenset(),
         )
         ks_values = [g.ks_statistic for g in report.gaps]

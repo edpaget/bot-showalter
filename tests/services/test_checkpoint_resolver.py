@@ -5,6 +5,7 @@ import pytest
 from fantasy_baseball_manager.db.pool import SingleConnectionProvider
 from fantasy_baseball_manager.domain.checkpoint import FeatureCheckpoint
 from fantasy_baseball_manager.domain.experiment import Experiment, TargetResult
+from fantasy_baseball_manager.domain.identity import PlayerType
 from fantasy_baseball_manager.exceptions import FbmException
 from fantasy_baseball_manager.repos.checkpoint_repo import SqliteCheckpointRepo
 from fantasy_baseball_manager.repos.experiment_repo import SqliteExperimentRepo
@@ -39,7 +40,7 @@ class TestResolveCheckpoint:
                 timestamp="2026-03-02T12:00:00",
                 hypothesis="test",
                 model="m",
-                player_type="batter",
+                player_type=PlayerType.BATTER,
                 feature_diff={"added": ["barrel_rate"], "removed": []},
                 seasons={"train": [2023], "holdout": [2024]},
                 params={"n_estimators": 500},
@@ -52,7 +53,7 @@ class TestResolveCheckpoint:
             FeatureCheckpoint(
                 name="best_v3",
                 model="m",
-                player_type="batter",
+                player_type=PlayerType.BATTER,
                 feature_columns=["barrel_rate"],
                 params={"n_estimators": 500},
                 target_results={"slg": TargetResult(rmse=0.08, baseline_rmse=0.085, delta=-0.005, delta_pct=-5.88)},

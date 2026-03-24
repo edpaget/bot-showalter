@@ -12,7 +12,7 @@ from fantasy_baseball_manager.config import load_config
 from fantasy_baseball_manager.db.connection import create_connection
 from fantasy_baseball_manager.db.pool import SingleConnectionProvider
 from fantasy_baseball_manager.db.statcast_connection import create_statcast_connection
-from fantasy_baseball_manager.domain import Err, Experiment, Experimentable, TargetResult
+from fantasy_baseball_manager.domain import Err, Experiment, Experimentable, PlayerType, TargetResult
 from fantasy_baseball_manager.features import SqliteDatasetAssembler
 from fantasy_baseball_manager.repos import SqliteExperimentRepo, SqliteFeatureCandidateRepo
 from fantasy_baseball_manager.services import (
@@ -190,7 +190,7 @@ def quick_eval_cmd(  # pragma: no cover
                 timestamp=datetime.now(UTC).isoformat(),
                 hypothesis=experiment,
                 model=model,
-                player_type="batter" if is_batter else "pitcher",
+                player_type=PlayerType.BATTER if is_batter else PlayerType.PITCHER,
                 feature_diff=feature_diff,
                 seasons={"train": train_seasons, "holdout": [holdout_season]},
                 params=params or {},

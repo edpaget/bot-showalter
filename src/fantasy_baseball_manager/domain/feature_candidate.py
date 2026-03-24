@@ -1,11 +1,17 @@
+from __future__ import annotations
+
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from fantasy_baseball_manager.domain.identity import PlayerType
 
 
 @dataclass(frozen=True, slots=True)
 class FeatureCandidate:
     name: str
     expression: str
-    player_type: str
+    player_type: PlayerType
     min_pa: int | None
     min_ip: float | None
     created_at: str

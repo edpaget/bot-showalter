@@ -4,7 +4,7 @@ import json
 import sqlite3
 from typing import TYPE_CHECKING
 
-from fantasy_baseball_manager.domain import FeatureCheckpoint, TargetResult
+from fantasy_baseball_manager.domain import FeatureCheckpoint, PlayerType, TargetResult
 from fantasy_baseball_manager.repos.errors import DuplicateCheckpointError
 
 if TYPE_CHECKING:
@@ -103,7 +103,7 @@ class SqliteCheckpointRepo:
         return FeatureCheckpoint(
             name=row["name"],
             model=row["model"],
-            player_type=row["player_type"],
+            player_type=PlayerType(row["player_type"]),
             feature_columns=json.loads(row["feature_columns"]),
             params=json.loads(row["params"]),
             target_results=target_results,

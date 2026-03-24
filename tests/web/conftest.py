@@ -28,6 +28,7 @@ from fantasy_baseball_manager.domain import (
     YahooLeagueInfo,
     YahooTeam,
 )
+from fantasy_baseball_manager.domain.identity import PlayerType
 from fantasy_baseball_manager.repos import (
     SqliteADPRepo,
     SqliteDraftSessionRepo,
@@ -103,7 +104,7 @@ def _seed_data(provider: SingleConnectionProvider) -> None:
             version="1.0",
             projection_system="steamer",
             projection_version="2026",
-            player_type="batter",
+            player_type=PlayerType.BATTER,
             position="OF",
             value=35.0,
             rank=1,
@@ -116,7 +117,7 @@ def _seed_data(provider: SingleConnectionProvider) -> None:
             version="1.0",
             projection_system="steamer",
             projection_version="2026",
-            player_type="batter",
+            player_type=PlayerType.BATTER,
             position="OF",
             value=30.0,
             rank=2,
@@ -129,7 +130,7 @@ def _seed_data(provider: SingleConnectionProvider) -> None:
             version="1.0",
             projection_system="steamer",
             projection_version="2026",
-            player_type="pitcher",
+            player_type=PlayerType.PITCHER,
             position="SP",
             value=25.0,
             rank=3,
@@ -145,7 +146,7 @@ def _seed_data(provider: SingleConnectionProvider) -> None:
             season=2026,
             system="steamer",
             version="2026",
-            player_type="batter",
+            player_type=PlayerType.BATTER,
             stat_json={"pa": 600, "hr": 35, "rbi": 90},
         ),
         Projection(
@@ -153,7 +154,7 @@ def _seed_data(provider: SingleConnectionProvider) -> None:
             season=2026,
             system="steamer",
             version="2026",
-            player_type="batter",
+            player_type=PlayerType.BATTER,
             stat_json={"pa": 550, "hr": 40, "rbi": 100},
         ),
         Projection(
@@ -161,7 +162,7 @@ def _seed_data(provider: SingleConnectionProvider) -> None:
             season=2026,
             system="steamer",
             version="2026",
-            player_type="pitcher",
+            player_type=PlayerType.PITCHER,
             stat_json={"ip": 180, "w": 14, "k": 220, "g": 32, "gs": 32},
         ),
     ]

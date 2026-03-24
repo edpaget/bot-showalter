@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING, Any
 import pytest
 
 from fantasy_baseball_manager.db.pool import SingleConnectionProvider
+from fantasy_baseball_manager.domain.identity import PlayerType
 from fantasy_baseball_manager.features.assembler import SqliteDatasetAssembler
 from fantasy_baseball_manager.features.types import (
     DerivedTransformFeature,
@@ -63,7 +64,7 @@ class TestDerivedTransformMixed:
             features=(hr_1, pa_1, SUM_DERIVED),
             seasons=(2023,),
             source_filter="fangraphs",
-            spine_filter=SpineFilter(player_type="batter"),
+            spine_filter=SpineFilter(player_type=PlayerType.BATTER),
         )
         assembler = SqliteDatasetAssembler(SingleConnectionProvider(seeded_conn))
         handle = assembler.materialize(fs)
@@ -81,7 +82,7 @@ class TestDerivedTransformMixed:
             features=(hr_1, pa_1, SUM_DERIVED),
             seasons=(2023,),
             source_filter="fangraphs",
-            spine_filter=SpineFilter(player_type="batter"),
+            spine_filter=SpineFilter(player_type=PlayerType.BATTER),
         )
         assembler = SqliteDatasetAssembler(SingleConnectionProvider(seeded_conn))
         handle = assembler.materialize(fs)
@@ -115,7 +116,7 @@ class TestDerivedTransformOnly:
             features=(dtf,),
             seasons=(2023,),
             source_filter="fangraphs",
-            spine_filter=SpineFilter(player_type="batter"),
+            spine_filter=SpineFilter(player_type=PlayerType.BATTER),
         )
         assembler = SqliteDatasetAssembler(SingleConnectionProvider(seeded_conn))
         handle = assembler.materialize(fs)
@@ -152,7 +153,7 @@ class TestDerivedSeesSourceTransformOutputs:
             features=(src_tf, derived_tf),
             seasons=(2023,),
             source_filter="fangraphs",
-            spine_filter=SpineFilter(player_type="batter"),
+            spine_filter=SpineFilter(player_type=PlayerType.BATTER),
         )
         assembler = SqliteDatasetAssembler(SingleConnectionProvider(seeded_conn))
         handle = assembler.materialize(fs)
@@ -181,7 +182,7 @@ class TestDerivedGroupBySeason:
             features=(hr_0, derived_season),
             seasons=(2023,),
             source_filter="fangraphs",
-            spine_filter=SpineFilter(player_type="batter"),
+            spine_filter=SpineFilter(player_type=PlayerType.BATTER),
         )
         assembler = SqliteDatasetAssembler(SingleConnectionProvider(seeded_conn))
         handle = assembler.materialize(fs)

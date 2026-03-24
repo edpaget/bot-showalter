@@ -1,8 +1,14 @@
+from __future__ import annotations
+
 import math
 import statistics
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 from fantasy_baseball_manager.domain.talent_quality import _safe_correlation
+
+if TYPE_CHECKING:
+    from fantasy_baseball_manager.domain.identity import PlayerType
 
 
 @dataclass(frozen=True)
@@ -17,7 +23,7 @@ class CalibrationBin:
 @dataclass(frozen=True)
 class StatResidualAnalysis:
     stat_name: str
-    player_type: str
+    player_type: PlayerType
     n_observations: int
     mean_residual: float
     std_residual: float

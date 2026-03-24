@@ -3,6 +3,7 @@ from fantasy_baseball_manager.domain import (
     ModelConfig,
     Predictable,
 )
+from fantasy_baseball_manager.domain.identity import PlayerType
 from fantasy_baseball_manager.domain.il_stint import ILStint
 from fantasy_baseball_manager.domain.league_settings import (
     CategoryConfig,
@@ -91,7 +92,7 @@ def _projections() -> list[Projection]:
             season=2025,
             system="steamer",
             version="v1",
-            player_type="batter",
+            player_type=PlayerType.BATTER,
             stat_json={"pa": 600, "hr": 40.0, "r": 100.0, "h": 160.0, "ab": 550.0, "avg": 0.291},
         ),
         Projection(
@@ -99,7 +100,7 @@ def _projections() -> list[Projection]:
             season=2025,
             system="steamer",
             version="v1",
-            player_type="batter",
+            player_type=PlayerType.BATTER,
             stat_json={"pa": 550, "hr": 20.0, "r": 70.0, "h": 140.0, "ab": 500.0, "avg": 0.280},
         ),
         Projection(
@@ -107,7 +108,7 @@ def _projections() -> list[Projection]:
             season=2025,
             system="steamer",
             version="v1",
-            player_type="batter",
+            player_type=PlayerType.BATTER,
             stat_json={"pa": 570, "hr": 10.0, "r": 50.0, "h": 130.0, "ab": 520.0, "avg": 0.250},
         ),
         Projection(
@@ -115,7 +116,7 @@ def _projections() -> list[Projection]:
             season=2025,
             system="steamer",
             version="v1",
-            player_type="pitcher",
+            player_type=PlayerType.PITCHER,
             stat_json={"ip": 200, "w": 15.0, "sv": 0.0},
         ),
         Projection(
@@ -123,7 +124,7 @@ def _projections() -> list[Projection]:
             season=2025,
             system="steamer",
             version="v1",
-            player_type="pitcher",
+            player_type=PlayerType.PITCHER,
             stat_json={"ip": 70, "w": 8.0, "sv": 30.0},
         ),
     ]

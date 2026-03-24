@@ -4,7 +4,7 @@ import json
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
-from fantasy_baseball_manager.domain import Experiment, TargetResult
+from fantasy_baseball_manager.domain import Experiment, PlayerType, TargetResult
 
 if TYPE_CHECKING:
     import builtins
@@ -173,7 +173,7 @@ class SqliteExperimentRepo:
             timestamp=row["timestamp"],
             hypothesis=row["hypothesis"],
             model=row["model"],
-            player_type=row["player_type"],
+            player_type=PlayerType(row["player_type"]),
             feature_diff=json.loads(row["feature_diff"]),
             seasons=json.loads(row["seasons"]),
             params=json.loads(row["params"]),

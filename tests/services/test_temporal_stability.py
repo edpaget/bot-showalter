@@ -11,6 +11,7 @@ from fantasy_baseball_manager.domain.correlation_result import (
     SeasonCorrelationResult,
     TargetCorrelation,
 )
+from fantasy_baseball_manager.domain.identity import PlayerType
 from fantasy_baseball_manager.domain.temporal_stability import TargetStability
 from fantasy_baseball_manager.services.data_profiler import (
     CorrelationScanner,
@@ -97,7 +98,7 @@ def _make_scan_result(
         SeasonCorrelationResult(
             column_spec="launch_speed",
             season=season,
-            player_type="batter",
+            player_type=PlayerType.BATTER,
             correlations=(
                 TargetCorrelation(
                     target=target,
@@ -113,7 +114,7 @@ def _make_scan_result(
     )
     pooled = PooledCorrelationResult(
         column_spec="launch_speed",
-        player_type="batter",
+        player_type=PlayerType.BATTER,
         correlations=(
             TargetCorrelation(
                 target=target,
@@ -127,7 +128,7 @@ def _make_scan_result(
     )
     return CorrelationScanResult(
         column_spec="launch_speed",
-        player_type="batter",
+        player_type=PlayerType.BATTER,
         per_season=per_season,
         pooled=pooled,
     )

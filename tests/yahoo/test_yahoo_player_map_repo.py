@@ -1,6 +1,7 @@
 from typing import TYPE_CHECKING
 
 from fantasy_baseball_manager.db.pool import SingleConnectionProvider
+from fantasy_baseball_manager.domain.identity import PlayerType
 from fantasy_baseball_manager.domain.player import Player
 from fantasy_baseball_manager.domain.yahoo_player import YahooPlayerMap
 from fantasy_baseball_manager.repos.player_repo import SqlitePlayerRepo
@@ -21,7 +22,7 @@ def _make_mapping(**overrides: object) -> YahooPlayerMap:
     defaults: dict[str, object] = {
         "yahoo_player_key": "449.p.12345",
         "player_id": 42,
-        "player_type": "batter",
+        "player_type": PlayerType.BATTER,
         "yahoo_name": "Mike Trout",
         "yahoo_team": "LAA",
         "yahoo_positions": "CF,LF",
@@ -64,7 +65,7 @@ class TestSqliteYahooPlayerMapRepo:
             _make_mapping(
                 yahoo_player_key="449.p.11111",
                 player_id=player_id,
-                player_type="batter",
+                player_type=PlayerType.BATTER,
                 yahoo_name="Shohei Ohtani",
                 yahoo_team="LAD",
                 yahoo_positions="DH",
@@ -74,7 +75,7 @@ class TestSqliteYahooPlayerMapRepo:
             _make_mapping(
                 yahoo_player_key="449.p.22222",
                 player_id=player_id,
-                player_type="pitcher",
+                player_type=PlayerType.PITCHER,
                 yahoo_name="Shohei Ohtani",
                 yahoo_team="LAD",
                 yahoo_positions="SP",

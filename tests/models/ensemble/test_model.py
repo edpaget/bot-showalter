@@ -3,6 +3,7 @@ from typing import Any
 
 import pytest
 
+from fantasy_baseball_manager.domain.identity import PlayerType
 from fantasy_baseball_manager.domain.league_settings import (
     CategoryConfig,
     Direction,
@@ -76,7 +77,7 @@ def _make_projection(
         season=season,
         system=system,
         version="v1",
-        player_type=player_type,
+        player_type=PlayerType(player_type),
         stat_json=stats,
     )
 
@@ -876,7 +877,7 @@ class TestEnsembleStatcastGBMIntegration:
                     season=2025,
                     system="marcel",
                     version="old",
-                    player_type="batter",
+                    player_type=PlayerType.BATTER,
                     stat_json={"avg": 0.200},
                 ),
                 _make_projection(1, "statcast-gbm", "batter", {"avg": 0.270}, season=2025),
@@ -907,7 +908,7 @@ class TestEnsembleStatcastGBMIntegration:
                     season=2026,
                     system="sgbm",
                     version="latest",
-                    player_type="pitcher",
+                    player_type=PlayerType.PITCHER,
                     stat_json={"era": 3.50},
                 ),
                 # Old season (2019) — should be ignored, not overwrite 2026
@@ -916,7 +917,7 @@ class TestEnsembleStatcastGBMIntegration:
                     season=2019,
                     system="sgbm",
                     version="latest",
-                    player_type="pitcher",
+                    player_type=PlayerType.PITCHER,
                     stat_json={"era": 9.10},
                 ),
                 _make_projection(1, "steamer", "pitcher", {"era": 3.80}, season=2026),
@@ -971,7 +972,7 @@ class TestEnsembleStatcastGBMIntegration:
                     season=2024,
                     system="sgbm",
                     version="latest",
-                    player_type="pitcher",
+                    player_type=PlayerType.PITCHER,
                     stat_json={"era": 4.00},
                 ),
                 Projection(
@@ -979,7 +980,7 @@ class TestEnsembleStatcastGBMIntegration:
                     season=2025,
                     system="sgbm",
                     version="latest",
-                    player_type="pitcher",
+                    player_type=PlayerType.PITCHER,
                     stat_json={"era": 3.50},
                 ),
                 Projection(
@@ -987,7 +988,7 @@ class TestEnsembleStatcastGBMIntegration:
                     season=2026,
                     system="sgbm",
                     version="latest",
-                    player_type="pitcher",
+                    player_type=PlayerType.PITCHER,
                     stat_json={"era": 9.10},  # should be excluded
                 ),
             ]

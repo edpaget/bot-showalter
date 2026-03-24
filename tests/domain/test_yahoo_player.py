@@ -1,5 +1,6 @@
 import pytest
 
+from fantasy_baseball_manager.domain.identity import PlayerType
 from fantasy_baseball_manager.domain.yahoo_player import YahooPlayerMap
 
 
@@ -8,7 +9,7 @@ class TestYahooPlayerMap:
         mapping = YahooPlayerMap(
             yahoo_player_key="449.p.12345",
             player_id=42,
-            player_type="batter",
+            player_type=PlayerType.BATTER,
             yahoo_name="Mike Trout",
             yahoo_team="LAA",
             yahoo_positions="CF,LF",
@@ -24,7 +25,7 @@ class TestYahooPlayerMap:
         mapping = YahooPlayerMap(
             yahoo_player_key="449.p.12345",
             player_id=42,
-            player_type="batter",
+            player_type=PlayerType.BATTER,
             yahoo_name="Mike Trout",
             yahoo_team="LAA",
             yahoo_positions="CF,LF",
@@ -35,7 +36,7 @@ class TestYahooPlayerMap:
         mapping = YahooPlayerMap(
             yahoo_player_key="449.p.12345",
             player_id=42,
-            player_type="batter",
+            player_type=PlayerType.BATTER,
             yahoo_name="Mike Trout",
             yahoo_team="LAA",
             yahoo_positions="CF,LF",
@@ -47,7 +48,7 @@ class TestYahooPlayerMap:
         mapping = YahooPlayerMap(
             yahoo_player_key="449.p.12345",
             player_id=42,
-            player_type="batter",
+            player_type=PlayerType.BATTER,
             yahoo_name="Mike Trout",
             yahoo_team="LAA",
             yahoo_positions="CF,LF",
@@ -59,7 +60,7 @@ class TestYahooPlayerMap:
         batter = YahooPlayerMap(
             yahoo_player_key="449.p.11111",
             player_id=100,
-            player_type="batter",
+            player_type=PlayerType.BATTER,
             yahoo_name="Shohei Ohtani",
             yahoo_team="LAD",
             yahoo_positions="DH",
@@ -67,7 +68,7 @@ class TestYahooPlayerMap:
         pitcher = YahooPlayerMap(
             yahoo_player_key="449.p.22222",
             player_id=100,
-            player_type="pitcher",
+            player_type=PlayerType.PITCHER,
             yahoo_name="Shohei Ohtani",
             yahoo_team="LAD",
             yahoo_positions="SP",

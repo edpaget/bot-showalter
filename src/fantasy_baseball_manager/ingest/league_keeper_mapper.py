@@ -4,7 +4,7 @@ import logging
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
-from fantasy_baseball_manager.domain import LeagueKeeper
+from fantasy_baseball_manager.domain import LeagueKeeper, PlayerType
 from fantasy_baseball_manager.name_utils import build_player_lookups, normalize_name
 
 if TYPE_CHECKING:
@@ -74,7 +74,7 @@ def import_league_keepers(
                     team_name=team_name.strip(),
                     cost=cost,
                     source=source,
-                    player_type=player_type_raw,
+                    player_type=PlayerType(player_type_raw) if player_type_raw is not None else None,
                 )
             ]
         )

@@ -2,6 +2,10 @@ from __future__ import annotations
 
 import statistics
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from fantasy_baseball_manager.domain.identity import PlayerType
 
 
 @dataclass(frozen=True)
@@ -12,7 +16,7 @@ class Valuation:
     version: str
     projection_system: str
     projection_version: str
-    player_type: str
+    player_type: PlayerType
     position: str
     value: float
     rank: int
@@ -28,7 +32,7 @@ class PlayerValuation:
     version: str
     projection_system: str
     projection_version: str
-    player_type: str
+    player_type: PlayerType
     position: str
     value: float
     rank: int
@@ -39,7 +43,7 @@ class PlayerValuation:
 class ValuationAccuracy:
     player_id: int
     player_name: str
-    player_type: str
+    player_type: PlayerType
     position: str
     predicted_value: float
     actual_value: float

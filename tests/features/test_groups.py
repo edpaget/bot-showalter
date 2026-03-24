@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING
 import pytest
 
 import fantasy_baseball_manager.features.group_library
+from fantasy_baseball_manager.domain.identity import PlayerType
 from fantasy_baseball_manager.features.groups import (
     FeatureGroup,
     _clear,
@@ -35,7 +36,7 @@ class TestFeatureGroup:
         group = FeatureGroup(
             name="test",
             description="A test group",
-            player_type="batter",
+            player_type=PlayerType.BATTER,
             features=(_make_feature("hr"),),
         )
         with pytest.raises(AttributeError):
@@ -46,7 +47,7 @@ class TestFeatureGroup:
         group = FeatureGroup(
             name="test",
             description="desc",
-            player_type="pitcher",
+            player_type=PlayerType.PITCHER,
             features=(f,),
         )
         assert group.name == "test"
@@ -60,7 +61,7 @@ class TestRegistry:
         group = FeatureGroup(
             name="my_group",
             description="desc",
-            player_type="batter",
+            player_type=PlayerType.BATTER,
             features=(_make_feature("hr"),),
         )
         result = register_group(group)
@@ -71,7 +72,7 @@ class TestRegistry:
         group = FeatureGroup(
             name="dup",
             description="desc",
-            player_type="batter",
+            player_type=PlayerType.BATTER,
             features=(_make_feature("hr"),),
         )
         register_group(group)
@@ -99,7 +100,7 @@ class TestRegistry:
             FeatureGroup(
                 name="temp",
                 description="desc",
-                player_type="batter",
+                player_type=PlayerType.BATTER,
                 features=(_make_feature("hr"),),
             )
         )
@@ -112,13 +113,13 @@ class TestComposeFeatureSet:
         g1 = FeatureGroup(
             name="g1",
             description="first",
-            player_type="batter",
+            player_type=PlayerType.BATTER,
             features=(_make_feature("hr"), _make_feature("rbi")),
         )
         g2 = FeatureGroup(
             name="g2",
             description="second",
-            player_type="batter",
+            player_type=PlayerType.BATTER,
             features=(_make_feature("sb"),),
         )
         fs = compose_feature_set(
@@ -134,13 +135,13 @@ class TestComposeFeatureSet:
         g1 = FeatureGroup(
             name="g1",
             description="first",
-            player_type="batter",
+            player_type=PlayerType.BATTER,
             features=(f_hr_1,),
         )
         g2 = FeatureGroup(
             name="g2",
             description="second",
-            player_type="batter",
+            player_type=PlayerType.BATTER,
             features=(f_hr_2, _make_feature("sb")),
         )
         fs = compose_feature_set(
@@ -164,10 +165,10 @@ class TestComposeFeatureSet:
         g = FeatureGroup(
             name="g",
             description="desc",
-            player_type="batter",
+            player_type=PlayerType.BATTER,
             features=(_make_feature("hr"),),
         )
-        spine = SpineFilter(min_pa=100, player_type="batter")
+        spine = SpineFilter(min_pa=100, player_type=PlayerType.BATTER)
         fs = compose_feature_set(
             name="my_set",
             groups=[g],

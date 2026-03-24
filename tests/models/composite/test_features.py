@@ -1,6 +1,7 @@
 from typing import Any
 
 import fantasy_baseball_manager.features.group_library  # noqa: F401 — trigger registration
+from fantasy_baseball_manager.domain.identity import PlayerType
 from fantasy_baseball_manager.features import batting, player
 from fantasy_baseball_manager.features.groups import compose_feature_set, get_group
 from fantasy_baseball_manager.features.types import (
@@ -188,7 +189,7 @@ class TestAppendTrainingTargets:
             features=(player.age(), batting.col("pa").lag(1).alias("pa_1")),
             seasons=(2022, 2023),
             source_filter="fangraphs",
-            spine_filter=SpineFilter(player_type="batter"),
+            spine_filter=SpineFilter(player_type=PlayerType.BATTER),
         )
 
     def test_name_has_train_suffix(self) -> None:
@@ -219,7 +220,7 @@ class TestAppendTrainingTargets:
     def test_preserves_spine_filter(self) -> None:
         fs = self._make_prediction_fs()
         train_fs = append_training_targets(fs, batter_target_features())
-        assert train_fs.spine_filter == SpineFilter(player_type="batter")
+        assert train_fs.spine_filter == SpineFilter(player_type=PlayerType.BATTER)
 
 
 def _dummy_transform(rows: list[dict[str, Any]]) -> dict[str, Any]:
@@ -340,7 +341,7 @@ class TestFeatureColumns:
             groups=groups,
             seasons=(2023,),
             source_filter="fangraphs",
-            spine_filter=SpineFilter(player_type="batter"),
+            spine_filter=SpineFilter(player_type=PlayerType.BATTER),
         )
         cols = feature_columns(fs)
         assert "age" in cols

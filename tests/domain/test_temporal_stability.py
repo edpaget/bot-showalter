@@ -1,3 +1,4 @@
+from fantasy_baseball_manager.domain.identity import PlayerType
 from fantasy_baseball_manager.domain.temporal_stability import (
     StabilityResult,
     TargetStability,
@@ -47,7 +48,7 @@ class TestStabilityResult:
         )
         result = StabilityResult(
             column_spec="launch_speed",
-            player_type="batter",
+            player_type=PlayerType.BATTER,
             seasons=(2023,),
             target_stabilities=(ts,),
         )
@@ -59,7 +60,7 @@ class TestStabilityResult:
     def test_frozen(self) -> None:
         result = StabilityResult(
             column_spec="launch_speed",
-            player_type="batter",
+            player_type=PlayerType.BATTER,
             seasons=(2023,),
             target_stabilities=(),
         )
@@ -84,7 +85,7 @@ class TestStabilityResult:
         )
         result = StabilityResult(
             column_spec="barrel",
-            player_type="batter",
+            player_type=PlayerType.BATTER,
             seasons=(2023,),
             target_stabilities=stabilities,
         )

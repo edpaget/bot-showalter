@@ -15,6 +15,7 @@ from fantasy_baseball_manager.domain import (
     StatType,
     Valuation,
 )
+from fantasy_baseball_manager.domain.identity import PlayerType
 from fantasy_baseball_manager.domain.result import Err, Ok
 from fantasy_baseball_manager.services.keeper_service import (
     adjust_valuations_for_league_keepers,
@@ -120,7 +121,9 @@ class TestSetKeeperCost:
         assert "John Smith" in result.error
 
 
-def _valuation(player_id: int, value: float, position: str = "SS", player_type: str = "batter") -> Valuation:
+def _valuation(
+    player_id: int, value: float, position: str = "SS", player_type: PlayerType = PlayerType.BATTER
+) -> Valuation:
     return Valuation(
         player_id=player_id,
         season=2026,
@@ -322,7 +325,7 @@ def _adj_proj(player_id: int, hr: float) -> Projection:
         season=2026,
         system="composite",
         version="v1",
-        player_type="batter",
+        player_type=PlayerType.BATTER,
         stat_json={"pa": 600, "hr": hr},
     )
 
@@ -545,7 +548,7 @@ class TestComputeAdjustedValuations:
                 season=2026,
                 system="c",
                 version="v1",
-                player_type="batter",
+                player_type=PlayerType.BATTER,
                 stat_json={"pa": 600, "hr": 40},
             ),
             Projection(
@@ -553,7 +556,7 @@ class TestComputeAdjustedValuations:
                 season=2026,
                 system="c",
                 version="v1",
-                player_type="pitcher",
+                player_type=PlayerType.PITCHER,
                 stat_json={"ip": 150, "k": 200},
             ),
             Projection(
@@ -561,7 +564,7 @@ class TestComputeAdjustedValuations:
                 season=2026,
                 system="c",
                 version="v1",
-                player_type="batter",
+                player_type=PlayerType.BATTER,
                 stat_json={"pa": 500, "hr": 25},
             ),
             Projection(
@@ -569,7 +572,7 @@ class TestComputeAdjustedValuations:
                 season=2026,
                 system="c",
                 version="v1",
-                player_type="pitcher",
+                player_type=PlayerType.PITCHER,
                 stat_json={"ip": 180, "k": 180},
             ),
         ]
@@ -578,10 +581,10 @@ class TestComputeAdjustedValuations:
         pitcher_positions = {100: ["sp"], 300: ["sp"]}
 
         original_valuations = [
-            _valuation(100, 30.0, player_type="batter"),
-            _valuation(100, 25.0, player_type="pitcher"),
-            _valuation(200, 20.0, player_type="batter"),
-            _valuation(300, 22.0, player_type="pitcher"),
+            _valuation(100, 30.0, player_type=PlayerType.BATTER),
+            _valuation(100, 25.0, player_type=PlayerType.PITCHER),
+            _valuation(200, 20.0, player_type=PlayerType.BATTER),
+            _valuation(300, 22.0, player_type=PlayerType.PITCHER),
         ]
 
         players = [
@@ -950,7 +953,7 @@ def _val_with_cats(player_id: int, value: float, cats: dict[str, float], positio
         version="v1",
         projection_system="composite",
         projection_version="v1",
-        player_type="batter",
+        player_type=PlayerType.BATTER,
         position=position,
         value=value,
         rank=1,
@@ -1203,7 +1206,7 @@ def _needs_league() -> LeagueSettings:
     )
 
 
-def _needs_projection(player_id: int, player_type: str, stats: dict[str, float]) -> Projection:
+def _needs_projection(player_id: int, player_type: PlayerType, stats: dict[str, float]) -> Projection:
     return Projection(
         player_id=player_id,
         season=2026,
@@ -1233,14 +1236,14 @@ class TestBuildKeeperDraftNeeds:
         ]
         players = [Player(name_first="P", name_last=str(i), id=i) for i in range(1, 7)]
         projections = [
-            _needs_projection(1, "pitcher", {"ip": 200, "k": 200, "w": 15}),
-            _needs_projection(2, "pitcher", {"ip": 180, "k": 180, "w": 12}),
-            _needs_projection(3, "batter", {"pa": 600, "hr": 35, "sb": 20}),
-            _needs_projection(4, "batter", {"pa": 550, "hr": 25, "sb": 15}),
-            _needs_projection(5, "batter", {"pa": 400, "hr": 5, "sb": 5}),
-            _needs_projection(6, "pitcher", {"ip": 100, "k": 60, "w": 5}),
+            _needs_projection(1, PlayerType.PITCHER, {"ip": 200, "k": 200, "w": 15}),
+            _needs_projection(2, PlayerType.PITCHER, {"ip": 180, "k": 180, "w": 12}),
+            _needs_projection(3, PlayerType.BATTER, {"pa": 600, "hr": 35, "sb": 20}),
+            _needs_projection(4, PlayerType.BATTER, {"pa": 550, "hr": 25, "sb": 15}),
+            _needs_projection(5, PlayerType.BATTER, {"pa": 400, "hr": 5, "sb": 5}),
+            _needs_projection(6, PlayerType.PITCHER, {"ip": 100, "k": 60, "w": 5}),
             # Available batter who should be recommended
-            _needs_projection(7, "batter", {"pa": 600, "hr": 40, "sb": 25}),
+            _needs_projection(7, PlayerType.BATTER, {"pa": 600, "hr": 40, "sb": 25}),
         ]
         # Add valuation for the available player
         valuations.append(_val_with_cats(7, 35.0, {"hr": 4.0, "sb": 2.5}))
@@ -1282,7 +1285,7 @@ class TestBuildKeeperDraftNeeds:
             _val_with_cats(5, 10.0, {"hr": 0.5}),
         ]
         players = [Player(name_first="P", name_last=str(i), id=i) for i in range(1, 6)]
-        projections = [_needs_projection(i, "batter", {"pa": 600, "hr": (6 - i) * 10}) for i in range(1, 6)]
+        projections = [_needs_projection(i, PlayerType.BATTER, {"pa": 600, "hr": (6 - i) * 10}) for i in range(1, 6)]
         league = _needs_league()
         team_names = {"user": "User", "other": "Other"}
 
@@ -1315,9 +1318,9 @@ class TestBuildKeeperDraftNeeds:
         ]
         players = [Player(name_first="P", name_last=str(i), id=i) for i in range(1, 4)]
         projections = [
-            _needs_projection(1, "batter", {"pa": 600, "hr": 40}),
-            _needs_projection(2, "batter", {"pa": 550, "hr": 30}),
-            _needs_projection(3, "batter", {"pa": 500, "hr": 20}),
+            _needs_projection(1, PlayerType.BATTER, {"pa": 600, "hr": 40}),
+            _needs_projection(2, PlayerType.BATTER, {"pa": 550, "hr": 30}),
+            _needs_projection(3, PlayerType.BATTER, {"pa": 500, "hr": 20}),
         ]
         league = _needs_league()
         team_names = {"user": "User", "other": "Other"}
@@ -1344,11 +1347,18 @@ class TestComputeSurplusTwoWayPlayer:
         """KeeperCost with player_type='pitcher' should match pitcher valuation, not batter."""
         players = [Player(name_first="Shohei", name_last="Ohtani", id=100)]
         keepers = [
-            KeeperCost(player_id=100, season=2026, league="dynasty", cost=20.0, source="auction", player_type="pitcher")
+            KeeperCost(
+                player_id=100,
+                season=2026,
+                league="dynasty",
+                cost=20.0,
+                source="auction",
+                player_type=PlayerType.PITCHER,
+            )
         ]
         valuations = [
-            _valuation(100, 30.0, position="OF", player_type="batter"),
-            _valuation(100, 25.0, position="SP", player_type="pitcher"),
+            _valuation(100, 30.0, position="OF", player_type=PlayerType.BATTER),
+            _valuation(100, 25.0, position="SP", player_type=PlayerType.PITCHER),
         ]
 
         result = compute_surplus(keepers, valuations, players)
@@ -1364,8 +1374,8 @@ class TestComputeSurplusTwoWayPlayer:
         players = [Player(name_first="Shohei", name_last="Ohtani", id=100)]
         keepers = [_keeper_cost(100, 20.0)]  # no player_type
         valuations = [
-            _valuation(100, 30.0, position="OF", player_type="batter"),
-            _valuation(100, 25.0, position="SP", player_type="pitcher"),
+            _valuation(100, 30.0, position="OF", player_type=PlayerType.BATTER),
+            _valuation(100, 25.0, position="SP", player_type=PlayerType.PITCHER),
         ]
 
         result = compute_surplus(keepers, valuations, players)
@@ -1378,11 +1388,13 @@ class TestComputeSurplusTwoWayPlayer:
         """KeeperDecision should carry the matched valuation's player_type."""
         players = [Player(name_first="Shohei", name_last="Ohtani", id=100)]
         keepers = [
-            KeeperCost(player_id=100, season=2026, league="dynasty", cost=20.0, source="auction", player_type="batter")
+            KeeperCost(
+                player_id=100, season=2026, league="dynasty", cost=20.0, source="auction", player_type=PlayerType.BATTER
+            )
         ]
         valuations = [
-            _valuation(100, 30.0, position="OF", player_type="batter"),
-            _valuation(100, 25.0, position="SP", player_type="pitcher"),
+            _valuation(100, 30.0, position="OF", player_type=PlayerType.BATTER),
+            _valuation(100, 25.0, position="SP", player_type=PlayerType.PITCHER),
         ]
 
         result = compute_surplus(keepers, valuations, players)
@@ -1429,9 +1441,9 @@ class TestEstimateOtherKeepersTwoWayPlayer:
             )
         ]
         valuations = [
-            _valuation(100, 30.0, player_type="batter"),
-            _valuation(100, 25.0, player_type="pitcher"),
-            _valuation(200, 10.0, player_type="batter"),
+            _valuation(100, 30.0, player_type=PlayerType.BATTER),
+            _valuation(100, 25.0, player_type=PlayerType.PITCHER),
+            _valuation(200, 10.0, player_type=PlayerType.BATTER),
         ]
 
         result = estimate_other_keepers(rosters, valuations, max_keepers=2)
@@ -1450,9 +1462,9 @@ class TestEvaluateTradeTwoWayPlayer:
         ]
         keeper_costs = [_keeper_cost(100, 20.0), _keeper_cost(200, 10.0)]
         valuations = [
-            _valuation(100, 30.0, player_type="batter"),
-            _valuation(100, 25.0, player_type="pitcher"),
-            _valuation(200, 20.0, player_type="batter"),
+            _valuation(100, 30.0, player_type=PlayerType.BATTER),
+            _valuation(100, 25.0, player_type=PlayerType.PITCHER),
+            _valuation(200, 20.0, player_type=PlayerType.BATTER),
         ]
 
         result = evaluate_trade(

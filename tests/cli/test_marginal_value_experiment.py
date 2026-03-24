@@ -16,6 +16,7 @@ from fantasy_baseball_manager.cli.app import app
 from fantasy_baseball_manager.db.connection import create_connection
 from fantasy_baseball_manager.db.pool import SingleConnectionProvider
 from fantasy_baseball_manager.domain import Experiment, Ok, TargetResult
+from fantasy_baseball_manager.domain.identity import PlayerType
 from fantasy_baseball_manager.models.gbm_training_backend import GBMTrainingBackend
 from fantasy_baseball_manager.repos.experiment_repo import SqliteExperimentRepo
 from fantasy_baseball_manager.services.quick_eval import MarginalValueResult, TargetDelta
@@ -193,7 +194,7 @@ class TestMarginalValueExperimentLogging:
                 timestamp="2026-03-01T00:00:00",
                 hypothesis="parent",
                 model="test-model",
-                player_type="batter",
+                player_type=PlayerType.BATTER,
                 feature_diff={"added": [], "removed": []},
                 seasons={"train": [2023], "holdout": [2024]},
                 params={},

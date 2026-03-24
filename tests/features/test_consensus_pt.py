@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Any
 import pytest
 
 from fantasy_baseball_manager.db.pool import SingleConnectionProvider
+from fantasy_baseball_manager.domain.identity import PlayerType
 from fantasy_baseball_manager.features.assembler import SqliteDatasetAssembler
 from fantasy_baseball_manager.features.consensus_pt import (
     batting_consensus_features,
@@ -183,7 +184,7 @@ class TestBattingConsensusAssembler:
             features=tuple(batting_consensus_features()),
             seasons=(2023,),
             source_filter="fangraphs",
-            spine_filter=SpineFilter(player_type="batter"),
+            spine_filter=SpineFilter(player_type=PlayerType.BATTER),
         )
         assembler = SqliteDatasetAssembler(SingleConnectionProvider(conn))
         handle = assembler.materialize(fs)
@@ -223,7 +224,7 @@ class TestBattingConsensusAssembler:
             features=tuple(batting_consensus_features()),
             seasons=(2023,),
             source_filter="fangraphs",
-            spine_filter=SpineFilter(player_type="batter"),
+            spine_filter=SpineFilter(player_type=PlayerType.BATTER),
         )
         assembler = SqliteDatasetAssembler(SingleConnectionProvider(conn))
         handle = assembler.materialize(fs)
@@ -266,7 +267,7 @@ class TestPitchingConsensusAssembler:
             features=tuple(pitching_consensus_features()),
             seasons=(2023,),
             source_filter="fangraphs",
-            spine_filter=SpineFilter(player_type="pitcher"),
+            spine_filter=SpineFilter(player_type=PlayerType.PITCHER),
         )
         assembler = SqliteDatasetAssembler(SingleConnectionProvider(conn))
         handle = assembler.materialize(fs)

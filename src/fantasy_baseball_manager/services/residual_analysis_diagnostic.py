@@ -2,6 +2,7 @@ import statistics
 from typing import TYPE_CHECKING, Any
 
 from fantasy_baseball_manager.domain import (
+    PlayerType,
     ResidualAnalysisReport,
     ResidualAnalysisSummary,
     StatResidualAnalysis,
@@ -183,7 +184,7 @@ class ResidualAnalysisDiagnostic:
 
         return StatResidualAnalysis(
             stat_name=stat_name,
-            player_type=player_type,
+            player_type=PlayerType(player_type),
             n_observations=len(predictions),
             mean_residual=mean_residual,
             std_residual=std_residual,

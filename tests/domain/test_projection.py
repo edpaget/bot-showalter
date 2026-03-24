@@ -1,5 +1,6 @@
 import pytest
 
+from fantasy_baseball_manager.domain.identity import PlayerType
 from fantasy_baseball_manager.domain.projection import Projection
 
 
@@ -10,7 +11,7 @@ class TestProjection:
             season=2025,
             system="steamer",
             version="2025.1",
-            player_type="batter",
+            player_type=PlayerType.BATTER,
             stat_json={"hr": 30, "avg": 0.280},
         )
         assert proj.player_id == 1
@@ -26,7 +27,7 @@ class TestProjection:
             season=2025,
             system="steamer",
             version="2025.1",
-            player_type="batter",
+            player_type=PlayerType.BATTER,
             stat_json={},
         )
         assert proj.id is None
@@ -38,7 +39,7 @@ class TestProjection:
             season=2025,
             system="steamer",
             version="2025.1",
-            player_type="batter",
+            player_type=PlayerType.BATTER,
             stat_json={},
         )
         with pytest.raises(AttributeError):

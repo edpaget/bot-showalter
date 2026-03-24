@@ -2,6 +2,7 @@ from typing import TYPE_CHECKING, Any
 
 import pytest
 
+from fantasy_baseball_manager.domain.identity import PlayerType
 from fantasy_baseball_manager.domain.projection import Projection
 from fantasy_baseball_manager.features.types import DatasetHandle, DatasetSplits, FeatureSet
 from fantasy_baseball_manager.models.playing_time.aging import AgingCurve
@@ -334,7 +335,7 @@ def _save_test_coefficients(tmp_path: Path) -> None:
         coefficients=(0.0, 0.8, 0.1, 0.05, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 100.0, 0.0),
         intercept=50.0,
         r_squared=0.9,
-        player_type="batter",
+        player_type=PlayerType.BATTER,
     )
     pitcher = PlayingTimeCoefficients(
         feature_names=(
@@ -383,10 +384,12 @@ def _save_test_coefficients(tmp_path: Path) -> None:
         ),
         intercept=20.0,
         r_squared=0.85,
-        player_type="pitcher",
+        player_type=PlayerType.PITCHER,
     )
-    batter_curve = AgingCurve(peak_age=27.0, improvement_rate=0.01, decline_rate=0.005, player_type="batter")
-    pitcher_curve = AgingCurve(peak_age=26.0, improvement_rate=0.008, decline_rate=0.007, player_type="pitcher")
+    batter_curve = AgingCurve(peak_age=27.0, improvement_rate=0.01, decline_rate=0.005, player_type=PlayerType.BATTER)
+    pitcher_curve = AgingCurve(
+        peak_age=26.0, improvement_rate=0.008, decline_rate=0.007, player_type=PlayerType.PITCHER
+    )
     artifact_dir = tmp_path / "playing_time" / "latest"
     artifact_dir.mkdir(parents=True)
     save_coefficients({"batter": batter, "pitcher": pitcher}, artifact_dir / "pt_coefficients.joblib")
@@ -411,8 +414,8 @@ def _save_test_coefficients(tmp_path: Path) -> None:
         std=15.0,
         mean_offset=1.0,
     )
-    bat_buckets = ResidualBuckets(buckets={"all": bat_percs}, player_type="batter")
-    pitch_buckets = ResidualBuckets(buckets={"all": pitch_percs}, player_type="pitcher")
+    bat_buckets = ResidualBuckets(buckets={"all": bat_percs}, player_type=PlayerType.BATTER)
+    pitch_buckets = ResidualBuckets(buckets={"all": pitch_percs}, player_type=PlayerType.PITCHER)
     save_residual_buckets(
         {"batter": bat_buckets, "pitcher": pitch_buckets},
         artifact_dir / "pt_residual_buckets.joblib",
@@ -453,17 +456,21 @@ class TestPlayingTimePredict:
             coefficients=(-1.0,),
             intercept=-100.0,
             r_squared=0.5,
-            player_type="batter",
+            player_type=PlayerType.BATTER,
         )
         pitcher = PlayingTimeCoefficients(
             feature_names=("ip_1",),
             coefficients=(0.5,),
             intercept=20.0,
             r_squared=0.5,
-            player_type="pitcher",
+            player_type=PlayerType.PITCHER,
         )
-        batter_curve = AgingCurve(peak_age=27.0, improvement_rate=0.01, decline_rate=0.005, player_type="batter")
-        pitcher_curve = AgingCurve(peak_age=26.0, improvement_rate=0.008, decline_rate=0.007, player_type="pitcher")
+        batter_curve = AgingCurve(
+            peak_age=27.0, improvement_rate=0.01, decline_rate=0.005, player_type=PlayerType.BATTER
+        )
+        pitcher_curve = AgingCurve(
+            peak_age=26.0, improvement_rate=0.008, decline_rate=0.007, player_type=PlayerType.PITCHER
+        )
         artifact_dir = tmp_path / "playing_time" / "latest"
         artifact_dir.mkdir(parents=True, exist_ok=True)
         save_coefficients({"batter": batter, "pitcher": pitcher}, artifact_dir / "pt_coefficients.joblib")
@@ -1084,10 +1091,18 @@ class FakeProjectionRepo:
 class TestProjectionBasedSpine:
     def test_get_projection_pitcher_ids_returns_union(self) -> None:
         projections = [
-            Projection(player_id=1, season=2024, system="steamer", version="v1", player_type="pitcher", stat_json={}),
-            Projection(player_id=2, season=2024, system="zips", version="v1", player_type="pitcher", stat_json={}),
-            Projection(player_id=1, season=2024, system="zips", version="v1", player_type="pitcher", stat_json={}),
-            Projection(player_id=3, season=2024, system="steamer", version="v1", player_type="batter", stat_json={}),
+            Projection(
+                player_id=1, season=2024, system="steamer", version="v1", player_type=PlayerType.PITCHER, stat_json={}
+            ),
+            Projection(
+                player_id=2, season=2024, system="zips", version="v1", player_type=PlayerType.PITCHER, stat_json={}
+            ),
+            Projection(
+                player_id=1, season=2024, system="zips", version="v1", player_type=PlayerType.PITCHER, stat_json={}
+            ),
+            Projection(
+                player_id=3, season=2024, system="steamer", version="v1", player_type=PlayerType.BATTER, stat_json={}
+            ),
         ]
         repo = FakeProjectionRepo(projections)
         model = PlayingTimeModel(assembler=_NULL_ASSEMBLER, projection_repo=repo)
@@ -1109,8 +1124,12 @@ class TestProjectionBasedSpine:
 
         # Create projections for pitcher IDs 10 and 20 in season 2024
         projections = [
-            Projection(player_id=10, season=2024, system="steamer", version="v1", player_type="pitcher", stat_json={}),
-            Projection(player_id=20, season=2024, system="zips", version="v1", player_type="pitcher", stat_json={}),
+            Projection(
+                player_id=10, season=2024, system="steamer", version="v1", player_type=PlayerType.PITCHER, stat_json={}
+            ),
+            Projection(
+                player_id=20, season=2024, system="zips", version="v1", player_type=PlayerType.PITCHER, stat_json={}
+            ),
         ]
         repo = FakeProjectionRepo(projections)
 

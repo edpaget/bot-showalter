@@ -6,6 +6,7 @@ from fantasy_baseball_manager.cli.app import app
 from fantasy_baseball_manager.db.connection import create_connection
 from fantasy_baseball_manager.db.pool import SingleConnectionProvider
 from fantasy_baseball_manager.domain.adp import ADP
+from fantasy_baseball_manager.domain.identity import PlayerType
 from fantasy_baseball_manager.domain.league_settings import (
     CategoryConfig,
     Direction,
@@ -65,7 +66,7 @@ def _seed_draft_board_data(conn: sqlite3.Connection) -> None:
             version="production",
             projection_system="steamer",
             projection_version="v1",
-            player_type="batter",
+            player_type=PlayerType.BATTER,
             position="OF",
             value=42.5,
             rank=1,
@@ -80,7 +81,7 @@ def _seed_draft_board_data(conn: sqlite3.Connection) -> None:
             version="production",
             projection_system="steamer",
             projection_version="v1",
-            player_type="pitcher",
+            player_type=PlayerType.PITCHER,
             position="SP",
             value=35.0,
             rank=2,
@@ -201,7 +202,7 @@ def _seed_tier_data(conn: sqlite3.Connection) -> None:
                 version="production",
                 projection_system="steamer",
                 projection_version="v1",
-                player_type="batter",
+                player_type=PlayerType.BATTER,
                 position="OF",
                 value=value,
                 rank=i,
@@ -225,7 +226,7 @@ def _seed_tier_data(conn: sqlite3.Connection) -> None:
                 version="production",
                 projection_system="steamer",
                 projection_version="v1",
-                player_type="pitcher",
+                player_type=PlayerType.PITCHER,
                 position="SP",
                 value=value,
                 rank=i,
@@ -381,7 +382,7 @@ def _seed_needs_data(conn: sqlite3.Connection) -> None:
             season=2026,
             system="steamer",
             version="production",
-            player_type="batter",
+            player_type=PlayerType.BATTER,
             stat_json={"hr": 35.0, "sb": 3.0},
         )
     )
@@ -394,7 +395,7 @@ def _seed_needs_data(conn: sqlite3.Connection) -> None:
             season=2026,
             system="steamer",
             version="production",
-            player_type="batter",
+            player_type=PlayerType.BATTER,
             stat_json={"hr": 5.0, "sb": 40.0},
         )
     )
@@ -408,7 +409,7 @@ def _seed_needs_data(conn: sqlite3.Connection) -> None:
                 season=2026,
                 system="steamer",
                 version="production",
-                player_type="batter",
+                player_type=PlayerType.BATTER,
                 stat_json={"hr": 20.0, "sb": 15.0},
             )
         )
@@ -457,7 +458,7 @@ class TestDraftNeedsCommand:
                 season=2026,
                 system="steamer",
                 version="production",
-                player_type="batter",
+                player_type=PlayerType.BATTER,
                 stat_json={"hr": 500.0, "sb": 400.0},
             )
         )
@@ -470,7 +471,7 @@ class TestDraftNeedsCommand:
                     season=2026,
                     system="steamer",
                     version="production",
-                    player_type="batter",
+                    player_type=PlayerType.BATTER,
                     stat_json={"hr": 20.0, "sb": 15.0},
                 )
             )
@@ -530,18 +531,18 @@ def _seed_pick_value_data(conn: sqlite3.Connection) -> None:
     adp_repo = SqliteADPRepo(SingleConnectionProvider(conn))
 
     players = [
-        ("Mike", "Trout", 545361, "batter", "OF", 40.0),
-        ("Juan", "Soto", 665742, "batter", "OF", 35.0),
-        ("Aaron", "Judge", 592450, "batter", "OF", 30.0),
-        ("Gerrit", "Cole", 543037, "pitcher", "SP", 28.0),
-        ("Shohei", "Ohtani", 660271, "batter", "OF", 25.0),
-        ("Mookie", "Betts", 605141, "batter", "OF", 22.0),
-        ("Trea", "Turner", 607208, "batter", "SS", 20.0),
-        ("Ronald", "Acuna", 660670, "batter", "OF", 18.0),
-        ("Freddie", "Freeman", 518692, "batter", "1B", 16.0),
-        ("Spencer", "Strider", 675911, "pitcher", "SP", 14.0),
-        ("Corey", "Seager", 608369, "batter", "SS", 12.0),
-        ("Bobby", "Witt", 677951, "batter", "SS", 10.0),
+        ("Mike", "Trout", 545361, PlayerType.BATTER, "OF", 40.0),
+        ("Juan", "Soto", 665742, PlayerType.BATTER, "OF", 35.0),
+        ("Aaron", "Judge", 592450, PlayerType.BATTER, "OF", 30.0),
+        ("Gerrit", "Cole", 543037, PlayerType.PITCHER, "SP", 28.0),
+        ("Shohei", "Ohtani", 660271, PlayerType.BATTER, "OF", 25.0),
+        ("Mookie", "Betts", 605141, PlayerType.BATTER, "OF", 22.0),
+        ("Trea", "Turner", 607208, PlayerType.BATTER, "SS", 20.0),
+        ("Ronald", "Acuna", 660670, PlayerType.BATTER, "OF", 18.0),
+        ("Freddie", "Freeman", 518692, PlayerType.BATTER, "1B", 16.0),
+        ("Spencer", "Strider", 675911, PlayerType.PITCHER, "SP", 14.0),
+        ("Corey", "Seager", 608369, PlayerType.BATTER, "SS", 12.0),
+        ("Bobby", "Witt", 677951, PlayerType.BATTER, "SS", 10.0),
     ]
     for i, (first, last, mlbam, ptype, pos, value) in enumerate(players, start=1):
         pid = player_repo.upsert(Player(name_first=first, name_last=last, mlbam_id=mlbam))
@@ -642,7 +643,7 @@ def _seed_upgrade_data(conn: sqlite3.Connection) -> None:
             version="production",
             projection_system="steamer",
             projection_version="v1",
-            player_type="batter",
+            player_type=PlayerType.BATTER,
             position="OF",
             value=42.5,
             rank=1,
@@ -660,7 +661,7 @@ def _seed_upgrade_data(conn: sqlite3.Connection) -> None:
             version="production",
             projection_system="steamer",
             projection_version="v1",
-            player_type="batter",
+            player_type=PlayerType.BATTER,
             position="OF",
             value=38.0,
             rank=2,
@@ -678,7 +679,7 @@ def _seed_upgrade_data(conn: sqlite3.Connection) -> None:
             version="production",
             projection_system="steamer",
             projection_version="v1",
-            player_type="pitcher",
+            player_type=PlayerType.PITCHER,
             position="SP",
             value=35.0,
             rank=3,

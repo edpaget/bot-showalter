@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, NamedTuple, Protocol, runtime_checkable
 
@@ -6,6 +8,7 @@ if TYPE_CHECKING:
 
     from fantasy_baseball_manager.domain.evaluation import SystemMetrics
     from fantasy_baseball_manager.domain.expected_games_lost import ExpectedGamesLost
+    from fantasy_baseball_manager.domain.identity import PlayerType
     from fantasy_baseball_manager.domain.injury_profile import InjuryProfile
     from fantasy_baseball_manager.domain.league_settings import CategoryConfig, LeagueSettings
     from fantasy_baseball_manager.domain.projection import Projection
@@ -56,7 +59,7 @@ class TargetComparison:
 
 @dataclass(frozen=True)
 class ValidationResult:
-    player_type: str  # "batter" or "pitcher"
+    player_type: PlayerType
     comparisons: tuple[TargetComparison, ...]
     pruned_features: tuple[str, ...]  # feature column names removed
     n_improved: int

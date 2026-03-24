@@ -1,5 +1,6 @@
 import pytest
 
+from fantasy_baseball_manager.domain.identity import PlayerType
 from fantasy_baseball_manager.domain.league_settings import (
     CategoryConfig,
     Direction,
@@ -56,7 +57,7 @@ class TestComputeReplacementProfiles:
             roster_spots=roster_spots,
             num_teams=2,
             categories=categories,
-            player_type="batter",
+            player_type=PlayerType.BATTER,
         )
 
         assert "OF" in result
@@ -86,7 +87,7 @@ class TestComputeReplacementProfiles:
             roster_spots=roster_spots,
             num_teams=2,
             categories=categories,
-            player_type="batter",
+            player_type=PlayerType.BATTER,
         )
 
         assert result["1B"].stat_line == stats[2]
@@ -109,7 +110,7 @@ class TestComputeReplacementProfiles:
             roster_spots=roster_spots,
             num_teams=1,
             categories=categories,
-            player_type="batter",
+            player_type=PlayerType.BATTER,
         )
 
         # 1B pool: players 0 (40) and 1 (30), 1 spot × 1 team = 1 draftable, replacement = player 1
@@ -133,7 +134,7 @@ class TestComputeReplacementProfiles:
             roster_spots=roster_spots,
             num_teams=2,
             categories=categories,
-            player_type="batter",
+            player_type=PlayerType.BATTER,
         )
 
         # draftable=6 > 2 players, so worst eligible (player 1) is replacement
@@ -152,7 +153,7 @@ class TestComputeReplacementProfiles:
             roster_spots=roster_spots,
             num_teams=1,
             categories=categories,
-            player_type="batter",
+            player_type=PlayerType.BATTER,
         )
 
         assert result["C"].stat_line == {"hr": 0.0, "rbi": 0.0}
@@ -168,7 +169,7 @@ class TestComputeReplacementProfiles:
             roster_spots=roster_spots,
             num_teams=1,
             categories=categories,
-            player_type="batter",
+            player_type=PlayerType.BATTER,
         )
 
         assert result == {}
@@ -190,7 +191,7 @@ class TestComputeReplacementProfiles:
             roster_spots=roster_spots,
             num_teams=2,
             categories=categories,
-            player_type="batter",
+            player_type=PlayerType.BATTER,
         )
 
         # Should return original stats, not converted marginal values
@@ -220,7 +221,7 @@ class TestComputeReplacementProfiles:
             roster_spots=roster_spots,
             num_teams=num_teams,
             categories=categories,
-            player_type="batter",
+            player_type=PlayerType.BATTER,
         )
 
         # Run engine to get replacement level

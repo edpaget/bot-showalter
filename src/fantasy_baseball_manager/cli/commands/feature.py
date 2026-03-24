@@ -12,7 +12,7 @@ from fantasy_baseball_manager.cli._output import (
     print_interaction_scan_results,
 )
 from fantasy_baseball_manager.cli.factory import FeatureContext, build_feature_context
-from fantasy_baseball_manager.domain import CandidateValue, CorrelationScanResult, FeatureCandidate
+from fantasy_baseball_manager.domain import CandidateValue, CorrelationScanResult, FeatureCandidate, PlayerType
 from fantasy_baseball_manager.services import (
     BINNING_METHODS,
     INTERACTION_OPERATIONS,
@@ -68,7 +68,7 @@ def candidate_cmd(
             candidate = FeatureCandidate(
                 name=name,
                 expression=expression,
-                player_type=player_type,
+                player_type=PlayerType(player_type),
                 min_pa=min_pa,
                 min_ip=min_ip,
                 created_at=date.today().isoformat(),

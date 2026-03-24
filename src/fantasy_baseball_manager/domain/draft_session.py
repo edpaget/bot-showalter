@@ -1,4 +1,10 @@
+from __future__ import annotations
+
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from fantasy_baseball_manager.domain.identity import PlayerType
 
 
 @dataclass(frozen=True)
@@ -41,6 +47,6 @@ class DraftSessionPick:
     player_id: int
     player_name: str
     position: str
-    player_type: str = ""
+    player_type: PlayerType | None = None
     price: int | None = None
     id: int | None = None

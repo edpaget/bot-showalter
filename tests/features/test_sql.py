@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING, Any
 
 import pytest
 
+from fantasy_baseball_manager.domain.identity import PlayerType
 from fantasy_baseball_manager.features.sql import (
     JoinSpec,
     _join_alias,
@@ -669,7 +670,7 @@ class TestJoinClauseProjection:
 
     def test_projection_uses_player_type_filter(self) -> None:
         join = JoinSpec(source=Source.PROJECTION, lag=0, alias="pr0", table="projection", system="steamer")
-        sql, params = _join_clause(join, None, player_type="batter")
+        sql, params = _join_clause(join, None, player_type=PlayerType.BATTER)
         assert "pr0.player_type = ?" in sql
         assert "batter" in params
 
@@ -680,7 +681,7 @@ class TestJoinClauseProjection:
 
     def test_non_projection_ignores_player_type(self) -> None:
         join = JoinSpec(source=Source.BATTING, lag=0, alias="b0", table="batting_stats")
-        sql, params = _join_clause(join, None, player_type="batter")
+        sql, params = _join_clause(join, None, player_type=PlayerType.BATTER)
         assert "player_type" not in sql
 
 
@@ -690,7 +691,7 @@ class TestSpineCte:
             name="test",
             features=(Feature(name="hr_1", source=Source.BATTING, column="hr", lag=1),),
             seasons=(2022, 2023),
-            spine_filter=SpineFilter(player_type="batter"),
+            spine_filter=SpineFilter(player_type=PlayerType.BATTER),
         )
         sql, params = _spine_cte(fs)
         assert "SELECT DISTINCT player_id, season" in sql
@@ -704,7 +705,7 @@ class TestSpineCte:
             features=(Feature(name="hr_1", source=Source.BATTING, column="hr", lag=1),),
             seasons=(2022,),
             source_filter="fangraphs",
-            spine_filter=SpineFilter(player_type="batter"),
+            spine_filter=SpineFilter(player_type=PlayerType.BATTER),
         )
         sql, params = _spine_cte(fs)
         assert "AND source = ?" in sql
@@ -715,7 +716,7 @@ class TestSpineCte:
             name="test",
             features=(Feature(name="hr_1", source=Source.BATTING, column="hr", lag=1),),
             seasons=(2022,),
-            spine_filter=SpineFilter(player_type="batter", min_pa=50),
+            spine_filter=SpineFilter(player_type=PlayerType.BATTER, min_pa=50),
         )
         sql, params = _spine_cte(fs)
         assert "AND pa >= ?" in sql
@@ -726,7 +727,7 @@ class TestSpineCte:
             name="test",
             features=(Feature(name="so_0", source=Source.PITCHING, column="so"),),
             seasons=(2022,),
-            spine_filter=SpineFilter(player_type="pitcher", min_ip=30.0),
+            spine_filter=SpineFilter(player_type=PlayerType.PITCHER, min_ip=30.0),
         )
         sql, params = _spine_cte(fs)
         assert "FROM pitching_stats" in sql
@@ -738,7 +739,7 @@ class TestSpineCte:
             name="test",
             features=(Feature(name="hr_1", source=Source.BATTING, column="hr", lag=1),),
             seasons=(2022,),
-            spine_filter=SpineFilter(player_type="batter"),
+            spine_filter=SpineFilter(player_type=PlayerType.BATTER),
         )
         sql, _ = _spine_cte(fs)
         assert "FROM batting_stats" in sql
@@ -748,7 +749,7 @@ class TestSpineCte:
             name="test",
             features=(Feature(name="so_0", source=Source.PITCHING, column="so"),),
             seasons=(2022,),
-            spine_filter=SpineFilter(player_type="pitcher"),
+            spine_filter=SpineFilter(player_type=PlayerType.PITCHER),
         )
         sql, _ = _spine_cte(fs)
         assert "FROM pitching_stats" in sql
@@ -759,7 +760,7 @@ class TestSpineCte:
             features=(Feature(name="hr_1", source=Source.BATTING, column="hr", lag=1),),
             seasons=(2022, 2023),
             source_filter="fangraphs",
-            spine_filter=SpineFilter(player_type="batter", min_pa=50),
+            spine_filter=SpineFilter(player_type=PlayerType.BATTER, min_pa=50),
         )
         sql, params = _spine_cte(fs)
         assert "FROM batting_stats" in sql
@@ -934,7 +935,7 @@ class TestGenerateSql:
             features=(Feature(name="hr_1", source=Source.BATTING, column="hr", lag=1),),
             seasons=(2022,),
             source_filter="fangraphs",
-            spine_filter=SpineFilter(player_type="batter"),
+            spine_filter=SpineFilter(player_type=PlayerType.BATTER),
         )
         sql, params = generate_sql(fs)
         assert "WITH spine AS" in sql
@@ -953,7 +954,7 @@ class TestGenerateSql:
                 Feature(name="pa_1", source=Source.BATTING, column="pa", lag=1),
             ),
             seasons=(2022,),
-            spine_filter=SpineFilter(player_type="batter"),
+            spine_filter=SpineFilter(player_type=PlayerType.BATTER),
         )
         sql, _ = generate_sql(fs)
         # Should be only one LEFT JOIN for batting lag 1
@@ -977,7 +978,7 @@ class TestGenerateSql:
                 ),
             ),
             seasons=(2022,),
-            spine_filter=SpineFilter(player_type="batter"),
+            spine_filter=SpineFilter(player_type=PlayerType.BATTER),
         )
         sql, _ = generate_sql(fs)
         assert "b1.[hr] AS [hr_1]" in sql
@@ -991,7 +992,7 @@ class TestGenerateSql:
             name="test",
             features=(Feature(name="hr_1", source=Source.BATTING, column="hr", lag=1),),
             seasons=(2022,),
-            spine_filter=SpineFilter(player_type="batter"),
+            spine_filter=SpineFilter(player_type=PlayerType.BATTER),
         )
         sql, params = generate_sql(fs)
         assert "source = ?" not in sql
@@ -1002,7 +1003,7 @@ class TestGenerateSql:
             name="test",
             features=(Feature(name="hr_1", source=Source.BATTING, column="hr", lag=1),),
             seasons=(2022,),
-            spine_filter=SpineFilter(player_type="batter"),
+            spine_filter=SpineFilter(player_type=PlayerType.BATTER),
         )
         sql, _ = generate_sql(fs)
         assert "spine.player_id" in sql
@@ -1033,7 +1034,7 @@ class TestRoundTrip:
             features=(Feature(name="hr_1", source=Source.BATTING, column="hr", lag=1),),
             seasons=(2022, 2023),
             source_filter="fangraphs",
-            spine_filter=SpineFilter(player_type="batter"),
+            spine_filter=SpineFilter(player_type=PlayerType.BATTER),
         )
         rows = self._execute_dicts(fs)
         assert len(rows) == 4  # 2 players x 2 seasons
@@ -1049,7 +1050,7 @@ class TestRoundTrip:
             features=(Feature(name="age", source=Source.PLAYER, column="", computed="age"),),
             seasons=(2023,),
             source_filter="fangraphs",
-            spine_filter=SpineFilter(player_type="batter"),
+            spine_filter=SpineFilter(player_type=PlayerType.BATTER),
         )
         rows = self._execute_dicts(fs)
         trout = next(r for r in rows if r["player_id"] == 1)
@@ -1073,7 +1074,7 @@ class TestRoundTrip:
             ),
             seasons=(2023,),
             source_filter="fangraphs",
-            spine_filter=SpineFilter(player_type="batter"),
+            spine_filter=SpineFilter(player_type=PlayerType.BATTER),
         )
         rows = self._execute_dicts(fs)
         trout = next(r for r in rows if r["player_id"] == 1)
@@ -1095,7 +1096,7 @@ class TestRoundTrip:
             ),
             seasons=(2023,),
             source_filter="fangraphs",
-            spine_filter=SpineFilter(player_type="batter"),
+            spine_filter=SpineFilter(player_type=PlayerType.BATTER),
         )
         rows = self._execute_dicts(fs)
         trout = next(r for r in rows if r["player_id"] == 1)
@@ -1118,7 +1119,7 @@ class TestRoundTrip:
             ),
             seasons=(2023,),
             source_filter="fangraphs",
-            spine_filter=SpineFilter(player_type="batter"),
+            spine_filter=SpineFilter(player_type=PlayerType.BATTER),
         )
         rows = self._execute_dicts(fs)
         trout = next(r for r in rows if r["player_id"] == 1)
@@ -1132,7 +1133,7 @@ class TestRoundTrip:
             features=(Feature(name="hr_1", source=Source.BATTING, column="hr", lag=1),),
             seasons=(2021, 2022, 2023),
             source_filter="fangraphs",
-            spine_filter=SpineFilter(player_type="batter"),
+            spine_filter=SpineFilter(player_type=PlayerType.BATTER),
         )
         rows = self._execute(fs)
         assert len(rows) == 6  # 2 players x 3 seasons
@@ -1163,7 +1164,7 @@ class TestRoundTrip:
             ),
             seasons=(2023,),
             source_filter="fangraphs",
-            spine_filter=SpineFilter(player_type="batter"),
+            spine_filter=SpineFilter(player_type=PlayerType.BATTER),
         )
         rows = self._execute_dicts(fs)
         assert len(rows) == 2
@@ -1180,7 +1181,7 @@ class TestRoundTrip:
             features=(Feature(name="hr_0", source=Source.BATTING, column="hr"),),
             seasons=(2020,),
             source_filter="fangraphs",
-            spine_filter=SpineFilter(player_type="batter", min_pa=220),
+            spine_filter=SpineFilter(player_type=PlayerType.BATTER, min_pa=220),
         )
         rows = self._execute_dicts(fs)
         # Trout had 250 PA in 2020, Betts had 200 → only Trout passes
@@ -1193,7 +1194,7 @@ class TestRoundTrip:
             features=(Feature(name="hr_1", source=Source.BATTING, column="hr", lag=1),),
             seasons=(2020,),
             source_filter="fangraphs",
-            spine_filter=SpineFilter(player_type="batter"),
+            spine_filter=SpineFilter(player_type=PlayerType.BATTER),
         )
         rows = self._execute_dicts(fs)
         # Lag 1 from 2020 → need 2019 data, which doesn't exist
@@ -1222,7 +1223,7 @@ class TestProjectionRoundTrip:
             features=(Feature(name="steamer_hr", source=Source.PROJECTION, column="hr", system="steamer"),),
             seasons=(2023,),
             source_filter="fangraphs",
-            spine_filter=SpineFilter(player_type="batter"),
+            spine_filter=SpineFilter(player_type=PlayerType.BATTER),
         )
         rows = self._execute_dicts(fs)
         trout = next(r for r in rows if r["player_id"] == 1)
@@ -1237,7 +1238,7 @@ class TestProjectionRoundTrip:
             ),
             seasons=(2023,),
             source_filter="fangraphs",
-            spine_filter=SpineFilter(player_type="batter"),
+            spine_filter=SpineFilter(player_type=PlayerType.BATTER),
         )
         rows = self._execute_dicts(fs)
         trout = next(r for r in rows if r["player_id"] == 1)
@@ -1253,7 +1254,7 @@ class TestProjectionRoundTrip:
             features=(delta,),
             seasons=(2023,),
             source_filter="fangraphs",
-            spine_filter=SpineFilter(player_type="batter"),
+            spine_filter=SpineFilter(player_type=PlayerType.BATTER),
         )
         rows = self._execute_dicts(fs)
         trout = next(r for r in rows if r["player_id"] == 1)
@@ -1269,7 +1270,7 @@ class TestProjectionRoundTrip:
             features=(batting_hr, steamer_hr, delta),
             seasons=(2023,),
             source_filter="fangraphs",
-            spine_filter=SpineFilter(player_type="batter"),
+            spine_filter=SpineFilter(player_type=PlayerType.BATTER),
         )
         rows = self._execute_dicts(fs)
         betts = next(r for r in rows if r["player_id"] == 2)
@@ -1287,7 +1288,7 @@ class TestProjectionRoundTrip:
             ),
             seasons=(2023,),
             source_filter="fangraphs",
-            spine_filter=SpineFilter(player_type="batter"),
+            spine_filter=SpineFilter(player_type=PlayerType.BATTER),
         )
         rows = self._execute_dicts(fs)
         trout = next(r for r in rows if r["player_id"] == 1)
@@ -1301,7 +1302,7 @@ class TestProjectionRoundTrip:
             features=(Feature(name="steamer_hr", source=Source.PROJECTION, column="hr", system="steamer"),),
             seasons=(2023,),
             source_filter="fangraphs",
-            spine_filter=SpineFilter(player_type="batter"),
+            spine_filter=SpineFilter(player_type=PlayerType.BATTER),
         )
         rows = self._execute_dicts(fs)
         trout = next(r for r in rows if r["player_id"] == 1)
@@ -1321,7 +1322,7 @@ class TestProjectionRoundTrip:
             ),
             seasons=(2023,),
             source_filter="fangraphs",
-            spine_filter=SpineFilter(player_type="batter"),
+            spine_filter=SpineFilter(player_type=PlayerType.BATTER),
         )
         rows = self._execute_dicts(fs)
         trout = next(r for r in rows if r["player_id"] == 1)
@@ -1358,7 +1359,7 @@ class TestDistributionRoundTrip:
             ),
             seasons=(2023,),
             source_filter="fangraphs",
-            spine_filter=SpineFilter(player_type="batter"),
+            spine_filter=SpineFilter(player_type=PlayerType.BATTER),
         )
         rows = self._execute_dicts(fs)
         trout = next(r for r in rows if r["player_id"] == 1)
@@ -1384,7 +1385,7 @@ class TestDistributionRoundTrip:
             ),
             seasons=(2023,),
             source_filter="fangraphs",
-            spine_filter=SpineFilter(player_type="batter"),
+            spine_filter=SpineFilter(player_type=PlayerType.BATTER),
         )
         rows = self._execute_dicts(fs)
         trout = next(r for r in rows if r["player_id"] == 1)
@@ -1406,7 +1407,7 @@ class TestDistributionRoundTrip:
             ),
             seasons=(2023,),
             source_filter="fangraphs",
-            spine_filter=SpineFilter(player_type="batter"),
+            spine_filter=SpineFilter(player_type=PlayerType.BATTER),
         )
         rows = self._execute_dicts(fs)
         betts = next(r for r in rows if r["player_id"] == 2)
@@ -1433,7 +1434,7 @@ class TestTransformFeatureSkipped:
             features=(regular, transform),
             seasons=(2023,),
             source_filter="fangraphs",
-            spine_filter=SpineFilter(player_type="batter"),
+            spine_filter=SpineFilter(player_type=PlayerType.BATTER),
         )
         sql, _ = generate_sql(fs)
         assert "hr_1" in sql
@@ -1454,7 +1455,7 @@ class TestTransformFeatureSkipped:
             name="test",
             features=(transform,),
             seasons=(2023,),
-            spine_filter=SpineFilter(player_type="batter"),
+            spine_filter=SpineFilter(player_type=PlayerType.BATTER),
         )
         sql, _ = generate_sql(fs)
         assert "spine.player_id" in sql
@@ -1484,7 +1485,7 @@ class TestILStintRoundTrip:
             features=(Feature(name="il_days_1", source=Source.IL_STINT, column="days", lag=1),),
             seasons=(2023,),
             source_filter="fangraphs",
-            spine_filter=SpineFilter(player_type="batter"),
+            spine_filter=SpineFilter(player_type=PlayerType.BATTER),
         )
         rows = self._execute_dicts(fs)
         trout = next(r for r in rows if r["player_id"] == 1)
@@ -1497,7 +1498,7 @@ class TestILStintRoundTrip:
             features=(Feature(name="il_stints_1", source=Source.IL_STINT, column="stint_count", lag=1),),
             seasons=(2023,),
             source_filter="fangraphs",
-            spine_filter=SpineFilter(player_type="batter"),
+            spine_filter=SpineFilter(player_type=PlayerType.BATTER),
         )
         rows = self._execute_dicts(fs)
         trout = next(r for r in rows if r["player_id"] == 1)
@@ -1510,7 +1511,7 @@ class TestILStintRoundTrip:
             features=(Feature(name="il_days_1", source=Source.IL_STINT, column="days", lag=1),),
             seasons=(2023,),
             source_filter="fangraphs",
-            spine_filter=SpineFilter(player_type="batter"),
+            spine_filter=SpineFilter(player_type=PlayerType.BATTER),
         )
         rows = self._execute_dicts(fs)
         betts = next(r for r in rows if r["player_id"] == 2)
@@ -1523,7 +1524,7 @@ class TestILStintRoundTrip:
             features=(Feature(name="il_days_2", source=Source.IL_STINT, column="days", lag=2),),
             seasons=(2023,),
             source_filter="fangraphs",
-            spine_filter=SpineFilter(player_type="batter"),
+            spine_filter=SpineFilter(player_type=PlayerType.BATTER),
         )
         rows = self._execute_dicts(fs)
         trout = next(r for r in rows if r["player_id"] == 1)

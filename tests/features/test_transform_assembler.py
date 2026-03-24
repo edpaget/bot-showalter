@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING, Any
 import pytest
 
 from fantasy_baseball_manager.db.pool import SingleConnectionProvider
+from fantasy_baseball_manager.domain.identity import PlayerType
 from fantasy_baseball_manager.features.assembler import SqliteDatasetAssembler
 from fantasy_baseball_manager.features.transforms.batted_ball import BATTED_BALL
 from fantasy_baseball_manager.features.transforms.pitch_mix import PITCH_MIX
@@ -45,7 +46,7 @@ class TestMixedFeatureSet:
             features=(regular, NOOP_TRANSFORM),
             seasons=(2023,),
             source_filter="fangraphs",
-            spine_filter=SpineFilter(player_type="batter"),
+            spine_filter=SpineFilter(player_type=PlayerType.BATTER),
         )
         assembler = SqliteDatasetAssembler(SingleConnectionProvider(seeded_conn))
         handle = assembler.materialize(fs)
@@ -63,7 +64,7 @@ class TestMixedFeatureSet:
             features=(regular, NOOP_TRANSFORM),
             seasons=(2023,),
             source_filter="fangraphs",
-            spine_filter=SpineFilter(player_type="batter"),
+            spine_filter=SpineFilter(player_type=PlayerType.BATTER),
         )
         assembler = SqliteDatasetAssembler(SingleConnectionProvider(seeded_conn))
         handle = assembler.materialize(fs)
@@ -81,7 +82,7 @@ class TestTransformOnly:
             features=(NOOP_TRANSFORM,),
             seasons=(2023,),
             source_filter="fangraphs",
-            spine_filter=SpineFilter(player_type="batter"),
+            spine_filter=SpineFilter(player_type=PlayerType.BATTER),
         )
         assembler = SqliteDatasetAssembler(SingleConnectionProvider(seeded_conn))
         handle = assembler.materialize(fs)
@@ -109,7 +110,7 @@ class TestLaggedStatcastTransform:
             features=(lagged_batted_ball,),
             seasons=(2023,),
             source_filter="fangraphs",
-            spine_filter=SpineFilter(player_type="batter"),
+            spine_filter=SpineFilter(player_type=PlayerType.BATTER),
         )
         assembler = SqliteDatasetAssembler(SingleConnectionProvider(seeded_conn), statcast_path=statcast_db_path)
         handle = assembler.materialize(fs)
@@ -133,7 +134,7 @@ class TestLaggedStatcastTransform:
             features=(BATTED_BALL,),
             seasons=(2022,),
             source_filter="fangraphs",
-            spine_filter=SpineFilter(player_type="batter"),
+            spine_filter=SpineFilter(player_type=PlayerType.BATTER),
         )
         assembler = SqliteDatasetAssembler(SingleConnectionProvider(seeded_conn), statcast_path=statcast_db_path)
         handle = assembler.materialize(fs)
@@ -158,7 +159,7 @@ class TestAvgLagStatcastTransform:
             features=(avg_batted_ball,),
             seasons=(2023,),
             source_filter="fangraphs",
-            spine_filter=SpineFilter(player_type="batter"),
+            spine_filter=SpineFilter(player_type=PlayerType.BATTER),
         )
         assembler = SqliteDatasetAssembler(SingleConnectionProvider(seeded_conn), statcast_path=statcast_db_path)
         handle = assembler.materialize(fs)
@@ -183,7 +184,7 @@ class TestAvgLagStatcastTransform:
             features=(avg_batted_ball,),
             seasons=(2023,),
             source_filter="fangraphs",
-            spine_filter=SpineFilter(player_type="batter"),
+            spine_filter=SpineFilter(player_type=PlayerType.BATTER),
         )
         assembler = SqliteDatasetAssembler(SingleConnectionProvider(seeded_conn), statcast_path=statcast_db_path)
         handle = assembler.materialize(fs)
@@ -207,7 +208,7 @@ class TestAvgLagStatcastTransform:
             features=(avg_batted_ball,),
             seasons=(2023,),
             source_filter="fangraphs",
-            spine_filter=SpineFilter(player_type="batter"),
+            spine_filter=SpineFilter(player_type=PlayerType.BATTER),
         )
         assembler = SqliteDatasetAssembler(SingleConnectionProvider(seeded_conn), statcast_path=statcast_db_path)
         handle = assembler.materialize(fs)
@@ -233,14 +234,14 @@ class TestAvgLagStatcastTransform:
             features=(single,),
             seasons=(2023,),
             source_filter="fangraphs",
-            spine_filter=SpineFilter(player_type="batter"),
+            spine_filter=SpineFilter(player_type=PlayerType.BATTER),
         )
         fs_avg = FeatureSet(
             name="test_avg",
             features=(avg,),
             seasons=(2023,),
             source_filter="fangraphs",
-            spine_filter=SpineFilter(player_type="batter"),
+            spine_filter=SpineFilter(player_type=PlayerType.BATTER),
         )
         assembler = SqliteDatasetAssembler(SingleConnectionProvider(seeded_conn), statcast_path=statcast_db_path)
         single_rows = assembler.read(assembler.materialize(fs_single))
@@ -263,7 +264,7 @@ class TestWeightedLagStatcastTransform:
             features=(weighted_bb,),
             seasons=(2023,),
             source_filter="fangraphs",
-            spine_filter=SpineFilter(player_type="batter"),
+            spine_filter=SpineFilter(player_type=PlayerType.BATTER),
         )
         assembler = SqliteDatasetAssembler(SingleConnectionProvider(seeded_conn), statcast_path=statcast_db_path)
         handle = assembler.materialize(fs)
@@ -289,7 +290,7 @@ class TestWeightedLagStatcastTransform:
             features=(weighted_bb,),
             seasons=(2023,),
             source_filter="fangraphs",
-            spine_filter=SpineFilter(player_type="batter"),
+            spine_filter=SpineFilter(player_type=PlayerType.BATTER),
         )
         assembler = SqliteDatasetAssembler(SingleConnectionProvider(seeded_conn), statcast_path=statcast_db_path)
         handle = assembler.materialize(fs)
@@ -313,14 +314,14 @@ class TestWeightedLagStatcastTransform:
             features=(weighted_bb,),
             seasons=(2023,),
             source_filter="fangraphs",
-            spine_filter=SpineFilter(player_type="batter"),
+            spine_filter=SpineFilter(player_type=PlayerType.BATTER),
         )
         fs_p = FeatureSet(
             name="test_p",
             features=(pooled_bb,),
             seasons=(2023,),
             source_filter="fangraphs",
-            spine_filter=SpineFilter(player_type="batter"),
+            spine_filter=SpineFilter(player_type=PlayerType.BATTER),
         )
         assembler = SqliteDatasetAssembler(SingleConnectionProvider(seeded_conn), statcast_path=statcast_db_path)
         w_rows = assembler.read(assembler.materialize(fs_w))
@@ -343,14 +344,14 @@ class TestWeightedLagStatcastTransform:
             features=(single,),
             seasons=(2023,),
             source_filter="fangraphs",
-            spine_filter=SpineFilter(player_type="batter"),
+            spine_filter=SpineFilter(player_type=PlayerType.BATTER),
         )
         fs_weighted = FeatureSet(
             name="test_weighted",
             features=(weighted,),
             seasons=(2023,),
             source_filter="fangraphs",
-            spine_filter=SpineFilter(player_type="batter"),
+            spine_filter=SpineFilter(player_type=PlayerType.BATTER),
         )
         assembler = SqliteDatasetAssembler(SingleConnectionProvider(seeded_conn), statcast_path=statcast_db_path)
         single_rows = assembler.read(assembler.materialize(fs_single))
@@ -371,7 +372,7 @@ class TestStatcastIntegration:
             features=(PITCH_MIX,),
             seasons=(2022, 2023),
             source_filter="fangraphs",
-            spine_filter=SpineFilter(player_type="batter"),
+            spine_filter=SpineFilter(player_type=PlayerType.BATTER),
         )
         assembler = SqliteDatasetAssembler(SingleConnectionProvider(seeded_conn), statcast_path=statcast_db_path)
         handle = assembler.materialize(fs)
@@ -394,7 +395,7 @@ class TestStatcastIntegration:
             features=(PITCH_MIX,),
             seasons=(2022,),
             source_filter="fangraphs",
-            spine_filter=SpineFilter(player_type="batter"),
+            spine_filter=SpineFilter(player_type=PlayerType.BATTER),
         )
         assembler = SqliteDatasetAssembler(SingleConnectionProvider(seeded_conn), statcast_path=statcast_db_path)
         handle = assembler.materialize(fs)
@@ -418,7 +419,7 @@ class TestStatcastIntegration:
             features=(BATTED_BALL,),
             seasons=(2022,),
             source_filter="fangraphs",
-            spine_filter=SpineFilter(player_type="batter"),
+            spine_filter=SpineFilter(player_type=PlayerType.BATTER),
         )
         assembler = SqliteDatasetAssembler(SingleConnectionProvider(seeded_conn), statcast_path=statcast_db_path)
         handle = assembler.materialize(fs)
@@ -443,7 +444,7 @@ class TestStatcastIntegration:
             features=(regular, PITCH_MIX),
             seasons=(2022,),
             source_filter="fangraphs",
-            spine_filter=SpineFilter(player_type="batter"),
+            spine_filter=SpineFilter(player_type=PlayerType.BATTER),
         )
         assembler = SqliteDatasetAssembler(SingleConnectionProvider(seeded_conn), statcast_path=statcast_db_path)
         handle = assembler.materialize(fs)
@@ -464,7 +465,7 @@ class TestStatcastIntegration:
             features=(PITCH_MIX,),
             seasons=(2022, 2023),
             source_filter="fangraphs",
-            spine_filter=SpineFilter(player_type="pitcher"),
+            spine_filter=SpineFilter(player_type=PlayerType.PITCHER),
         )
         assembler = SqliteDatasetAssembler(
             SingleConnectionProvider(pitcher_seeded_conn), statcast_path=statcast_db_path
@@ -489,7 +490,7 @@ class TestStatcastIntegration:
             features=(PITCH_MIX,),
             seasons=(2022,),
             source_filter="fangraphs",
-            spine_filter=SpineFilter(player_type="pitcher"),
+            spine_filter=SpineFilter(player_type=PlayerType.PITCHER),
         )
         assembler = SqliteDatasetAssembler(
             SingleConnectionProvider(pitcher_seeded_conn), statcast_path=statcast_db_path
@@ -515,7 +516,7 @@ class TestStatcastIntegration:
             features=(PITCH_MIX,),
             seasons=(2022,),
             source_filter="fangraphs",
-            spine_filter=SpineFilter(player_type="batter"),
+            spine_filter=SpineFilter(player_type=PlayerType.BATTER),
         )
         assembler = SqliteDatasetAssembler(
             SingleConnectionProvider(pitcher_seeded_conn), statcast_path=statcast_db_path

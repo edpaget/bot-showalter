@@ -4,6 +4,7 @@ import pytest
 
 from fantasy_baseball_manager.domain.checkpoint import FeatureCheckpoint
 from fantasy_baseball_manager.domain.experiment import TargetResult
+from fantasy_baseball_manager.domain.identity import PlayerType
 
 
 class TestFeatureCheckpoint:
@@ -11,7 +12,7 @@ class TestFeatureCheckpoint:
         cp = FeatureCheckpoint(
             name="best_batter_v3",
             model="statcast-gbm-preseason",
-            player_type="batter",
+            player_type=PlayerType.BATTER,
             feature_columns=["barrel_rate", "exit_velo"],
             params={"n_estimators": 500},
             target_results={
@@ -35,7 +36,7 @@ class TestFeatureCheckpoint:
         cp = FeatureCheckpoint(
             name="test",
             model="m",
-            player_type="batter",
+            player_type=PlayerType.BATTER,
             feature_columns=["a"],
             params={},
             target_results={},
@@ -49,7 +50,7 @@ class TestFeatureCheckpoint:
         cp = FeatureCheckpoint(
             name="test",
             model="m",
-            player_type="batter",
+            player_type=PlayerType.BATTER,
             feature_columns=[],
             params={},
             target_results={},

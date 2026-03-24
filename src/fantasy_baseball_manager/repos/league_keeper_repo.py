@@ -1,6 +1,6 @@
 from typing import TYPE_CHECKING
 
-from fantasy_baseball_manager.domain import LeagueKeeper
+from fantasy_baseball_manager.domain import LeagueKeeper, PlayerType
 
 if TYPE_CHECKING:
     import sqlite3
@@ -77,5 +77,5 @@ class SqliteLeagueKeeperRepo:
             team_name=row["team_name"],
             cost=row["cost"],
             source=row["source"],
-            player_type=row["player_type"] or None,
+            player_type=PlayerType(row["player_type"]) if row["player_type"] else None,
         )

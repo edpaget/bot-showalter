@@ -1,4 +1,5 @@
 from fantasy_baseball_manager.domain.draft_board import DraftBoardRow
+from fantasy_baseball_manager.domain.identity import PlayerType
 from fantasy_baseball_manager.domain.yahoo_draft_pick import YahooDraftPick
 from fantasy_baseball_manager.domain.yahoo_league import YahooTeam
 from fantasy_baseball_manager.services.draft_state import DraftConfig, DraftEngine, DraftError, DraftFormat
@@ -31,7 +32,7 @@ def _make_player(player_id: int, name: str, position: str, value: float = 10.0) 
         player_id=player_id,
         player_name=name,
         rank=1,
-        player_type="batter",
+        player_type=PlayerType.BATTER,
         position=position,
         value=value,
         category_z_scores={},

@@ -120,6 +120,7 @@ from fantasy_baseball_manager.domain.feature_candidate import (
     CandidateValue,
     FeatureCandidate,
 )
+from fantasy_baseball_manager.domain.identity import PlayerIdentity, PlayerType
 from fantasy_baseball_manager.domain.il_stint import ILStint
 from fantasy_baseball_manager.domain.injury_discount import apply_injury_discount, discount_projections
 from fantasy_baseball_manager.domain.injury_profile import InjuryProfile
@@ -473,6 +474,7 @@ __all__ = [
     "PickValueCurve",
     "PitchingStats",
     "Player",
+    "PlayerIdentity",
     "PlayerConfidence",
     "PooledCorrelationResult",
     "PlayerProfile",
@@ -483,6 +485,7 @@ __all__ = [
     "PlayerStatDelta",
     "PlayerSummary",
     "PlayerTier",
+    "PlayerType",
     "PlayerUniverseProvider",
     "PlayerValuation",
     "PlayingTimeScenario",

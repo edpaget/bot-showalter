@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING
 import pytest
 
 from fantasy_baseball_manager.domain import DraftSessionPick, DraftSessionRecord, DraftSessionTrade
+from fantasy_baseball_manager.domain.identity import PlayerType
 from fantasy_baseball_manager.repos.draft_session_repo import SqliteDraftSessionRepo
 
 if TYPE_CHECKING:
@@ -478,7 +479,7 @@ class TestPickPlayerType:
                 player_id=17,
                 player_name="Shohei Ohtani",
                 position="SP",
-                player_type="P",
+                player_type=PlayerType.PITCHER,
             )
         )
         repo.save_pick(
@@ -489,14 +490,14 @@ class TestPickPlayerType:
                 player_id=17,
                 player_name="Shohei Ohtani",
                 position="OF",
-                player_type="B",
+                player_type=PlayerType.BATTER,
             )
         )
 
         loaded = repo.load_picks(session_id)
         assert len(loaded) == 2
-        assert loaded[0].player_type == "P"
-        assert loaded[1].player_type == "B"
+        assert loaded[0].player_type == PlayerType.PITCHER
+        assert loaded[1].player_type == PlayerType.BATTER
 
     def test_default_player_type_is_empty(self, repo: SqliteDraftSessionRepo) -> None:
         session_id = repo.create_session(_make_record())
@@ -512,7 +513,7 @@ class TestPickPlayerType:
         )
 
         loaded = repo.load_picks(session_id)
-        assert loaded[0].player_type == ""
+        assert loaded[0].player_type is None
 
 
 class TestLoadSessionNotFound:

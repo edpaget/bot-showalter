@@ -4,6 +4,7 @@ import pytest
 
 from fantasy_baseball_manager.db.pool import SingleConnectionProvider
 from fantasy_baseball_manager.domain.batting_stats import BattingStats
+from fantasy_baseball_manager.domain.identity import PlayerType
 from fantasy_baseball_manager.domain.projection import Projection
 from fantasy_baseball_manager.repos.batting_stats_repo import SqliteBattingStatsRepo
 from fantasy_baseball_manager.repos.player_repo import SqlitePlayerRepo
@@ -40,7 +41,7 @@ class TestDataAssembly:
                     season=2024,
                     system="test-sys",
                     version="v1",
-                    player_type="batter",
+                    player_type=PlayerType.BATTER,
                     stat_json={"avg": 0.280 + pid * 0.01},
                 )
             )
@@ -62,7 +63,7 @@ class TestDataAssembly:
                     season=2025,
                     system="test-sys",
                     version="v1",
-                    player_type="batter",
+                    player_type=PlayerType.BATTER,
                     stat_json={"avg": 0.285 + pid * 0.01},
                 )
             )
@@ -113,7 +114,7 @@ class TestResidualCorrelation:
                     season=2024,
                     system="test-sys",
                     version="v1",
-                    player_type="batter",
+                    player_type=PlayerType.BATTER,
                     stat_json={"avg": estimates_n[i]},
                 )
             )
@@ -126,7 +127,7 @@ class TestResidualCorrelation:
                     season=2025,
                     system="test-sys",
                     version="v1",
-                    player_type="batter",
+                    player_type=PlayerType.BATTER,
                     stat_json={"avg": estimates_n1[i]},
                 )
             )
@@ -168,7 +169,7 @@ class TestChronicPerformers:
                     season=2024,
                     system="test-sys",
                     version="v1",
-                    player_type="batter",
+                    player_type=PlayerType.BATTER,
                     stat_json={"avg": estimates_n[i]},
                 )
             )
@@ -179,7 +180,7 @@ class TestChronicPerformers:
                     season=2025,
                     system="test-sys",
                     version="v1",
-                    player_type="batter",
+                    player_type=PlayerType.BATTER,
                     stat_json={"avg": estimates_n1[i]},
                 )
             )
@@ -214,7 +215,7 @@ class TestRmseCeiling:
                     season=2024,
                     system="test-sys",
                     version="v1",
-                    player_type="batter",
+                    player_type=PlayerType.BATTER,
                     stat_json={"avg": estimates_n[i]},
                 )
             )
@@ -225,7 +226,7 @@ class TestRmseCeiling:
                     season=2025,
                     system="test-sys",
                     version="v1",
-                    player_type="batter",
+                    player_type=PlayerType.BATTER,
                     stat_json={"avg": estimates_n1[i]},
                 )
             )
@@ -266,7 +267,7 @@ class TestGoNoGoSummary:
                     season=2024,
                     system="test-sys",
                     version="v1",
-                    player_type="batter",
+                    player_type=PlayerType.BATTER,
                     stat_json={
                         "avg": avg_est,
                         "obp": obp_est,
@@ -302,7 +303,7 @@ class TestGoNoGoSummary:
                     season=2025,
                     system="test-sys",
                     version="v1",
-                    player_type="batter",
+                    player_type=PlayerType.BATTER,
                     stat_json={
                         "avg": avg_est + 0.002,
                         "obp": obp_est + 0.002,
@@ -359,7 +360,7 @@ class TestNoReturningPlayers:
                     season=2024,
                     system="test-sys",
                     version="v1",
-                    player_type="batter",
+                    player_type=PlayerType.BATTER,
                     stat_json={"avg": 0.280},
                 )
             )
@@ -393,7 +394,7 @@ class TestPitcherProjectionsIgnored:
                     season=season,
                     system="test-sys",
                     version="v1",
-                    player_type="batter",
+                    player_type=PlayerType.BATTER,
                     stat_json={"avg": 0.280},
                 )
             )
@@ -407,7 +408,7 @@ class TestPitcherProjectionsIgnored:
                     season=season,
                     system="test-sys",
                     version="v1",
-                    player_type="pitcher",
+                    player_type=PlayerType.PITCHER,
                     stat_json={"avg": 0.280},
                 )
             )
@@ -433,7 +434,7 @@ class TestMissingDataPaths:
                     season=season,
                     system="test-sys",
                     version="v1",
-                    player_type="batter",
+                    player_type=PlayerType.BATTER,
                     stat_json={"avg": 0.280},
                 )
             )
@@ -447,7 +448,7 @@ class TestMissingDataPaths:
                 season=2024,
                 system="test-sys",
                 version="v1",
-                player_type="batter",
+                player_type=PlayerType.BATTER,
                 stat_json={"obp": 0.350},
             )
         )
@@ -461,7 +462,7 @@ class TestMissingDataPaths:
                 season=2024,
                 system="test-sys",
                 version="v1",
-                player_type="batter",
+                player_type=PlayerType.BATTER,
                 stat_json={"avg": 0.280},
             )
         )
@@ -476,7 +477,7 @@ class TestMissingDataPaths:
                 season=2024,
                 system="test-sys",
                 version="v1",
-                player_type="batter",
+                player_type=PlayerType.BATTER,
                 stat_json={"babip": 0.300},
             )
         )
@@ -495,7 +496,7 @@ class TestMissingDataPaths:
                 season=2024,
                 system="test-sys",
                 version="v1",
-                player_type="batter",
+                player_type=PlayerType.BATTER,
                 stat_json={"avg": 0.280},
             )
         )
@@ -506,7 +507,7 @@ class TestMissingDataPaths:
                 season=2025,
                 system="test-sys",
                 version="v1",
-                player_type="batter",
+                player_type=PlayerType.BATTER,
                 stat_json={"avg": 0.280},
             )
         )
@@ -520,7 +521,7 @@ class TestMissingDataPaths:
                 season=2024,
                 system="test-sys",
                 version="v1",
-                player_type="batter",
+                player_type=PlayerType.BATTER,
                 stat_json={"avg": 0.280},
             )
         )
@@ -536,7 +537,7 @@ class TestMissingDataPaths:
                 season=2024,
                 system="test-sys",
                 version="v1",
-                player_type="batter",
+                player_type=PlayerType.BATTER,
                 stat_json={"avg": 0.280},
             )
         )
@@ -547,7 +548,7 @@ class TestMissingDataPaths:
                 season=2025,
                 system="test-sys",
                 version="v1",
-                player_type="batter",
+                player_type=PlayerType.BATTER,
                 stat_json={"obp": 0.350},  # no "avg"
             )
         )
@@ -573,7 +574,7 @@ class TestStatFilter:
                     season=2024,
                     system="test-sys",
                     version="v1",
-                    player_type="batter",
+                    player_type=PlayerType.BATTER,
                     stat_json={"avg": 0.280 + pid * 0.01, "obp": 0.350 + pid * 0.01},
                 )
             )
@@ -593,7 +594,7 @@ class TestStatFilter:
                     season=2025,
                     system="test-sys",
                     version="v1",
-                    player_type="batter",
+                    player_type=PlayerType.BATTER,
                     stat_json={"avg": 0.282 + pid * 0.01, "obp": 0.352 + pid * 0.01},
                 )
             )

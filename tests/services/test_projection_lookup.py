@@ -1,6 +1,7 @@
 from typing import TYPE_CHECKING
 
 from fantasy_baseball_manager.db.pool import SingleConnectionProvider
+from fantasy_baseball_manager.domain.identity import PlayerType
 from fantasy_baseball_manager.domain.projection import Projection
 from fantasy_baseball_manager.repos.player_repo import SqlitePlayerRepo
 from fantasy_baseball_manager.repos.projection_repo import SqliteProjectionRepo
@@ -17,7 +18,7 @@ def _seed_projection(
     season: int = 2025,
     system: str = "steamer",
     version: str = "2025.1",
-    player_type: str = "batter",
+    player_type: PlayerType = PlayerType.BATTER,
     stat_json: dict | None = None,
     source_type: str = "third_party",
 ) -> None:
@@ -135,8 +136,8 @@ class TestListSystems:
     def test_counts_batters_and_pitchers(self, conn: sqlite3.Connection) -> None:
         pid1 = seed_player(conn, name_first="Mike", name_last="Trout", mlbam_id=545361)
         pid2 = seed_player(conn, name_first="Shohei", name_last="Ohtani", mlbam_id=660271)
-        _seed_projection(conn, pid1, system="steamer", player_type="batter")
-        _seed_projection(conn, pid2, system="steamer", player_type="pitcher")
+        _seed_projection(conn, pid1, system="steamer", player_type=PlayerType.BATTER)
+        _seed_projection(conn, pid2, system="steamer", player_type=PlayerType.PITCHER)
         svc = _make_service(conn)
 
         summaries = svc.list_systems(2025)
@@ -183,8 +184,8 @@ class TestListPTSources:
     def test_counts_batters_and_pitchers(self, conn: sqlite3.Connection) -> None:
         pid1 = seed_player(conn, name_first="Mike", name_last="Trout", mlbam_id=545361)
         pid2 = seed_player(conn, name_first="Gerrit", name_last="Cole", mlbam_id=543037)
-        _seed_projection(conn, pid1, system="steamer", player_type="batter", stat_json={"pa": 600})
-        _seed_projection(conn, pid2, system="steamer", player_type="pitcher", stat_json={"ip": 180})
+        _seed_projection(conn, pid1, system="steamer", player_type=PlayerType.BATTER, stat_json={"pa": 600})
+        _seed_projection(conn, pid2, system="steamer", player_type=PlayerType.PITCHER, stat_json={"ip": 180})
         svc = _make_service(conn)
 
         sources = svc.list_pt_sources(2025)

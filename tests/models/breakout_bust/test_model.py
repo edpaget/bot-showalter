@@ -8,6 +8,7 @@ import numpy as np
 import pytest
 
 from fantasy_baseball_manager.domain import LabeledSeason, OutcomeLabel
+from fantasy_baseball_manager.domain.identity import PlayerType
 from fantasy_baseball_manager.features.types import DatasetHandle, DatasetSplits, FeatureSet
 from fantasy_baseball_manager.models.breakout_bust.model import (
     INT_TO_LABEL,
@@ -35,7 +36,7 @@ _MODEL_PARAMS: dict[str, Any] = {
 def _make_labeled_season(
     player_id: int,
     season: int,
-    player_type: str,
+    player_type: PlayerType,
     label: OutcomeLabel,
     adp_rank: int = 50,
 ) -> LabeledSeason:
@@ -80,7 +81,7 @@ def _make_feature_row(
 def _generate_synthetic_data(
     seasons: list[int],
     players_per_season: int = 60,
-    player_type: str = "batter",
+    player_type: PlayerType = PlayerType.BATTER,
 ) -> tuple[list[LabeledSeason], list[dict[str, Any]]]:
     """Generate synthetic labels and feature rows for testing."""
     rng = random.Random(42)  # noqa: S311
@@ -225,17 +226,17 @@ class TestBreakoutBustModelTrain:
         batter_labels, batter_rows = _generate_synthetic_data(
             seasons=[2020, 2021, 2022, 2023],
             players_per_season=60,
-            player_type="batter",
+            player_type=PlayerType.BATTER,
         )
         pitcher_labels, pitcher_rows = _generate_synthetic_data(
             seasons=[2020, 2021, 2022, 2023],
             players_per_season=60,
-            player_type="pitcher",
+            player_type=PlayerType.PITCHER,
         )
         return batter_labels + pitcher_labels, batter_rows + pitcher_rows
 
     def test_train_requires_at_least_2_seasons(self, tmp_path: Path) -> None:
-        labels, rows = _generate_synthetic_data([2023], players_per_season=10, player_type="batter")
+        labels, rows = _generate_synthetic_data([2023], players_per_season=10, player_type=PlayerType.BATTER)
         model, config = _make_model_and_config(tmp_path, labels, rows, seasons=[2023])
         with pytest.raises(ValueError, match="at least 2"):
             model.train(config)
@@ -327,12 +328,12 @@ class TestBreakoutBustModelPredict:
         batter_labels, batter_rows = _generate_synthetic_data(
             seasons=[2020, 2021, 2022, 2023, 2024],
             players_per_season=60,
-            player_type="batter",
+            player_type=PlayerType.BATTER,
         )
         pitcher_labels, pitcher_rows = _generate_synthetic_data(
             seasons=[2020, 2021, 2022, 2023, 2024],
             players_per_season=60,
-            player_type="pitcher",
+            player_type=PlayerType.PITCHER,
         )
         all_labels = batter_labels + pitcher_labels
         all_rows = batter_rows + pitcher_rows
@@ -414,12 +415,12 @@ class TestBreakoutBustPredictFutureSeason:
         bat_labels, bat_rows = _generate_synthetic_data(
             seasons=[2020, 2021, 2022, 2023],
             players_per_season=60,
-            player_type="batter",
+            player_type=PlayerType.BATTER,
         )
         pit_labels, pit_rows = _generate_synthetic_data(
             seasons=[2020, 2021, 2022, 2023],
             players_per_season=60,
-            player_type="pitcher",
+            player_type=PlayerType.PITCHER,
         )
         # Feature rows for 2026 — no labels exist for this season
         future_rows = [
@@ -462,12 +463,12 @@ class TestBreakoutBustPredictFutureSeason:
         bat_labels, bat_rows = _generate_synthetic_data(
             seasons=[2020, 2021, 2022, 2023],
             players_per_season=60,
-            player_type="batter",
+            player_type=PlayerType.BATTER,
         )
         pit_labels, pit_rows = _generate_synthetic_data(
             seasons=[2020, 2021, 2022, 2023],
             players_per_season=60,
-            player_type="pitcher",
+            player_type=PlayerType.PITCHER,
         )
         # Future rows without adp_rank/adp_pick
         future_rows = []
@@ -510,12 +511,12 @@ class TestBreakoutBustPredictFutureSeason:
         bat_labels, bat_rows = _generate_synthetic_data(
             seasons=[2020, 2021, 2022, 2023],
             players_per_season=60,
-            player_type="batter",
+            player_type=PlayerType.BATTER,
         )
         pit_labels, pit_rows = _generate_synthetic_data(
             seasons=[2020, 2021, 2022, 2023],
             players_per_season=60,
-            player_type="pitcher",
+            player_type=PlayerType.PITCHER,
         )
         # Future rows without adp_rank/adp_pick
         future_rows = []
@@ -565,12 +566,12 @@ class TestBreakoutBustModelEvaluate:
         batter_labels, batter_rows = _generate_synthetic_data(
             seasons=[2020, 2021, 2022, 2023],
             players_per_season=60,
-            player_type="batter",
+            player_type=PlayerType.BATTER,
         )
         pitcher_labels, pitcher_rows = _generate_synthetic_data(
             seasons=[2020, 2021, 2022, 2023],
             players_per_season=60,
-            player_type="pitcher",
+            player_type=PlayerType.PITCHER,
         )
         all_labels = batter_labels + pitcher_labels
         all_rows = batter_rows + pitcher_rows
@@ -584,7 +585,7 @@ class TestBreakoutBustModelEvaluate:
         assert "base_rate_log_loss" in result.metrics
 
     def test_evaluate_requires_at_least_2_seasons(self, tmp_path: Path) -> None:
-        labels, rows = _generate_synthetic_data([2023], players_per_season=10, player_type="batter")
+        labels, rows = _generate_synthetic_data([2023], players_per_season=10, player_type=PlayerType.BATTER)
         model, config = _make_model_and_config(tmp_path, labels, rows, seasons=[2023])
         with pytest.raises(ValueError, match="at least 2"):
             model.evaluate(config)
@@ -629,12 +630,12 @@ class TestCalibration:
         batter_labels, batter_rows = _generate_synthetic_data(
             seasons=[2020, 2021, 2022, 2023],
             players_per_season=60,
-            player_type="batter",
+            player_type=PlayerType.BATTER,
         )
         pitcher_labels, pitcher_rows = _generate_synthetic_data(
             seasons=[2020, 2021, 2022, 2023],
             players_per_season=60,
-            player_type="pitcher",
+            player_type=PlayerType.PITCHER,
         )
         return batter_labels + pitcher_labels, batter_rows + pitcher_rows
 
@@ -659,12 +660,12 @@ class TestCalibration:
         batter_labels, batter_rows = _generate_synthetic_data(
             seasons=[2020, 2021, 2022, 2023, 2024],
             players_per_season=60,
-            player_type="batter",
+            player_type=PlayerType.BATTER,
         )
         pitcher_labels, pitcher_rows = _generate_synthetic_data(
             seasons=[2020, 2021, 2022, 2023, 2024],
             players_per_season=60,
-            player_type="pitcher",
+            player_type=PlayerType.PITCHER,
         )
         all_labels = batter_labels + pitcher_labels
         all_rows = batter_rows + pitcher_rows
@@ -696,12 +697,12 @@ class TestCalibration:
         batter_labels, batter_rows = _generate_synthetic_data(
             seasons=[2022, 2023, 2024],
             players_per_season=60,
-            player_type="batter",
+            player_type=PlayerType.BATTER,
         )
         pitcher_labels, pitcher_rows = _generate_synthetic_data(
             seasons=[2022, 2023, 2024],
             players_per_season=60,
-            player_type="pitcher",
+            player_type=PlayerType.PITCHER,
         )
         all_labels = batter_labels + pitcher_labels
         all_rows = batter_rows + pitcher_rows

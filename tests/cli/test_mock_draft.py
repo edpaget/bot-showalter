@@ -6,6 +6,7 @@ from typer.testing import CliRunner
 
 from fantasy_baseball_manager.cli.app import app
 from fantasy_baseball_manager.domain import DraftBoard, DraftBoardRow
+from fantasy_baseball_manager.domain.identity import PlayerType
 from fantasy_baseball_manager.domain.league_settings import (
     CategoryConfig,
     Direction,
@@ -59,7 +60,7 @@ def _mock_board() -> DraftBoard:
                 rank=i + 1,
                 player_id=1000 + i,
                 player_name=name,
-                player_type="B",
+                player_type=PlayerType.BATTER,
                 position="OF",
                 value=40.0 - i * 2.0,
                 category_z_scores={"hr": 2.0 - i * 0.2},
@@ -85,7 +86,7 @@ def _mock_board() -> DraftBoard:
                 rank=9 + i,
                 player_id=2000 + i,
                 player_name=name,
-                player_type="P",
+                player_type=PlayerType.PITCHER,
                 position="SP",
                 value=30.0 - i * 2.0,
                 category_z_scores={"w": 1.5 - i * 0.1},

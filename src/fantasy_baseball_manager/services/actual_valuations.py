@@ -4,7 +4,7 @@ import dataclasses
 import logging
 from typing import TYPE_CHECKING, Any
 
-from fantasy_baseball_manager.domain import Position, Valuation
+from fantasy_baseball_manager.domain import PlayerType, Position, Valuation
 from fantasy_baseball_manager.models.zar.engine import compute_budget_split, run_zar_pipeline
 from fantasy_baseball_manager.models.zar.positions import best_position, build_position_map, build_roster_spots
 from fantasy_baseball_manager.services.stats_conversion import stats_to_dict
@@ -63,7 +63,7 @@ def compute_actual_valuations(
         position_map=position_map,
         league=league,
         budget=batter_budget,
-        player_type="batter",
+        player_type=PlayerType.BATTER,
         season=season,
         version=version,
     )
@@ -83,7 +83,7 @@ def compute_actual_valuations(
         position_map=pitcher_position_map,
         league=league,
         budget=pitcher_budget,
-        player_type="pitcher",
+        player_type=PlayerType.PITCHER,
         season=season,
         version=version,
         pitcher_roster_spots=pitcher_roster_spots,
@@ -141,7 +141,7 @@ def _value_pool(
                 version=version,
                 projection_system="actual",
                 projection_version=str(season),
-                player_type=player_type,
+                player_type=PlayerType(player_type),
                 position=pos,
                 value=round(result.dollar_values[i], 2),
                 rank=0,

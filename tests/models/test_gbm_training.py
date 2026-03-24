@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING, Any
 
 import pytest
 
+from fantasy_baseball_manager.domain.identity import PlayerType
 from fantasy_baseball_manager.models.gbm_training import (
     CorrelationGroup,
     CVFold,
@@ -54,7 +55,7 @@ class TestTargetComparison:
 class TestValidationResult:
     def test_validation_result_is_frozen(self) -> None:
         vr = ValidationResult(
-            player_type="batter",
+            player_type=PlayerType.BATTER,
             comparisons=(),
             pruned_features=(),
             n_improved=0,
@@ -1228,7 +1229,7 @@ class TestValidatePruning:
             prune_set=["feat_noise"],
             targets=targets,
             model_params={"min_samples_leaf": 5},
-            player_type="batter",
+            player_type=PlayerType.BATTER,
         )
         assert isinstance(result, ValidationResult)
 
@@ -1242,7 +1243,7 @@ class TestValidatePruning:
             prune_set=["feat_noise"],
             targets=targets,
             model_params={"min_samples_leaf": 5},
-            player_type="batter",
+            player_type=PlayerType.BATTER,
         )
         comparison_targets = [c.target for c in result.comparisons]
         assert comparison_targets == targets
@@ -1257,7 +1258,7 @@ class TestValidatePruning:
             prune_set=["feat_noise"],
             targets=targets,
             model_params={"min_samples_leaf": 5},
-            player_type="batter",
+            player_type=PlayerType.BATTER,
         )
         for comp in result.comparisons:
             expected_pct = (comp.pruned_rmse - comp.full_rmse) / comp.full_rmse * 100
@@ -1273,7 +1274,7 @@ class TestValidatePruning:
             prune_set=["feat_noise"],
             targets=targets,
             model_params={"min_samples_leaf": 5},
-            player_type="batter",
+            player_type=PlayerType.BATTER,
         )
         # Pruning noise should not degrade, so go should be True
         assert result.go is True
@@ -1288,7 +1289,7 @@ class TestValidatePruning:
             prune_set=["feat_a"],
             targets=targets,
             model_params={"min_samples_leaf": 5},
-            player_type="batter",
+            player_type=PlayerType.BATTER,
         )
         # Pruning the signal feature should degrade performance
         assert result.go is False
@@ -1303,7 +1304,7 @@ class TestValidatePruning:
             prune_set=[],
             targets=targets,
             model_params={"min_samples_leaf": 5},
-            player_type="batter",
+            player_type=PlayerType.BATTER,
         )
         assert result.go is True
         assert result.comparisons == ()
@@ -1319,7 +1320,7 @@ class TestValidatePruning:
             prune_set=["feat_noise"],
             targets=targets,
             model_params={"min_samples_leaf": 5},
-            player_type="batter",
+            player_type=PlayerType.BATTER,
         )
         assert result.pruned_features == ("feat_noise",)
 
@@ -1334,7 +1335,7 @@ class TestValidatePruning:
             prune_set=["feat_a"],
             targets=targets,
             model_params={"min_samples_leaf": 5},
-            player_type="batter",
+            player_type=PlayerType.BATTER,
             max_degradation_pct=0.0,
         )
         # Should be NO-GO since removing the signal feature degrades

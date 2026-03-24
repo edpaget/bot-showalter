@@ -8,6 +8,7 @@ from fantasy_baseball_manager.domain import (
     LeagueFormat,
     LeagueSettings,
     Player,
+    PlayerType,
     Projection,
     StatType,
     Valuation,
@@ -40,7 +41,9 @@ def _keeper_cost(player_id: int, cost: float) -> KeeperCost:
     return KeeperCost(player_id=player_id, season=2026, league="test", cost=cost, source="auction")
 
 
-def _valuation(player_id: int, value: float, position: str = "OF", player_type: str = "batter") -> Valuation:
+def _valuation(
+    player_id: int, value: float, position: str = "OF", player_type: PlayerType = PlayerType.BATTER
+) -> Valuation:
     return Valuation(
         player_id=player_id,
         season=2026,
@@ -61,8 +64,8 @@ def _player(player_id: int, name: str) -> Player:
     return Player(name_first=first, name_last=last, id=player_id)
 
 
-def _projection(player_id: int, player_type: str = "batter") -> Projection:
-    stats = {"pa": 600, "hr": 30, "rbi": 80} if player_type == "batter" else {"ip": 180, "w": 12, "k": 200}
+def _projection(player_id: int, player_type: PlayerType = PlayerType.BATTER) -> Projection:
+    stats = {"pa": 600, "hr": 30, "rbi": 80} if player_type == PlayerType.BATTER else {"ip": 180, "w": 12, "k": 200}
     return Projection(
         player_id=player_id,
         season=2026,
@@ -101,7 +104,7 @@ class TestKeeperPlannerService:
         valuations = [
             _valuation(1, 35.0, "OF"),
             _valuation(2, 30.0, "OF"),
-            _valuation(3, 25.0, "SP", "pitcher"),
+            _valuation(3, 25.0, "SP", PlayerType.PITCHER),
             _valuation(4, 20.0, "OF"),
             _valuation(5, 18.0, "1B"),
         ]
@@ -115,7 +118,7 @@ class TestKeeperPlannerService:
         projections = [
             _projection(1),
             _projection(2),
-            _projection(3, "pitcher"),
+            _projection(3, PlayerType.PITCHER),
             _projection(4),
             _projection(5),
         ]
@@ -209,12 +212,12 @@ class TestKeeperPlannerService:
         """A two-way player's batter and pitcher valuations both survive in the lookup."""
         costs = [_keeper_cost(1, 10.0)]
         valuations = [
-            _valuation(1, 35.0, "OF", "batter"),
-            _valuation(1, 25.0, "SP", "pitcher"),
+            _valuation(1, 35.0, "OF", PlayerType.BATTER),
+            _valuation(1, 25.0, "SP", PlayerType.PITCHER),
             _valuation(2, 20.0, "OF"),
         ]
         players = [_player(1, "Two Way"), _player(2, "Regular Player")]
-        projections = [_projection(1, "batter"), _projection(1, "pitcher"), _projection(2)]
+        projections = [_projection(1, PlayerType.BATTER), _projection(1, PlayerType.PITCHER), _projection(2)]
         batter_positions = {1: ["OF"], 2: ["OF"]}
         pitcher_positions = {1: ["SP"]}
 
@@ -244,10 +247,10 @@ class TestKeeperPlannerService:
         valuations = [
             _valuation(1, 35.0, "OF"),
             _valuation(2, 20.0, "OF"),
-            _valuation(3, 15.0, "SP", "pitcher"),
+            _valuation(3, 15.0, "SP", PlayerType.PITCHER),
         ]
         players = [_player(1, "Player One"), _player(2, "Player Two"), _player(3, "Player Three")]
-        projections = [_projection(1), _projection(2), _projection(3, "pitcher")]
+        projections = [_projection(1), _projection(2), _projection(3, PlayerType.PITCHER)]
         batter_positions = {1: ["OF"], 2: ["OF"]}
         pitcher_positions = {3: ["SP"]}
 

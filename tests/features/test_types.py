@@ -3,6 +3,7 @@ import re
 
 import pytest
 
+from fantasy_baseball_manager.domain.identity import PlayerType
 from fantasy_baseball_manager.features.types import (
     AnyFeature,
     DatasetHandle,
@@ -58,7 +59,7 @@ class TestSpineFilter:
         assert sf.player_type is None
 
     def test_with_values(self) -> None:
-        sf = SpineFilter(min_pa=50, min_ip=10.0, player_type="batter")
+        sf = SpineFilter(min_pa=50, min_ip=10.0, player_type=PlayerType.BATTER)
         assert sf.min_pa == 50
         assert sf.min_ip == 10.0
         assert sf.player_type == "batter"

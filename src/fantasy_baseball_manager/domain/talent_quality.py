@@ -1,5 +1,11 @@
+from __future__ import annotations
+
 import statistics
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from fantasy_baseball_manager.domain.identity import PlayerType
 
 
 @dataclass(frozen=True)
@@ -48,7 +54,7 @@ class TrueTalentQualityReport:
     version: str
     season_n: int
     season_n1: int
-    player_type: str
+    player_type: PlayerType
     stat_metrics: list[StatTalentMetrics]
     summary: TalentQualitySummary
 

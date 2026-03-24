@@ -4,6 +4,7 @@ import pytest
 
 from fantasy_baseball_manager.db.pool import SingleConnectionProvider
 from fantasy_baseball_manager.domain.evaluation import StatMetrics, SystemMetrics
+from fantasy_baseball_manager.domain.identity import PlayerType
 from fantasy_baseball_manager.domain.projection import Projection
 from fantasy_baseball_manager.features.assembler import SqliteDatasetAssembler
 from fantasy_baseball_manager.features.types import DatasetHandle, DatasetSplits, FeatureSet
@@ -724,7 +725,7 @@ class TestMarcelConsensusPT:
         assert result.predictions[0]["pa"] == 555
 
 
-def _proj(player_id: int, system: str, player_type: str, stats: dict) -> Projection:
+def _proj(player_id: int, system: str, player_type: PlayerType, stats: dict) -> Projection:
     return Projection(
         player_id=player_id,
         season=2024,
@@ -758,7 +759,7 @@ class TestMarcelResolverPT:
         """playing_time='steamer' uses Steamer PA from projection repo."""
         rows = [self._base_batter_row()]
         assembler = FakeAssembler(rows)
-        repo = FakeProjectionRepo([_proj(1, "steamer", "batter", {"pa": 480.0})])
+        repo = FakeProjectionRepo([_proj(1, "steamer", PlayerType.BATTER, {"pa": 480.0})])
         config = ModelConfig(
             seasons=[2023],
             model_params={"batting_categories": ["hr"], "playing_time": "steamer"},
@@ -773,9 +774,9 @@ class TestMarcelResolverPT:
         assembler = FakeAssembler(rows)
         repo = FakeProjectionRepo(
             [
-                _proj(1, "steamer", "batter", {"pa": 600.0}),
-                _proj(1, "zips", "batter", {"pa": 500.0}),
-                _proj(1, "atc", "batter", {"pa": 400.0}),
+                _proj(1, "steamer", PlayerType.BATTER, {"pa": 600.0}),
+                _proj(1, "zips", PlayerType.BATTER, {"pa": 500.0}),
+                _proj(1, "atc", PlayerType.BATTER, {"pa": 400.0}),
             ]
         )
         config = ModelConfig(
@@ -792,8 +793,8 @@ class TestMarcelResolverPT:
         assembler = FakeAssembler(rows)
         repo = FakeProjectionRepo(
             [
-                _proj(1, "steamer", "batter", {"pa": 600.0}),
-                _proj(1, "zips", "batter", {"pa": 500.0}),
+                _proj(1, "steamer", PlayerType.BATTER, {"pa": 600.0}),
+                _proj(1, "zips", PlayerType.BATTER, {"pa": 500.0}),
             ]
         )
         config = ModelConfig(
@@ -808,7 +809,7 @@ class TestMarcelResolverPT:
         """playing_time='playing-time-model' works via resolver too."""
         rows = [self._base_batter_row()]
         assembler = FakeAssembler(rows)
-        repo = FakeProjectionRepo([_proj(1, "playing-time-model", "batter", {"pa": 475.0})])
+        repo = FakeProjectionRepo([_proj(1, "playing-time-model", PlayerType.BATTER, {"pa": 475.0})])
         config = ModelConfig(
             seasons=[2023],
             model_params={"batting_categories": ["hr"], "playing_time": "playing-time-model"},
@@ -821,7 +822,7 @@ class TestMarcelResolverPT:
         """playing_time='native' still uses Marcel formula even with repo."""
         rows = [self._base_batter_row()]
         assembler = FakeAssembler(rows)
-        repo = FakeProjectionRepo([_proj(1, "steamer", "batter", {"pa": 480.0})])
+        repo = FakeProjectionRepo([_proj(1, "steamer", PlayerType.BATTER, {"pa": 480.0})])
         config = ModelConfig(
             seasons=[2023],
             model_params={"batting_categories": ["hr"], "playing_time": "native"},
@@ -835,7 +836,7 @@ class TestMarcelResolverPT:
         """Single system PT works for pitchers too."""
         pitching_rows = [_pitcher_row(10, "P")]
         assembler = FakeAssembler([], pitching_rows)
-        repo = FakeProjectionRepo([_proj(10, "steamer", "pitcher", {"ip": 175.0})])
+        repo = FakeProjectionRepo([_proj(10, "steamer", PlayerType.PITCHER, {"ip": 175.0})])
         config = ModelConfig(
             seasons=[2023],
             model_params={"pitching_categories": ["so"], "playing_time": "steamer"},

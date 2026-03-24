@@ -1,10 +1,11 @@
 import pytest
 
+from fantasy_baseball_manager.domain.identity import PlayerType
 from fantasy_baseball_manager.domain.projection import Projection
 from fantasy_baseball_manager.domain.pt_resolution import resolve_playing_time
 
 
-def _proj(player_id: int, system: str, player_type: str, stats: dict) -> Projection:
+def _proj(player_id: int, system: str, player_type: PlayerType, stats: dict) -> Projection:
     return Projection(
         player_id=player_id,
         season=2025,
@@ -36,8 +37,8 @@ class TestResolveNative:
 class TestResolveConsensusDefault:
     def test_consensus_default_uses_steamer_zips(self) -> None:
         projs = [
-            _proj(1, "steamer", "batter", {"pa": 600.0}),
-            _proj(1, "zips", "batter", {"pa": 500.0}),
+            _proj(1, "steamer", PlayerType.BATTER, {"pa": 600.0}),
+            _proj(1, "zips", PlayerType.BATTER, {"pa": 500.0}),
         ]
         result = resolve_playing_time("consensus", 2025, _fake_fetch(projs))
         assert result is not None
@@ -47,9 +48,9 @@ class TestResolveConsensusDefault:
 class TestResolveConsensusInline:
     def test_consensus_inline_three_systems(self) -> None:
         projs = [
-            _proj(1, "steamer", "batter", {"pa": 600.0}),
-            _proj(1, "zips", "batter", {"pa": 500.0}),
-            _proj(1, "atc", "batter", {"pa": 400.0}),
+            _proj(1, "steamer", PlayerType.BATTER, {"pa": 600.0}),
+            _proj(1, "zips", PlayerType.BATTER, {"pa": 500.0}),
+            _proj(1, "atc", PlayerType.BATTER, {"pa": 400.0}),
         ]
         result = resolve_playing_time("consensus:steamer,zips,atc", 2025, _fake_fetch(projs))
         assert result is not None
@@ -57,8 +58,8 @@ class TestResolveConsensusInline:
 
     def test_consensus_colon_with_spaces(self) -> None:
         projs = [
-            _proj(1, "steamer", "batter", {"pa": 600.0}),
-            _proj(1, "zips", "batter", {"pa": 400.0}),
+            _proj(1, "steamer", PlayerType.BATTER, {"pa": 600.0}),
+            _proj(1, "zips", PlayerType.BATTER, {"pa": 400.0}),
         ]
         result = resolve_playing_time("consensus: steamer , zips ", 2025, _fake_fetch(projs))
         assert result is not None
@@ -68,8 +69,8 @@ class TestResolveConsensusInline:
 class TestResolveSingleSystem:
     def test_single_system_name(self) -> None:
         projs = [
-            _proj(1, "steamer", "batter", {"pa": 550.0}),
-            _proj(2, "steamer", "pitcher", {"ip": 180.0}),
+            _proj(1, "steamer", PlayerType.BATTER, {"pa": 550.0}),
+            _proj(2, "steamer", PlayerType.PITCHER, {"ip": 180.0}),
         ]
         result = resolve_playing_time("steamer", 2025, _fake_fetch(projs))
         assert result is not None
@@ -78,7 +79,7 @@ class TestResolveSingleSystem:
 
     def test_playing_time_model_system(self) -> None:
         projs = [
-            _proj(1, "playing-time-model", "batter", {"pa": 475.0}),
+            _proj(1, "playing-time-model", PlayerType.BATTER, {"pa": 475.0}),
         ]
         result = resolve_playing_time("playing-time-model", 2025, _fake_fetch(projs))
         assert result is not None
@@ -101,7 +102,7 @@ class TestResolveErrors:
     def test_unknown_system_warns_with_available_systems(self) -> None:
         """Warning for unknown system includes available PT systems."""
         projs = [
-            _proj(1, "steamer", "batter", {"pa": 600.0}),
+            _proj(1, "steamer", PlayerType.BATTER, {"pa": 600.0}),
         ]
         with pytest.warns(UserWarning, match="Available PT systems: steamer") as warnings:
             resolve_playing_time("no-such-system", 2025, _fake_fetch(projs))
@@ -110,8 +111,8 @@ class TestResolveErrors:
     def test_consensus_missing_system_warns(self) -> None:
         """Consensus with one missing system warns about that specific system."""
         projs = [
-            _proj(1, "steamer", "batter", {"pa": 600.0}),
-            _proj(1, "zips", "batter", {"pa": 500.0}),
+            _proj(1, "steamer", PlayerType.BATTER, {"pa": 600.0}),
+            _proj(1, "zips", PlayerType.BATTER, {"pa": 500.0}),
         ]
         with pytest.warns(UserWarning, match="atc") as warnings:
             resolve_playing_time("consensus:steamer,zips,atc", 2025, _fake_fetch(projs))

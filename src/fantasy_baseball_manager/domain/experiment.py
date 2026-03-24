@@ -1,5 +1,10 @@
+from __future__ import annotations
+
 from dataclasses import dataclass, field
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from fantasy_baseball_manager.domain.identity import PlayerType
 
 
 @dataclass(frozen=True)
@@ -30,7 +35,7 @@ class TargetExplorationResult:
 @dataclass(frozen=True)
 class ExplorationSummary:
     model: str
-    player_type: str
+    player_type: PlayerType
     total_experiments: int
     features_tested: list[FeatureExplorationResult]
     targets_explored: list[TargetExplorationResult]
@@ -43,7 +48,7 @@ class Experiment:
     timestamp: str
     hypothesis: str
     model: str
-    player_type: str
+    player_type: PlayerType
     feature_diff: dict[str, list[str]]
     seasons: dict[str, list[int]]
     params: dict[str, Any]

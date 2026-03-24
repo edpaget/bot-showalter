@@ -1,5 +1,6 @@
 import pytest
 
+from fantasy_baseball_manager.domain.identity import PlayerType
 from fantasy_baseball_manager.domain.talent_quality import (
     StatTalentMetrics,
     TalentQualitySummary,
@@ -77,7 +78,7 @@ class TestTrueTalentQualityReportConstruction:
             version="latest",
             season_n=2024,
             season_n1=2025,
-            player_type="batter",
+            player_type=PlayerType.BATTER,
             stat_metrics=[],
             summary=summary,
         )

@@ -17,7 +17,7 @@ from fantasy_baseball_manager.cli._output import (
 )
 from fantasy_baseball_manager.cli.factory import build_keeper_context
 from fantasy_baseball_manager.config_league import load_league
-from fantasy_baseball_manager.domain import Err, KeeperConstraints, KeeperDecision, LeagueKeeper, Ok
+from fantasy_baseball_manager.domain import Err, KeeperConstraints, KeeperDecision, LeagueKeeper, Ok, PlayerType
 from fantasy_baseball_manager.ingest import import_keeper_costs, import_league_keepers
 from fantasy_baseball_manager.name_utils import resolve_players
 from fantasy_baseball_manager.services import (
@@ -478,8 +478,8 @@ def trade_impact_cmd(
 
         # Build valuation lookup keyed by (player_id, player_type) to avoid
         # collisions for two-way players.
-        val_lookup: dict[tuple[int, str], float] = {}
-        val_pos: dict[tuple[int, str], str] = {}
+        val_lookup: dict[tuple[int, PlayerType], float] = {}
+        val_pos: dict[tuple[int, PlayerType], str] = {}
         for v in valuations:
             key = (v.player_id, v.player_type)
             if key not in val_lookup or v.value > val_lookup[key]:
@@ -495,17 +495,19 @@ def trade_impact_cmd(
                 # Find best value across all player types for this player_id
                 value = 0.0
                 pos = "util"
+                best_ptype = PlayerType.BATTER
                 for (vid, _vtype), v in val_lookup.items():
                     if vid == pid and v > value:
                         value = v
                         pos = val_pos[(vid, _vtype)]
+                        best_ptype = _vtype
                 player = ctx.player_repo.get_by_id(pid)
                 pname = f"{player.name_first} {player.name_last}" if player else name
                 acquire_decisions.append(
                     KeeperDecision(
                         player_id=pid,
                         player_name=pname,
-                        player_type="",
+                        player_type=best_ptype,
                         position=pos,
                         cost=cost,
                         projected_value=value,
@@ -559,7 +561,7 @@ def league_set_cmd(
             league=league,
             team_name=team,
             cost=cost,
-            player_type=player_type,
+            player_type=PlayerType(player_type) if player_type else None,
         )
         ctx.league_keeper_repo.upsert_batch([keeper])
         ctx.conn.commit()

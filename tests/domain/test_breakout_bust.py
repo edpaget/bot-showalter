@@ -10,6 +10,7 @@ from fantasy_baseball_manager.domain.breakout_bust import (
     OutcomeLabel,
     ThresholdMetrics,
 )
+from fantasy_baseball_manager.domain.identity import PlayerType
 
 
 class TestOutcomeLabel:
@@ -49,7 +50,7 @@ class TestLabeledSeason:
         ls = LabeledSeason(
             player_id=1,
             season=2023,
-            player_type="batter",
+            player_type=PlayerType.BATTER,
             adp_rank=50,
             adp_pick=50.0,
             actual_value_rank=20,
@@ -69,7 +70,7 @@ class TestLabeledSeason:
         ls = LabeledSeason(
             player_id=1,
             season=2023,
-            player_type="batter",
+            player_type=PlayerType.BATTER,
             adp_rank=50,
             adp_pick=50.0,
             actual_value_rank=20,
@@ -85,7 +86,7 @@ class TestBreakoutPrediction:
         pred = BreakoutPrediction(
             player_id=42,
             player_name="Mike Trout",
-            player_type="batter",
+            player_type=PlayerType.BATTER,
             position="OF",
             p_breakout=0.6,
             p_bust=0.1,
@@ -105,7 +106,7 @@ class TestBreakoutPrediction:
         pred = BreakoutPrediction(
             player_id=42,
             player_name="Mike Trout",
-            player_type="batter",
+            player_type=PlayerType.BATTER,
             position="OF",
             p_breakout=0.6,
             p_bust=0.1,

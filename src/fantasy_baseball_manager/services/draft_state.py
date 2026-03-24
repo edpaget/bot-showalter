@@ -2,7 +2,7 @@ from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import TYPE_CHECKING
 
-from fantasy_baseball_manager.domain import DraftTrade
+from fantasy_baseball_manager.domain import DraftTrade, PlayerIdentity, PlayerType
 
 if TYPE_CHECKING:
     from fantasy_baseball_manager.domain import DraftBoardRow, LeagueSettings
@@ -18,7 +18,7 @@ class DraftError(Exception): ...
 
 
 # Pool key: (player_id, player_type) — uniquely identifies a two-way player's side
-type PoolKey = tuple[int, str]
+type PoolKey = PlayerIdentity
 
 
 @dataclass(frozen=True)
@@ -39,7 +39,7 @@ class DraftPick:
     player_id: int
     player_name: str
     position: str
-    player_type: str = ""
+    player_type: PlayerType | None = None
     price: int | None = None
 
 
@@ -79,7 +79,7 @@ class DraftEngine:
     def start(self, players: list[DraftBoardRow], config: DraftConfig) -> DraftState:
         self._removed_rows = {}
         self._trades = []
-        pool = {(p.player_id, p.player_type): p for p in players}
+        pool = {PlayerIdentity(p.player_id, PlayerType(p.player_type)): p for p in players}
         rosters: dict[int, list[DraftPick]] = {t: [] for t in range(1, config.teams + 1)}
         budgets: dict[int, int] = {
             t: config.budget if config.format == DraftFormat.AUCTION else 0 for t in range(1, config.teams + 1)
@@ -128,15 +128,15 @@ class DraftEngine:
         # Resolve pool key — if player_type not given, find the player in pool
         pool_key: PoolKey | None = None
         if player_type is not None:
-            pool_key = (player_id, player_type)
+            pool_key = PlayerIdentity(player_id, PlayerType(player_type))
         else:
             for key in state.available_pool:
-                if key[0] == player_id:
+                if key.player_id == player_id:
                     pool_key = key
                     break
         if pool_key is None or pool_key not in state.available_pool:
             # Include available types for this player to aid debugging
-            available_types = [ptype for pid, ptype in state.available_pool if pid == player_id]
+            available_types = [key.player_type for key in state.available_pool if key.player_id == player_id]
             type_hint = f" (requested type={player_type!r}, available types={available_types})" if player_type else ""
             msg = f"Player {player_id} is not in the available pool{type_hint}"
             raise DraftError(msg)
@@ -179,7 +179,7 @@ class DraftEngine:
             team=team,
             player_id=player_id,
             player_name=player.player_name,
-            player_type=pool_key[1],
+            player_type=pool_key.player_type,
             position=position,
             price=price,
         )
@@ -206,14 +206,14 @@ class DraftEngine:
 
         # Restore player to pool — match by (player_id, player_type)
         restore_key: PoolKey | None = None
-        if last.player_type:
-            restore_key = (last.player_id, last.player_type)
+        if last.player_type is not None:
+            restore_key = PlayerIdentity(last.player_id, last.player_type)
             if restore_key not in self._removed_rows:
                 restore_key = None
         else:
             # Legacy pick without player_type — search by player_id
             for key in self._removed_rows:
-                if key[0] == last.player_id:
+                if key.player_id == last.player_id:
                     restore_key = key
                     break
         if restore_key is None:

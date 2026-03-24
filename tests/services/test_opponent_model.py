@@ -3,6 +3,7 @@ from __future__ import annotations
 import math
 
 from fantasy_baseball_manager.domain.draft_board import DraftBoardRow
+from fantasy_baseball_manager.domain.identity import PlayerIdentity, PlayerType
 from fantasy_baseball_manager.domain.league_settings import (
     LeagueFormat,
     LeagueSettings,
@@ -25,7 +26,7 @@ def _row(
     player_id: int,
     name: str,
     position: str,
-    player_type: str,
+    player_type: PlayerType,
     value: float,
 ) -> DraftBoardRow:
     return DraftBoardRow(
@@ -68,18 +69,18 @@ def _config(teams: int = 4) -> DraftConfig:
 
 
 def _make_pool(*rows: DraftBoardRow) -> dict[PoolKey, DraftBoardRow]:
-    return {(r.player_id, r.player_type): r for r in rows}
+    return {PlayerIdentity(r.player_id, r.player_type): r for r in rows}
 
 
 class TestEmptyDraft:
     def test_all_slots_unfilled(self) -> None:
         pool_rows = [
-            _row(1, "Catcher A", "C", "batter", 10.0),
-            _row(2, "SS A", "SS", "batter", 15.0),
-            _row(3, "SP A", "SP", "pitcher", 12.0),
-            _row(4, "SS B", "SS", "batter", 8.0),
-            _row(5, "C B", "C", "batter", 5.0),
-            _row(6, "SP B", "SP", "pitcher", 7.0),
+            _row(1, "Catcher A", "C", PlayerType.BATTER, 10.0),
+            _row(2, "SS A", "SS", PlayerType.BATTER, 15.0),
+            _row(3, "SP A", "SP", PlayerType.PITCHER, 12.0),
+            _row(4, "SS B", "SS", PlayerType.BATTER, 8.0),
+            _row(5, "C B", "C", PlayerType.BATTER, 5.0),
+            _row(6, "SP B", "SP", PlayerType.PITCHER, 7.0),
         ]
         state = DraftState(
             config=_config(),
@@ -115,10 +116,10 @@ class TestEmptyDraft:
 class TestMidDraft:
     def test_partial_fills(self) -> None:
         pool_rows = [
-            _row(3, "SP A", "SP", "pitcher", 12.0),
-            _row(4, "SS B", "SS", "batter", 8.0),
-            _row(5, "C B", "C", "batter", 5.0),
-            _row(6, "SP B", "SP", "pitcher", 7.0),
+            _row(3, "SP A", "SP", PlayerType.PITCHER, 12.0),
+            _row(4, "SS B", "SS", PlayerType.BATTER, 8.0),
+            _row(5, "C B", "C", PlayerType.BATTER, 5.0),
+            _row(6, "SP B", "SP", PlayerType.PITCHER, 7.0),
         ]
         # Team 1 drafted C, team 2 drafted SS
         picks_team1 = [DraftPick(pick_number=1, team=1, player_id=1, player_name="Catcher A", position="C")]
@@ -159,8 +160,8 @@ class TestLateDraft:
     def test_scarcity_increases(self) -> None:
         """When most catchers are gone, C scarcity should be high."""
         pool_rows = [
-            _row(10, "Last C", "C", "batter", 2.0),
-            _row(11, "SP C", "SP", "pitcher", 3.0),
+            _row(10, "Last C", "C", PlayerType.BATTER, 2.0),
+            _row(11, "SP C", "SP", PlayerType.PITCHER, 3.0),
         ]
         # All 4 teams still need C (only 1 left in pool)
         state = DraftState(
@@ -219,9 +220,9 @@ class TestNoSupply:
 class TestCompositeSlots:
     def test_util_supply_counts_all_batters(self) -> None:
         pool_rows = [
-            _row(1, "C A", "C", "batter", 10.0),
-            _row(2, "SS A", "SS", "batter", 8.0),
-            _row(3, "SP A", "SP", "pitcher", 12.0),
+            _row(1, "C A", "C", PlayerType.BATTER, 10.0),
+            _row(2, "SS A", "SS", PlayerType.BATTER, 8.0),
+            _row(3, "SP A", "SP", PlayerType.PITCHER, 12.0),
         ]
         state = DraftState(
             config=_config(),
@@ -262,10 +263,10 @@ class TestCompositeSlots:
             season=2026,
         )
         pool_rows = [
-            _row(1, "2B A", "2B", "batter", 10.0),
-            _row(2, "SS A", "SS", "batter", 9.0),
-            _row(3, "1B A", "1B", "batter", 8.0),
-            _row(4, "SP A", "SP", "pitcher", 7.0),
+            _row(1, "2B A", "2B", PlayerType.BATTER, 10.0),
+            _row(2, "SS A", "SS", PlayerType.BATTER, 9.0),
+            _row(3, "1B A", "1B", PlayerType.BATTER, 8.0),
+            _row(4, "SP A", "SP", PlayerType.PITCHER, 7.0),
         ]
         state = DraftState(
             config=config,
@@ -304,10 +305,10 @@ class TestCompositeSlots:
             season=2026,
         )
         pool_rows = [
-            _row(1, "1B A", "1B", "batter", 10.0),
-            _row(2, "3B A", "3B", "batter", 9.0),
-            _row(3, "SS A", "SS", "batter", 8.0),
-            _row(4, "SP A", "SP", "pitcher", 7.0),
+            _row(1, "1B A", "1B", PlayerType.BATTER, 10.0),
+            _row(2, "3B A", "3B", PlayerType.BATTER, 9.0),
+            _row(3, "SS A", "SS", PlayerType.BATTER, 8.0),
+            _row(4, "SP A", "SP", PlayerType.PITCHER, 7.0),
         ]
         state = DraftState(
             config=config,
@@ -325,7 +326,7 @@ class TestCompositeSlots:
 
 class TestTotalValue:
     def test_sums_from_player_values(self) -> None:
-        pool_rows = [_row(3, "SP A", "SP", "pitcher", 12.0)]
+        pool_rows = [_row(3, "SP A", "SP", PlayerType.PITCHER, 12.0)]
         picks_team1 = [
             DraftPick(pick_number=1, team=1, player_id=1, player_name="C A", position="C"),
             DraftPick(pick_number=3, team=1, player_id=2, player_name="SS A", position="SS"),
@@ -413,10 +414,10 @@ class TestRunDetected:
             _pick(6, 7, "C"),
         ]
         pool = _make_pool(
-            _row(200, "SS X", "SS", "batter", 5.0),
-            _row(201, "SS Y", "SS", "batter", 4.0),
-            _row(202, "C Z", "C", "batter", 3.0),
-            _row(203, "SP Z", "SP", "pitcher", 6.0),
+            _row(200, "SS X", "SS", PlayerType.BATTER, 5.0),
+            _row(201, "SS Y", "SS", PlayerType.BATTER, 4.0),
+            _row(202, "C Z", "C", PlayerType.BATTER, 3.0),
+            _row(203, "SP Z", "SP", PlayerType.PITCHER, 6.0),
         )
         state = DraftState(
             config=_12team_config(),
@@ -444,8 +445,8 @@ class TestNoFalsePositive:
         picks[23] = _pick(24, 4, "SS")
 
         pool = _make_pool(
-            _row(200, "SS X", "SS", "batter", 5.0),
-            _row(201, "C Z", "C", "batter", 3.0),
+            _row(200, "SS X", "SS", PlayerType.BATTER, 5.0),
+            _row(201, "C Z", "C", PlayerType.BATTER, 3.0),
         )
         state = DraftState(
             config=_12team_config(),
@@ -470,8 +471,8 @@ class TestDevelopingUrgency:
             _pick(3, 4, "C"),
         ]
         pool = _make_pool(
-            *[_row(200 + i, f"SS {i}", "SS", "batter", 5.0) for i in range(10)],
-            _row(300, "C Z", "C", "batter", 3.0),
+            *[_row(200 + i, f"SS {i}", "SS", PlayerType.BATTER, 5.0) for i in range(10)],
+            _row(300, "C Z", "C", PlayerType.BATTER, 3.0),
         )
         state = DraftState(
             config=_12team_config(),
@@ -498,8 +499,8 @@ class TestCriticalUrgency:
         ]
         # Only 1 SS left, user needs 1 → 1 < 1.5 * 1 → critical
         pool = _make_pool(
-            _row(200, "SS X", "SS", "batter", 5.0),
-            _row(201, "C Z", "C", "batter", 3.0),
+            _row(200, "SS X", "SS", PlayerType.BATTER, 5.0),
+            _row(201, "C Z", "C", PlayerType.BATTER, 3.0),
         )
         state = DraftState(
             config=_12team_config(),
@@ -520,7 +521,7 @@ class TestSinglePickNoRun:
     def test_one_pick_no_run(self) -> None:
         """Single pick at a position → no run."""
         picks = [_pick(1, 2, "SS")]
-        pool = _make_pool(_row(200, "SS X", "SS", "batter", 5.0))
+        pool = _make_pool(_row(200, "SS X", "SS", PlayerType.BATTER, 5.0))
         state = DraftState(
             config=_12team_config(),
             picks=picks,
@@ -544,7 +545,7 @@ class TestUserDoesNotNeedPosition:
         ]
         # User (team 1) already has SS filled
         user_pick = _pick(0, 1, "SS", player_id=99)
-        pool = _make_pool(_row(200, "SS X", "SS", "batter", 5.0))
+        pool = _make_pool(_row(200, "SS X", "SS", PlayerType.BATTER, 5.0))
         state = DraftState(
             config=_12team_config(),
             picks=[user_pick, *picks],
@@ -574,9 +575,9 @@ class TestSortedOutput:
         # SS: 1 left, user needs 1 → critical
         # C: 10 left, user needs 1 → developing
         pool = _make_pool(
-            _row(200, "SS X", "SS", "batter", 5.0),
-            *[_row(300 + i, f"C {i}", "C", "batter", 3.0) for i in range(10)],
-            _row(400, "SP Z", "SP", "pitcher", 6.0),
+            _row(200, "SS X", "SS", PlayerType.BATTER, 5.0),
+            *[_row(300 + i, f"C {i}", "C", PlayerType.BATTER, 3.0) for i in range(10)],
+            _row(400, "SP Z", "SP", PlayerType.PITCHER, 6.0),
         )
         state = DraftState(
             config=_12team_config(),
@@ -607,8 +608,8 @@ class TestCustomWindow:
             _pick(5, 6, "SP"),
         ]
         pool = _make_pool(
-            _row(200, "SS X", "SS", "batter", 5.0),
-            _row(201, "C Z", "C", "batter", 3.0),
+            _row(200, "SS X", "SS", PlayerType.BATTER, 5.0),
+            _row(201, "C Z", "C", PlayerType.BATTER, 3.0),
         )
         state = DraftState(
             config=_12team_config(),
@@ -638,8 +639,8 @@ class TestAuctionFormat:
             _pick(3, 4, "SS"),
         ]
         pool = _make_pool(
-            _row(200, "SS X", "SS", "batter", 5.0),
-            _row(201, "C Z", "C", "batter", 3.0),
+            _row(200, "SS X", "SS", PlayerType.BATTER, 5.0),
+            _row(201, "C Z", "C", PlayerType.BATTER, 3.0),
         )
         state = DraftState(
             config=_12team_config(fmt=DraftFormat.AUCTION),
@@ -663,7 +664,7 @@ def _row_adp(
     player_id: int,
     name: str,
     position: str,
-    player_type: str,
+    player_type: PlayerType,
     value: float,
     adp: float | None = None,
 ) -> DraftBoardRow:
@@ -686,9 +687,9 @@ class TestThreatLikelyGone:
         # User's next pick is pick 4 → picks_until = 2
         # Teams 2 and 3 pick before user; both need SS
         pool = _make_pool(
-            _row_adp(10, "SS Star", "SS", "batter", 20.0, adp=3.0),
-            _row_adp(11, "C Guy", "C", "batter", 15.0, adp=10.0),
-            _row_adp(12, "SP Ace", "SP", "pitcher", 12.0, adp=8.0),
+            _row_adp(10, "SS Star", "SS", PlayerType.BATTER, 20.0, adp=3.0),
+            _row_adp(11, "C Guy", "C", PlayerType.BATTER, 15.0, adp=10.0),
+            _row_adp(12, "SP Ace", "SP", PlayerType.PITCHER, 12.0, adp=8.0),
         )
         state = DraftState(
             config=DraftConfig(
@@ -725,8 +726,8 @@ class TestThreatAtRisk:
         # picks_until = 6 (picks 2-7 before user's pick 8)
         # Intervening teams: 2, 3, 4. Make teams 3 and 4 already have SS → only team 2 needs it
         pool = _make_pool(
-            _row_adp(10, "SS Star", "SS", "batter", 20.0, adp=3.0),
-            _row_adp(11, "C Guy", "C", "batter", 15.0, adp=10.0),
+            _row_adp(10, "SS Star", "SS", PlayerType.BATTER, 20.0, adp=3.0),
+            _row_adp(11, "C Guy", "C", PlayerType.BATTER, 15.0, adp=10.0),
         )
         state = DraftState(
             config=DraftConfig(
@@ -760,8 +761,8 @@ class TestThreatAtRisk:
     def test_many_teams_need_no_adp(self) -> None:
         """3+ teams needing position → at-risk even without ADP data."""
         pool = _make_pool(
-            _row_adp(10, "SS NoADP", "SS", "batter", 20.0, adp=None),
-            _row_adp(11, "C Guy", "C", "batter", 15.0),
+            _row_adp(10, "SS NoADP", "SS", PlayerType.BATTER, 20.0, adp=None),
+            _row_adp(11, "C Guy", "C", PlayerType.BATTER, 15.0),
         )
         state = DraftState(
             config=_12team_config(),
@@ -784,8 +785,8 @@ class TestThreatSafe:
         """Player with ADP well beyond user's next pick → safe."""
         # ADP 50 is way beyond danger zone (~8), and ≤2 teams need each position → safe
         pool = _make_pool(
-            _row_adp(10, "SS Late", "SS", "batter", 10.0, adp=50.0),
-            _row_adp(11, "C Guy", "C", "batter", 15.0, adp=50.0),
+            _row_adp(10, "SS Late", "SS", PlayerType.BATTER, 10.0, adp=50.0),
+            _row_adp(11, "C Guy", "C", PlayerType.BATTER, 15.0, adp=50.0),
         )
         state = DraftState(
             config=DraftConfig(
@@ -817,7 +818,7 @@ class TestThreatAuctionEmpty:
     def test_auction_returns_empty(self) -> None:
         """Auction format → picks_until = 0 → empty list."""
         pool = _make_pool(
-            _row_adp(10, "SS Star", "SS", "batter", 20.0, adp=3.0),
+            _row_adp(10, "SS Star", "SS", PlayerType.BATTER, 20.0, adp=3.0),
         )
         state = DraftState(
             config=DraftConfig(
@@ -843,7 +844,7 @@ class TestThreatNoAdp:
     def test_no_adp_still_at_risk_when_many_teams_need(self) -> None:
         """Players without ADP can be at-risk if 3+ teams need the position."""
         pool = _make_pool(
-            _row_adp(10, "SS NoADP", "SS", "batter", 20.0, adp=None),
+            _row_adp(10, "SS NoADP", "SS", PlayerType.BATTER, 20.0, adp=None),
         )
         state = DraftState(
             config=_12team_config(),
@@ -865,8 +866,8 @@ class TestThreatUserDoesNotNeed:
     def test_user_filled_position_excluded(self) -> None:
         """Player is filtered out if user doesn't need the position."""
         pool = _make_pool(
-            _row_adp(10, "SS Star", "SS", "batter", 20.0, adp=3.0),
-            _row_adp(11, "C Guy", "C", "batter", 15.0, adp=3.0),
+            _row_adp(10, "SS Star", "SS", PlayerType.BATTER, 20.0, adp=3.0),
+            _row_adp(11, "C Guy", "C", PlayerType.BATTER, 15.0, adp=3.0),
         )
         # User already has SS filled
         user_pick = _pick(1, 1, "SS", player_id=1)
@@ -902,9 +903,9 @@ class TestThreatSortOrder:
         """Sorted: likely-gone first, at-risk, then safe."""
         # 4-team snake, user team 1, current pick 2
         pool = _make_pool(
-            _row_adp(10, "SS Danger", "SS", "batter", 20.0, adp=3.0),  # likely-gone
-            _row_adp(11, "C Safe", "C", "batter", 25.0, adp=50.0),  # safe (ADP way beyond)
-            _row_adp(12, "SP Mid", "SP", "pitcher", 18.0, adp=3.0),  # depends on teams needing SP
+            _row_adp(10, "SS Danger", "SS", PlayerType.BATTER, 20.0, adp=3.0),  # likely-gone
+            _row_adp(11, "C Safe", "C", PlayerType.BATTER, 25.0, adp=50.0),  # safe (ADP way beyond)
+            _row_adp(12, "SP Mid", "SP", PlayerType.PITCHER, 18.0, adp=3.0),  # depends on teams needing SP
         )
         state = DraftState(
             config=DraftConfig(
@@ -934,8 +935,8 @@ class TestThreatUpdatesAfterPick:
     def test_threat_changes_after_pick(self) -> None:
         """After a pick changes team rosters, threat counts update."""
         pool_before = _make_pool(
-            _row_adp(10, "SS Star", "SS", "batter", 20.0, adp=3.0),
-            _row_adp(11, "C Guy", "C", "batter", 15.0, adp=10.0),
+            _row_adp(10, "SS Star", "SS", PlayerType.BATTER, 20.0, adp=3.0),
+            _row_adp(11, "C Guy", "C", PlayerType.BATTER, 15.0, adp=10.0),
         )
         config = DraftConfig(
             teams=4,
@@ -964,8 +965,8 @@ class TestThreatUpdatesAfterPick:
 
         # State after: team 2 drafted SS, now only team 3 needs SS
         pool_after = _make_pool(
-            _row_adp(10, "SS Star", "SS", "batter", 20.0, adp=4.0),
-            _row_adp(11, "C Guy", "C", "batter", 15.0, adp=10.0),
+            _row_adp(10, "SS Star", "SS", PlayerType.BATTER, 20.0, adp=4.0),
+            _row_adp(11, "C Guy", "C", PlayerType.BATTER, 15.0, adp=10.0),
         )
         state_after = DraftState(
             config=config,
@@ -996,7 +997,7 @@ class TestThreatUpdatesAfterPick:
 class TestThreatLimit:
     def test_limit_parameter(self) -> None:
         """Only returns top N threats."""
-        players = [_row_adp(i, f"Player {i}", "SS", "batter", 100.0 - i, adp=3.0) for i in range(1, 21)]
+        players = [_row_adp(i, f"Player {i}", "SS", PlayerType.BATTER, 100.0 - i, adp=3.0) for i in range(1, 21)]
         pool = _make_pool(*players)
         state = DraftState(
             config=_12team_config(),

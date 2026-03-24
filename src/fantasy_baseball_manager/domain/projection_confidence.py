@@ -1,5 +1,11 @@
+from __future__ import annotations
+
 from dataclasses import dataclass
 from enum import StrEnum
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from fantasy_baseball_manager.domain.identity import PlayerType
 
 
 class VarianceClassification(StrEnum):
@@ -25,7 +31,7 @@ class StatSpread:
 class PlayerConfidence:
     player_id: int
     player_name: str
-    player_type: str
+    player_type: PlayerType
     position: str
     spreads: list[StatSpread]
     overall_cv: float

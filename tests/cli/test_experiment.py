@@ -7,6 +7,7 @@ from fantasy_baseball_manager.cli.app import app
 from fantasy_baseball_manager.db.connection import create_connection
 from fantasy_baseball_manager.db.pool import SingleConnectionProvider
 from fantasy_baseball_manager.domain.experiment import Experiment, TargetResult
+from fantasy_baseball_manager.domain.identity import PlayerType
 from fantasy_baseball_manager.repos.experiment_repo import SqliteExperimentRepo
 
 if TYPE_CHECKING:
@@ -177,7 +178,7 @@ class TestExperimentLogCommand:
                 timestamp="2026-03-01T00:00:00",
                 hypothesis="parent",
                 model="m",
-                player_type="batter",
+                player_type=PlayerType.BATTER,
                 feature_diff={"added": [], "removed": []},
                 seasons={"train": [2023], "holdout": [2024]},
                 params={},
@@ -300,7 +301,7 @@ def _seed_experiments(db_path: Path) -> None:
             timestamp="2026-03-01T10:00:00",
             hypothesis="barrel rate helps SLG",
             model="statcast-gbm-preseason",
-            player_type="batter",
+            player_type=PlayerType.BATTER,
             feature_diff={"added": ["barrel_rate"], "removed": []},
             seasons={"train": [2021, 2022, 2023], "holdout": [2024]},
             params={"n_estimators": 500},
@@ -316,7 +317,7 @@ def _seed_experiments(db_path: Path) -> None:
             timestamp="2026-03-01T12:00:00",
             hypothesis="sprint speed helps SB",
             model="statcast-gbm-preseason",
-            player_type="batter",
+            player_type=PlayerType.BATTER,
             feature_diff={"added": ["sprint_speed"], "removed": []},
             seasons={"train": [2021, 2022, 2023], "holdout": [2024]},
             params={"n_estimators": 500},

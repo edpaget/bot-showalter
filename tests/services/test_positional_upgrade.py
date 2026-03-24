@@ -1,6 +1,7 @@
 import pytest
 
 from fantasy_baseball_manager.domain.draft_board import DraftBoard, DraftBoardRow
+from fantasy_baseball_manager.domain.identity import PlayerType
 from fantasy_baseball_manager.domain.league_settings import (
     CategoryConfig,
     Direction,
@@ -58,7 +59,7 @@ def _row(
     position: str,
     value: float,
     z_scores: dict[str, float] | None = None,
-    player_type: str = "batter",
+    player_type: PlayerType = PlayerType.BATTER,
 ) -> DraftBoardRow:
     return DraftBoardRow(
         player_id=player_id,
@@ -172,7 +173,7 @@ class TestBuildRosterStatePitcherSlots:
     """Pitcher fills P slot from roster_pitchers."""
 
     def test_pitcher_slot(self) -> None:
-        row = _row(50, "Ace Pitcher", "SP", 25.0, {"W": 1.0, "K": 1.5}, player_type="pitcher")
+        row = _row(50, "Ace Pitcher", "SP", 25.0, {"W": 1.0, "K": 1.5}, player_type=PlayerType.PITCHER)
         league = _league(roster_pitchers=5)
         board = _board([row])
 
@@ -187,7 +188,7 @@ class TestBuildRosterStatePitcherPositions:
     """Pitcher fills specific pitcher position slot from pitcher_positions."""
 
     def test_specific_pitcher_position(self) -> None:
-        row = _row(50, "Ace Pitcher", "SP", 25.0, {"W": 1.0}, player_type="pitcher")
+        row = _row(50, "Ace Pitcher", "SP", 25.0, {"W": 1.0}, player_type=PlayerType.PITCHER)
         league = _league(
             pitcher_positions={"SP": 2, "RP": 2},
             roster_pitchers=0,

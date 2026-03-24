@@ -3,6 +3,7 @@ from typing import TYPE_CHECKING
 from fantasy_baseball_manager.analysis_container import AnalysisContainer
 from fantasy_baseball_manager.db.pool import SingleConnectionProvider
 from fantasy_baseball_manager.domain.batting_stats import BattingStats
+from fantasy_baseball_manager.domain.identity import PlayerType
 from fantasy_baseball_manager.domain.projection import Projection
 from fantasy_baseball_manager.repos.batting_stats_repo import SqliteBattingStatsRepo
 from fantasy_baseball_manager.repos.projection_repo import SqliteProjectionRepo
@@ -24,7 +25,7 @@ def _seed_projection(conn: sqlite3.Connection, player_id: int, stats: dict) -> N
             season=2025,
             system="steamer",
             version="v2025.1",
-            player_type="batter",
+            player_type=PlayerType.BATTER,
             stat_json=stats,
         )
     )

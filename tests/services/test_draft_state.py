@@ -4,6 +4,7 @@ import pytest
 
 from fantasy_baseball_manager.domain.draft_board import DraftBoardRow
 from fantasy_baseball_manager.domain.draft_trade import DraftTrade
+from fantasy_baseball_manager.domain.identity import PlayerIdentity, PlayerType
 from fantasy_baseball_manager.domain.league_settings import (
     CategoryConfig,
     Direction,
@@ -31,7 +32,7 @@ def _make_player(player_id: int, name: str, position: str, value: float) -> Draf
         player_id=player_id,
         player_name=name,
         rank=player_id,
-        player_type="B" if position != "SP" else "P",
+        player_type=PlayerType.BATTER if position != "SP" else PlayerType.PITCHER,
         position=position,
         value=value,
         category_z_scores={},
@@ -289,8 +290,9 @@ class TestStart:
     def test_pool_keyed_by_player_id_and_type(self) -> None:
         engine = DraftEngine()
         state = engine.start(PLAYERS, SNAKE_CONFIG)
-        assert (1, "B") in state.available_pool
-        assert state.available_pool[(1, "B")].player_name == "Player A"
+        key = PlayerIdentity(1, PlayerType.BATTER)
+        assert key in state.available_pool
+        assert state.available_pool[key].player_name == "Player A"
 
     def test_empty_rosters(self) -> None:
         engine = DraftEngine()
@@ -622,9 +624,9 @@ class TestUndo:
         engine = DraftEngine()
         state = engine.start(PLAYERS, SNAKE_CONFIG)
         engine.pick(player_id=1, team=1, position="C")
-        assert (1, "B") not in state.available_pool
+        assert (1, PlayerType.BATTER) not in state.available_pool
         engine.undo()
-        assert (1, "B") in state.available_pool
+        assert (1, PlayerType.BATTER) in state.available_pool
 
     def test_undo_restores_roster(self) -> None:
         engine = DraftEngine()
@@ -669,8 +671,8 @@ class TestUndo:
         engine.undo()
         assert state.current_pick == 1
         assert len(state.picks) == 0
-        assert (1, "B") in state.available_pool
-        assert (2, "B") in state.available_pool
+        assert (1, PlayerType.BATTER) in state.available_pool
+        assert (2, PlayerType.BATTER) in state.available_pool
 
     def test_undo_restores_auction_budget(self) -> None:
         engine = DraftEngine()
@@ -856,7 +858,7 @@ class TestLiveFormat:
         engine = DraftEngine()
         engine.start(PLAYERS, LIVE_CONFIG)
         engine.pick(player_id=1, team=2, position="C")
-        assert (1, "B") not in engine.state.available_pool
+        assert (1, PlayerType.BATTER) not in engine.state.available_pool
         assert len(engine.state.team_rosters[2]) == 1
 
     def test_team_on_clock_raises(self) -> None:
@@ -871,7 +873,7 @@ class TestLiveFormat:
         engine.start(PLAYERS, LIVE_CONFIG)
         engine.pick(player_id=1, team=3, position="C")
         engine.undo()
-        assert (1, "B") in engine.state.available_pool
+        assert (1, PlayerType.BATTER) in engine.state.available_pool
         assert engine.state.current_pick == 1
 
     def test_budget_zero_for_live(self) -> None:
@@ -1189,7 +1191,7 @@ def _make_two_way_pool() -> list[DraftBoardRow]:
             player_id=17,
             player_name="Shohei Ohtani",
             rank=1,
-            player_type="B",
+            player_type=PlayerType.BATTER,
             position="OF",
             value=50.0,
             category_z_scores={},
@@ -1198,7 +1200,7 @@ def _make_two_way_pool() -> list[DraftBoardRow]:
             player_id=17,
             player_name="Shohei Ohtani",
             rank=2,
-            player_type="P",
+            player_type=PlayerType.PITCHER,
             position="SP",
             value=40.0,
             category_z_scores={},
@@ -1207,7 +1209,7 @@ def _make_two_way_pool() -> list[DraftBoardRow]:
             player_id=1,
             player_name="Player A",
             rank=3,
-            player_type="B",
+            player_type=PlayerType.BATTER,
             position="C",
             value=30.0,
             category_z_scores={},
@@ -1216,7 +1218,7 @@ def _make_two_way_pool() -> list[DraftBoardRow]:
             player_id=2,
             player_name="Player B",
             rank=4,
-            player_type="B",
+            player_type=PlayerType.BATTER,
             position="1B",
             value=25.0,
             category_z_scores={},
@@ -1237,21 +1239,21 @@ class TestPickStoresPlayerType:
     def test_pick_stores_player_type_from_pool(self) -> None:
         engine = DraftEngine()
         engine.start(_make_two_way_pool(), TWO_WAY_CONFIG)
-        pick = engine.pick(17, team=1, position="OF", player_type="B")
-        assert pick.player_type == "B"
+        pick = engine.pick(17, team=1, position="OF", player_type=PlayerType.BATTER)
+        assert pick.player_type == PlayerType.BATTER
 
     def test_pick_stores_pitcher_type(self) -> None:
         engine = DraftEngine()
         engine.start(_make_two_way_pool(), TWO_WAY_CONFIG)
-        pick = engine.pick(17, team=1, position="SP", player_type="P")
-        assert pick.player_type == "P"
+        pick = engine.pick(17, team=1, position="SP", player_type=PlayerType.PITCHER)
+        assert pick.player_type == PlayerType.PITCHER
 
     def test_pick_without_explicit_type_uses_first_match(self) -> None:
         """When player_type is not specified, the first pool match is used."""
         engine = DraftEngine()
         engine.start(_make_two_way_pool(), TWO_WAY_CONFIG)
         pick = engine.pick(1, team=1, position="C")
-        assert pick.player_type == "B"
+        assert pick.player_type == PlayerType.BATTER
 
 
 class TestUndoTwoWayPlayer:
@@ -1261,21 +1263,21 @@ class TestUndoTwoWayPlayer:
         engine.start(_make_two_way_pool(), TWO_WAY_CONFIG)
 
         # Team 1 drafts batter-Ohtani
-        engine.pick(17, team=1, position="OF", player_type="B")
+        engine.pick(17, team=1, position="OF", player_type=PlayerType.BATTER)
         # Team 2 drafts pitcher-Ohtani
-        engine.pick(17, team=2, position="SP", player_type="P")
+        engine.pick(17, team=2, position="SP", player_type=PlayerType.PITCHER)
 
         # Both Ohtani entries should be gone from pool
-        assert (17, "B") not in engine.state.available_pool
-        assert (17, "P") not in engine.state.available_pool
+        assert (17, PlayerType.BATTER) not in engine.state.available_pool
+        assert (17, PlayerType.PITCHER) not in engine.state.available_pool
 
         # Undo the last pick (pitcher-Ohtani)
         undone = engine.undo()
-        assert undone.player_type == "P"
+        assert undone.player_type == PlayerType.PITCHER
 
         # Pitcher-Ohtani should be back in the pool, batter still gone
-        assert (17, "P") in engine.state.available_pool
-        assert (17, "B") not in engine.state.available_pool
+        assert (17, PlayerType.PITCHER) in engine.state.available_pool
+        assert (17, PlayerType.BATTER) not in engine.state.available_pool
 
     def test_undo_legacy_pick_without_player_type(self) -> None:
         """A pick with empty player_type falls back to player_id search."""
@@ -1293,7 +1295,7 @@ class TestUndoTwoWayPlayer:
             player_id=last.player_id,
             player_name=last.player_name,
             position=last.position,
-            player_type="",  # empty — legacy
+            player_type=None,  # missing — legacy
             price=None,
         )
         engine.state.picks[-1] = legacy
@@ -1302,4 +1304,17 @@ class TestUndoTwoWayPlayer:
         # Undo should still work via player_id fallback
         undone = engine.undo()
         assert undone.player_id == 1
-        assert (1, "B") in engine.state.available_pool
+        assert (1, PlayerType.BATTER) in engine.state.available_pool
+
+    def test_undo_raises_when_player_not_in_removed_rows(self) -> None:
+        """Undo raises DraftError when the picked player cannot be restored."""
+        engine = DraftEngine()
+        engine.start(_make_two_way_pool(), TWO_WAY_CONFIG)
+
+        engine.pick(1, team=1, position="C")
+
+        # Manually clear the removed rows so undo can't find the player
+        engine._removed_rows.clear()
+
+        with pytest.raises(DraftError, match="Cannot restore player 1"):
+            engine.undo()

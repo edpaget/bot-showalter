@@ -3,6 +3,7 @@ from typing import TYPE_CHECKING
 import pytest
 
 from fantasy_baseball_manager.db.pool import SingleConnectionProvider
+from fantasy_baseball_manager.domain.identity import PlayerType
 from fantasy_baseball_manager.domain.valuation import Valuation
 from fantasy_baseball_manager.repos.player_repo import SqlitePlayerRepo
 from fantasy_baseball_manager.repos.valuation_repo import SqliteValuationRepo
@@ -21,7 +22,7 @@ def _seed_valuation(
     version: str = "1.0",
     projection_system: str = "steamer",
     projection_version: str = "2025.1",
-    player_type: str = "batter",
+    player_type: PlayerType = PlayerType.BATTER,
     position: str = "OF",
     value: float = 25.0,
     rank: int = 1,
@@ -151,11 +152,11 @@ class TestRankings:
     def test_filter_by_player_type(self, conn: sqlite3.Connection) -> None:
         pid1 = seed_player(conn, name_first="Juan", name_last="Soto", mlbam_id=665742)
         pid2 = seed_player(conn, name_first="Gerrit", name_last="Cole", mlbam_id=543037)
-        _seed_valuation(conn, pid1, player_type="batter", rank=1)
-        _seed_valuation(conn, pid2, player_type="pitcher", rank=2)
+        _seed_valuation(conn, pid1, player_type=PlayerType.BATTER, rank=1)
+        _seed_valuation(conn, pid2, player_type=PlayerType.PITCHER, rank=2)
         svc = _make_service(conn)
 
-        results = svc.rankings(2025, player_type="batter")
+        results = svc.rankings(2025, player_type=PlayerType.BATTER)
         assert len(results) == 1
         assert results[0].player_name == "Juan Soto"
 

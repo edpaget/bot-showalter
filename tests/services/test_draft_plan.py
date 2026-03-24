@@ -6,6 +6,7 @@ import statistics
 
 from fantasy_baseball_manager.domain.draft_board import DraftBoard, DraftBoardRow
 from fantasy_baseball_manager.domain.draft_plan import DraftPlan, DraftPlanTarget
+from fantasy_baseball_manager.domain.identity import PlayerType
 from fantasy_baseball_manager.domain.league_settings import (
     CategoryConfig,
     Direction,
@@ -292,7 +293,7 @@ class TestBatchSimulationUserRosters:
                 player_id=i + 1,
                 player_name=f"P{i + 1}",
                 rank=i + 1,
-                player_type="B" if positions[i % 4] != "SP" else "P",
+                player_type=PlayerType.BATTER if positions[i % 4] != "SP" else PlayerType.PITCHER,
                 position=positions[i % 4],
                 value=40.0 - i,
                 category_z_scores={},
@@ -342,7 +343,7 @@ class TestBatchSimulationUserRosters:
                 player_id=i + 1,
                 player_name=f"P{i + 1}",
                 rank=i + 1,
-                player_type="B" if positions[i % 4] != "SP" else "P",
+                player_type=PlayerType.BATTER if positions[i % 4] != "SP" else PlayerType.PITCHER,
                 position=positions[i % 4],
                 value=40.0 - i,
                 category_z_scores={},

@@ -4,6 +4,7 @@ from collections.abc import Callable  # noqa: TC003 — used in __init__ signatu
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from fantasy_baseball_manager.domain import PlayerType
 from fantasy_baseball_manager.features import (
     DatasetAssembler,
     FeatureGroup,
@@ -166,7 +167,7 @@ class CompositeModel:
                 FeatureGroup(
                     name="batting_transforms",
                     description="Marcel batting transforms (weighted rates + league averages)",
-                    player_type="batter",
+                    player_type=PlayerType.BATTER,
                     features=(
                         build_batting_weighted_rates(marcel_config.batting_categories, marcel_config.batting_weights),
                         build_batting_league_averages(marcel_config.batting_categories),
@@ -179,7 +180,7 @@ class CompositeModel:
                 FeatureGroup(
                     name="pitching_transforms",
                     description="Marcel pitching transforms (weighted rates + league averages)",
-                    player_type="pitcher",
+                    player_type=PlayerType.PITCHER,
                     features=(
                         build_pitching_weighted_rates(
                             marcel_config.pitching_categories, marcel_config.pitching_weights
@@ -377,14 +378,14 @@ class CompositeModel:
 
         player_configs = [
             PlayerTypeConfig(
-                player_type="batter",
+                player_type=PlayerType.BATTER,
                 train_fs=bat_train_fs,
                 columns=bat_cols,
                 targets=list(BATTER_TARGETS),
                 params=batter_params,
             ),
             PlayerTypeConfig(
-                player_type="pitcher",
+                player_type=PlayerType.PITCHER,
                 train_fs=pitch_train_fs,
                 columns=pitch_cols,
                 targets=list(PITCHER_TARGETS),

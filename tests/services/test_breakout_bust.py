@@ -8,6 +8,7 @@ from fantasy_baseball_manager.domain.breakout_bust import (
     LabeledSeason,
     OutcomeLabel,
 )
+from fantasy_baseball_manager.domain.identity import PlayerType
 from fantasy_baseball_manager.domain.valuation import Valuation
 from fantasy_baseball_manager.features.types import DatasetHandle, DatasetSplits, FeatureSet
 from fantasy_baseball_manager.services.breakout_bust import (
@@ -40,7 +41,7 @@ def _make_valuation(
     player_id: int = 1,
     season: int = 2023,
     rank: int = 20,
-    player_type: str = "batter",
+    player_type: PlayerType = PlayerType.BATTER,
     value: float = 10.0,
 ) -> Valuation:
     return Valuation(
@@ -211,7 +212,7 @@ class TestGenerateLabelsCustomConfig:
 class TestGenerateLabelsPlayerType:
     def test_player_type_from_valuation(self) -> None:
         adp = _make_adp(player_id=1, rank=50, overall_pick=50.0)
-        val = _make_valuation(player_id=1, rank=20, player_type="pitcher")
+        val = _make_valuation(player_id=1, rank=20, player_type=PlayerType.PITCHER)
         result = generate_labels([adp], [val], LabelConfig())
         assert result[0].player_type == "pitcher"
 
@@ -249,7 +250,7 @@ class TestAssembleLabeledDataset:
             LabeledSeason(
                 player_id=1,
                 season=2023,
-                player_type="batter",
+                player_type=PlayerType.BATTER,
                 adp_rank=50,
                 adp_pick=50.0,
                 actual_value_rank=20,
@@ -272,7 +273,7 @@ class TestAssembleLabeledDataset:
             LabeledSeason(
                 player_id=1,
                 season=2023,
-                player_type="batter",
+                player_type=PlayerType.BATTER,
                 adp_rank=50,
                 adp_pick=50.0,
                 actual_value_rank=20,
@@ -290,7 +291,7 @@ class TestAssembleLabeledDataset:
             LabeledSeason(
                 player_id=1,
                 season=2023,
-                player_type="batter",
+                player_type=PlayerType.BATTER,
                 adp_rank=50,
                 adp_pick=50.0,
                 actual_value_rank=20,
@@ -315,7 +316,7 @@ class TestAssembleLabeledDataset:
             LabeledSeason(
                 player_id=1,
                 season=2023,
-                player_type="batter",
+                player_type=PlayerType.BATTER,
                 adp_rank=50,
                 adp_pick=50.0,
                 actual_value_rank=20,
@@ -336,10 +337,10 @@ class TestAssembleLabeledDataset:
 class TestLabelDistribution:
     def test_counts(self) -> None:
         labels = [
-            LabeledSeason(1, 2023, "batter", 50, 50.0, 20, 30, OutcomeLabel.BREAKOUT),
-            LabeledSeason(2, 2023, "batter", 50, 50.0, 100, -50, OutcomeLabel.BUST),
-            LabeledSeason(3, 2023, "batter", 50, 50.0, 45, 5, OutcomeLabel.NEUTRAL),
-            LabeledSeason(4, 2023, "batter", 50, 50.0, 40, 10, OutcomeLabel.NEUTRAL),
+            LabeledSeason(1, 2023, PlayerType.BATTER, 50, 50.0, 20, 30, OutcomeLabel.BREAKOUT),
+            LabeledSeason(2, 2023, PlayerType.BATTER, 50, 50.0, 100, -50, OutcomeLabel.BUST),
+            LabeledSeason(3, 2023, PlayerType.BATTER, 50, 50.0, 45, 5, OutcomeLabel.NEUTRAL),
+            LabeledSeason(4, 2023, PlayerType.BATTER, 50, 50.0, 40, 10, OutcomeLabel.NEUTRAL),
         ]
         dist = label_distribution(labels)
         assert dist == {"breakout": 1, "bust": 1, "neutral": 2}
@@ -363,7 +364,7 @@ def _make_label(
     return LabeledSeason(
         player_id=player_id,
         season=season,
-        player_type="batter",
+        player_type=PlayerType.BATTER,
         adp_rank=100,
         adp_pick=100.0,
         actual_value_rank=100 - rank_delta,
@@ -381,7 +382,7 @@ def _make_prediction(
     return BreakoutPrediction(
         player_id=player_id,
         player_name=f"Player {player_id}",
-        player_type="batter",
+        player_type=PlayerType.BATTER,
         position="OF",
         p_breakout=p_breakout,
         p_bust=p_bust,

@@ -1,3 +1,4 @@
+from fantasy_baseball_manager.domain.identity import PlayerType
 from fantasy_baseball_manager.features.types import (
     DerivedTransformFeature,
     Feature,
@@ -55,7 +56,7 @@ class TestBatterFeatureSet:
 
     def test_has_batter_spine_filter(self) -> None:
         fs = build_batter_feature_set([2023])
-        assert fs.spine_filter == SpineFilter(player_type="batter")
+        assert fs.spine_filter == SpineFilter(player_type=PlayerType.BATTER)
 
     def test_includes_age(self) -> None:
         fs = build_batter_feature_set([2023])
@@ -150,7 +151,7 @@ class TestPitcherFeatureSet:
 
     def test_has_pitcher_spine_filter(self) -> None:
         fs = build_pitcher_feature_set([2023])
-        assert fs.spine_filter == SpineFilter(player_type="pitcher")
+        assert fs.spine_filter == SpineFilter(player_type=PlayerType.PITCHER)
 
     def test_includes_age(self) -> None:
         fs = build_pitcher_feature_set([2023])
@@ -240,7 +241,7 @@ class TestBatterPreseasonSet:
 
     def test_has_batter_spine_filter(self) -> None:
         fs = build_batter_preseason_set([2023])
-        assert fs.spine_filter == SpineFilter(player_type="batter")
+        assert fs.spine_filter == SpineFilter(player_type=PlayerType.BATTER)
 
     def test_includes_age(self) -> None:
         fs = build_batter_preseason_set([2023])
@@ -316,7 +317,7 @@ class TestPitcherPreseasonSet:
 
     def test_has_pitcher_spine_filter(self) -> None:
         fs = build_pitcher_preseason_set([2023])
-        assert fs.spine_filter == SpineFilter(player_type="pitcher")
+        assert fs.spine_filter == SpineFilter(player_type=PlayerType.PITCHER)
 
     def test_statcast_transforms_are_lagged(self) -> None:
         fs = build_pitcher_preseason_set([2023])
@@ -776,7 +777,7 @@ class TestLiveBatterCuratedFeatureSet:
 
     def test_has_batter_spine_filter(self) -> None:
         fs = build_live_batter_feature_set([2023])
-        assert fs.spine_filter == SpineFilter(player_type="batter")
+        assert fs.spine_filter == SpineFilter(player_type=PlayerType.BATTER)
 
     def test_no_age_feature(self) -> None:
         fs = build_live_batter_feature_set([2023])
@@ -841,7 +842,7 @@ class TestLivePitcherCuratedFeatureSet:
 
     def test_has_pitcher_spine_filter(self) -> None:
         fs = build_live_pitcher_feature_set([2023])
-        assert fs.spine_filter == SpineFilter(player_type="pitcher")
+        assert fs.spine_filter == SpineFilter(player_type=PlayerType.PITCHER)
 
     def test_no_age_feature(self) -> None:
         fs = build_live_pitcher_feature_set([2023])
@@ -981,7 +982,7 @@ class TestBatterPreseasonAveragedSet:
 
     def test_has_batter_spine_filter(self) -> None:
         fs = build_batter_preseason_averaged_set([2023])
-        assert fs.spine_filter == SpineFilter(player_type="batter")
+        assert fs.spine_filter == SpineFilter(player_type=PlayerType.BATTER)
 
     def test_all_transforms_have_avg_lags(self) -> None:
         fs = build_batter_preseason_averaged_set([2023])
@@ -1042,7 +1043,7 @@ class TestPitcherPreseasonAveragedSet:
 
     def test_has_pitcher_spine_filter(self) -> None:
         fs = build_pitcher_preseason_averaged_set([2023])
-        assert fs.spine_filter == SpineFilter(player_type="pitcher")
+        assert fs.spine_filter == SpineFilter(player_type=PlayerType.PITCHER)
 
     def test_all_transforms_have_avg_lags(self) -> None:
         fs = build_pitcher_preseason_averaged_set([2023])
@@ -1109,7 +1110,7 @@ class TestBatterPreseasonWeightedSet:
 
     def test_has_batter_spine_filter(self) -> None:
         fs = build_batter_preseason_weighted_set([2023])
-        assert fs.spine_filter == SpineFilter(player_type="batter")
+        assert fs.spine_filter == SpineFilter(player_type=PlayerType.BATTER)
 
     def test_all_transforms_have_weights(self) -> None:
         fs = build_batter_preseason_weighted_set([2023])

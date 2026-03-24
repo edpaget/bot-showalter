@@ -6,6 +6,7 @@ from fantasy_baseball_manager.domain import (
     ConfidenceReport,
     LeagueSettings,
     PlayerConfidence,
+    PlayerType,
     StatSpread,
     StatType,
     VarianceClassification,
@@ -112,7 +113,7 @@ def compute_confidence(
             PlayerConfidence(
                 player_id=player_id,
                 player_name=player_name,
-                player_type=player_type,
+                player_type=PlayerType(player_type),
                 position=position,
                 spreads=spreads,
                 overall_cv=overall_cv,

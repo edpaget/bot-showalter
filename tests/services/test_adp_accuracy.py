@@ -2,6 +2,7 @@ import pytest
 
 from fantasy_baseball_manager.domain.adp import ADP
 from fantasy_baseball_manager.domain.batting_stats import BattingStats
+from fantasy_baseball_manager.domain.identity import PlayerType
 from fantasy_baseball_manager.domain.league_settings import (
     CategoryConfig,
     Direction,
@@ -212,7 +213,7 @@ class TestCompareSystem:
                 version="1.0",
                 projection_system="steamer",
                 projection_version="v1",
-                player_type="batter",
+                player_type=PlayerType.BATTER,
                 position="of",
                 value=40.0,
                 rank=1,
@@ -225,7 +226,7 @@ class TestCompareSystem:
                 version="1.0",
                 projection_system="steamer",
                 projection_version="v1",
-                player_type="batter",
+                player_type=PlayerType.BATTER,
                 position="of",
                 value=30.0,
                 rank=2,
@@ -238,7 +239,7 @@ class TestCompareSystem:
                 version="1.0",
                 projection_system="steamer",
                 projection_version="v1",
-                player_type="batter",
+                player_type=PlayerType.BATTER,
                 position="of",
                 value=20.0,
                 rank=3,
@@ -251,7 +252,7 @@ class TestCompareSystem:
                 version="1.0",
                 projection_system="steamer",
                 projection_version="v1",
-                player_type="pitcher",
+                player_type=PlayerType.PITCHER,
                 position="p",
                 value=25.0,
                 rank=4,
@@ -264,7 +265,7 @@ class TestCompareSystem:
                 version="1.0",
                 projection_system="steamer",
                 projection_version="v1",
-                player_type="pitcher",
+                player_type=PlayerType.PITCHER,
                 position="p",
                 value=15.0,
                 rank=5,

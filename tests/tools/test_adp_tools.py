@@ -3,6 +3,7 @@ from typing import TYPE_CHECKING
 from fantasy_baseball_manager.analysis_container import AnalysisContainer
 from fantasy_baseball_manager.db.pool import SingleConnectionProvider
 from fantasy_baseball_manager.domain.adp import ADP
+from fantasy_baseball_manager.domain.identity import PlayerType
 from fantasy_baseball_manager.domain.valuation import Valuation
 from fantasy_baseball_manager.repos.adp_repo import SqliteADPRepo
 from fantasy_baseball_manager.repos.valuation_repo import SqliteValuationRepo
@@ -29,7 +30,7 @@ def _seed_valuation(
             version="v1.0",
             projection_system="steamer",
             projection_version="v2025.1",
-            player_type="batter",
+            player_type=PlayerType.BATTER,
             position="OF",
             value=value,
             rank=rank,

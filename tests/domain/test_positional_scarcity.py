@@ -1,3 +1,4 @@
+from fantasy_baseball_manager.domain.identity import PlayerType
 from fantasy_baseball_manager.domain.positional_scarcity import (
     PositionScarcity,
     PositionValueCurve,
@@ -79,7 +80,7 @@ class TestScarcityAdjustedPlayer:
             player_id=1,
             player_name="Test Player",
             position="ss",
-            player_type="batter",
+            player_type=PlayerType.BATTER,
             original_value=25.0,
             adjusted_value=30.0,
             original_rank=5,
@@ -98,7 +99,7 @@ class TestScarcityAdjustedPlayer:
             player_id=42,
             player_name="Mike Trout",
             position="of",
-            player_type="batter",
+            player_type=PlayerType.BATTER,
             original_value=35.0,
             adjusted_value=42.0,
             original_rank=1,

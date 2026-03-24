@@ -1,6 +1,6 @@
 from typing import TYPE_CHECKING
 
-from fantasy_baseball_manager.domain import YahooPlayerMap
+from fantasy_baseball_manager.domain import PlayerType, YahooPlayerMap
 
 if TYPE_CHECKING:
     import sqlite3
@@ -73,7 +73,7 @@ class SqliteYahooPlayerMapRepo:
             id=row["id"],
             yahoo_player_key=row["yahoo_player_key"],
             player_id=row["player_id"],
-            player_type=row["player_type"],
+            player_type=PlayerType(row["player_type"]),
             yahoo_name=row["yahoo_name"],
             yahoo_team=row["yahoo_team"],
             yahoo_positions=row["yahoo_positions"],

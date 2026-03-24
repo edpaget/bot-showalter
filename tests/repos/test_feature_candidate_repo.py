@@ -3,6 +3,7 @@ import pytest
 from fantasy_baseball_manager.db.connection import create_connection
 from fantasy_baseball_manager.db.pool import SingleConnectionProvider
 from fantasy_baseball_manager.domain.feature_candidate import FeatureCandidate
+from fantasy_baseball_manager.domain.identity import PlayerType
 from fantasy_baseball_manager.repos.feature_candidate_repo import (
     SqliteFeatureCandidateRepo,
 )
@@ -17,7 +18,7 @@ def repo() -> SqliteFeatureCandidateRepo:
 def _make_candidate(
     name: str = "barrel_ev",
     expression: str = "AVG(launch_speed) FILTER (WHERE barrel = 1)",
-    player_type: str = "batter",
+    player_type: PlayerType = PlayerType.BATTER,
     min_pa: int | None = 100,
     min_ip: float | None = None,
     created_at: str = "2026-03-02",
@@ -87,7 +88,7 @@ class TestSqliteFeatureCandidateRepo:
     def test_pitcher_with_min_ip(self, repo: SqliteFeatureCandidateRepo) -> None:
         candidate = _make_candidate(
             name="k_rate",
-            player_type="pitcher",
+            player_type=PlayerType.PITCHER,
             min_pa=None,
             min_ip=50.0,
         )
