@@ -7,6 +7,7 @@ from fantasy_baseball_manager.services.adp_arbitrage import (
 )
 from fantasy_baseball_manager.services.adp_movers import ADPMoversService
 from fantasy_baseball_manager.services.adp_report import ADPReportService
+from fantasy_baseball_manager.services.alias_seeder import seed_aliases
 from fantasy_baseball_manager.services.breakout_bust import (
     assemble_labeled_dataset,
     evaluate_classifier,
@@ -163,6 +164,7 @@ from fantasy_baseball_manager.services.player_biography import PlayerBiographySe
 from fantasy_baseball_manager.services.player_eligibility import (
     PlayerEligibilityService,
 )
+from fantasy_baseball_manager.services.player_name_resolver import PlayerNameResolver
 from fantasy_baseball_manager.services.player_profile import PlayerProfileService
 from fantasy_baseball_manager.services.player_resolver import resolve_player
 from fantasy_baseball_manager.services.player_team_provider import (
@@ -425,7 +427,9 @@ __all__ = [
     "validate_expression",
     "auto_detect_position",
     "recommend",
+    "PlayerNameResolver",
     "resolve_player",
+    "seed_aliases",
     "DEFAULT_SCENARIO_WEIGHTS",
     "generate_pool_scenarios",
     "generate_scenarios",

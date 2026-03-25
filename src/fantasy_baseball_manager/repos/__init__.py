@@ -18,6 +18,7 @@ from fantasy_baseball_manager.repos.minor_league_batting_stats_repo import (
 )
 from fantasy_baseball_manager.repos.model_run_repo import SqliteModelRunRepo
 from fantasy_baseball_manager.repos.pitching_stats_repo import SqlitePitchingStatsRepo
+from fantasy_baseball_manager.repos.player_alias_repo import SqlitePlayerAliasRepo
 from fantasy_baseball_manager.repos.player_repo import SqlitePlayerRepo, SqliteTeamRepo
 from fantasy_baseball_manager.repos.position_appearance_repo import (
     SqlitePositionAppearanceRepo,
@@ -40,6 +41,7 @@ from fantasy_baseball_manager.repos.protocols import (
     MinorLeagueBattingStatsRepo,
     ModelRunRepo,
     PitchingStatsRepo,
+    PlayerAliasRepo,
     PlayerRepo,
     PlayerTeamProvider,
     PositionAppearanceRepo,
@@ -102,6 +104,7 @@ __all__ = [
     "MinorLeagueBattingStatsRepo",
     "ModelRunRepo",
     "PitchingStatsRepo",
+    "PlayerAliasRepo",
     "PlayerConflictError",
     "PlayerRepo",
     "PlayerTeamProvider",
@@ -121,6 +124,7 @@ __all__ = [
     "SqliteMinorLeagueBattingStatsRepo",
     "SqliteModelRunRepo",
     "SqlitePitchingStatsRepo",
+    "SqlitePlayerAliasRepo",
     "SqlitePlayerRepo",
     "SqlitePositionAppearanceRepo",
     "SqliteProjectionRepo",

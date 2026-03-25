@@ -47,11 +47,11 @@ def strip_name_decorations(name: str) -> str:
     return _SUFFIX_RE.sub("", name).strip()
 
 
-def normalize_name(name: str) -> str:
+def normalize_name(name: str, *, apply_nicks: bool = True) -> str:
     """Normalize a player name for fuzzy matching.
 
     Strips parentheticals (Batter/Pitcher), suffixes (Jr., II, etc.),
-    accent marks, initial dots, and applies nickname aliases.
+    accent marks, initial dots, and optionally applies nickname aliases.
     """
     name = _PARENTHETICAL_RE.sub("", name)
     name = _SUFFIX_RE.sub("", name)
@@ -63,10 +63,11 @@ def normalize_name(name: str) -> str:
     stripped = " ".join(stripped.split())
     stripped = _ADJACENT_INITIALS_RE.sub("", stripped)
     lowered = stripped.strip().lower()
-    # Apply nickname aliases to each token
-    tokens = lowered.split()
-    tokens = [NICK_ALIASES.get(t, t) for t in tokens]
-    return " ".join(tokens)
+    if apply_nicks:
+        tokens = lowered.split()
+        tokens = [NICK_ALIASES.get(t, t) for t in tokens]
+        return " ".join(tokens)
+    return lowered
 
 
 def build_player_lookups(

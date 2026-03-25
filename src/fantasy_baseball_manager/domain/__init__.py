@@ -215,6 +215,7 @@ from fantasy_baseball_manager.domain.pick_value import (
 )
 from fantasy_baseball_manager.domain.pitching_stats import PitchingStats
 from fantasy_baseball_manager.domain.player import Player, Team
+from fantasy_baseball_manager.domain.player_alias import PlayerAlias
 from fantasy_baseball_manager.domain.player_bio import PlayerSummary
 from fantasy_baseball_manager.domain.player_profile import PlayerProfile, compute_age
 from fantasy_baseball_manager.domain.position import (
@@ -474,6 +475,7 @@ __all__ = [
     "PickValueCurve",
     "PitchingStats",
     "Player",
+    "PlayerAlias",
     "PlayerIdentity",
     "PlayerConfidence",
     "PooledCorrelationResult",

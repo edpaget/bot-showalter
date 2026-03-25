@@ -10,6 +10,7 @@ from fantasy_baseball_manager.repos import (
     SqliteKeeperCostRepo,
     SqliteLeagueKeeperRepo,
     SqlitePitchingStatsRepo,
+    SqlitePlayerAliasRepo,
     SqlitePlayerRepo,
     SqlitePositionAppearanceRepo,
     SqliteProjectionRepo,
@@ -24,6 +25,7 @@ from fantasy_baseball_manager.services import (
     MlbApiPlayerTeamProvider,
     PerformanceReportService,
     PlayerBiographyService,
+    PlayerNameResolver,
     PlayerProfileService,
     ProjectionEvaluator,
     ProjectionLookupService,
@@ -93,6 +95,10 @@ class AnalysisContainer:
     def league_keeper_repo(self) -> SqliteLeagueKeeperRepo:
         return SqliteLeagueKeeperRepo(self._provider)
 
+    @functools.cached_property
+    def player_alias_repo(self) -> SqlitePlayerAliasRepo:
+        return SqlitePlayerAliasRepo(self._provider)
+
     # --- Services ---
 
     @functools.cached_property
@@ -103,6 +109,10 @@ class AnalysisContainer:
             roster_stint_repo=self.roster_stint_repo,
             fetcher=fetch_mlb_active_teams,
         )
+
+    @functools.cached_property
+    def player_name_resolver(self) -> PlayerNameResolver:
+        return PlayerNameResolver(self.player_alias_repo)
 
     @functools.cached_property
     def player_profile_service(self) -> PlayerProfileService:
