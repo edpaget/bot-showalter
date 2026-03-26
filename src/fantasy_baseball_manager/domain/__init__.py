@@ -203,6 +203,7 @@ from fantasy_baseball_manager.domain.model_protocol import (
     ValidationResult,
 )
 from fantasy_baseball_manager.domain.model_run import ArtifactType, ModelRunRecord
+from fantasy_baseball_manager.domain.name_resolver_protocol import NameResolver
 from fantasy_baseball_manager.domain.opponent_model import LeagueNeeds, PositionRun, TeamNeeds, ThreatAssessment
 from fantasy_baseball_manager.domain.performance_delta import PlayerStatDelta
 from fantasy_baseball_manager.domain.pick_value import (
@@ -463,6 +464,7 @@ __all__ = [
     "ModelConfig",
     "OpportunityCost",
     "ModelRunRecord",
+    "NameResolver",
     "Ok",
     "OutcomeLabel",
     "PTSourceSummary",

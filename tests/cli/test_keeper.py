@@ -26,11 +26,12 @@ from fantasy_baseball_manager.repos.adp_repo import SqliteADPRepo
 from fantasy_baseball_manager.repos.keeper_repo import SqliteKeeperCostRepo
 from fantasy_baseball_manager.repos.league_keeper_repo import SqliteLeagueKeeperRepo
 from fantasy_baseball_manager.repos.pitching_stats_repo import SqlitePitchingStatsRepo
+from fantasy_baseball_manager.repos.player_alias_repo import SqlitePlayerAliasRepo
 from fantasy_baseball_manager.repos.player_repo import SqlitePlayerRepo
 from fantasy_baseball_manager.repos.position_appearance_repo import SqlitePositionAppearanceRepo
 from fantasy_baseball_manager.repos.projection_repo import SqliteProjectionRepo
 from fantasy_baseball_manager.repos.valuation_repo import SqliteValuationRepo
-from fantasy_baseball_manager.services import PlayerEligibilityService
+from fantasy_baseball_manager.services import PlayerEligibilityService, PlayerNameResolver
 from tests.helpers import seed_player
 
 if TYPE_CHECKING:
@@ -58,6 +59,7 @@ def _build_test_keeper_context(conn: sqlite3.Connection) -> Any:
             eligibility_service=eligibility_service,
             adp_repo=SqliteADPRepo(SingleConnectionProvider(conn)),
             league_keeper_repo=SqliteLeagueKeeperRepo(SingleConnectionProvider(conn)),
+            player_name_resolver=PlayerNameResolver(SqlitePlayerAliasRepo(SingleConnectionProvider(conn))),
         )
 
     return _ctx

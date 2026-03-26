@@ -446,6 +446,7 @@ def ingest_adp(  # pragma: no cover
             as_of=as_of,
             player_teams=player_teams,
             player_repo=container.player_repo,
+            resolver=container.player_name_resolver,
         )
         container.conn.commit()
         console.print(f"  Loaded {result.loaded} ADP records, skipped {result.skipped}")
@@ -544,6 +545,7 @@ def ingest_adp_fetch(  # pragma: no cover
             as_of=as_of,
             player_teams=player_teams,
             player_repo=container.player_repo,
+            resolver=container.player_name_resolver,
         )
         container.conn.commit()
         console.print(f"  Loaded {result.loaded} ADP records, skipped {result.skipped}")

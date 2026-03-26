@@ -105,6 +105,7 @@ def import_cmd(
             league=league,
             default_source=source,
             cost_translator=cost_translator,
+            resolver=ctx.player_name_resolver,
         )
         ctx.conn.commit()
 
@@ -590,7 +591,14 @@ def league_import_cmd(
 
     with build_keeper_context(data_dir) as ctx:
         players = ctx.player_repo.all()
-        result = import_league_keepers(rows, ctx.league_keeper_repo, players, season=season, league=league)
+        result = import_league_keepers(
+            rows,
+            ctx.league_keeper_repo,
+            players,
+            season=season,
+            league=league,
+            resolver=ctx.player_name_resolver,
+        )
         ctx.conn.commit()
 
     typer.echo(f"Loaded {result.loaded} league keepers, skipped {result.skipped}")

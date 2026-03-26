@@ -1,5 +1,7 @@
 from fantasy_baseball_manager.domain.draft_board import DraftBoardRow
 from fantasy_baseball_manager.domain.identity import PlayerType
+from fantasy_baseball_manager.domain.player_alias import PlayerAlias
+from fantasy_baseball_manager.services.player_name_resolver import PlayerNameResolver
 from fantasy_baseball_manager.services.player_resolver import resolve_player
 
 
@@ -85,4 +87,76 @@ class TestNoMatch:
 class TestEmptyPool:
     def test_empty_pool(self) -> None:
         result = resolve_player("Mike Trout", [])
+        assert result == []
+
+
+class _FakeAliasRepo:
+    """In-memory alias repo for testing."""
+
+    def __init__(self, aliases: list[PlayerAlias] | None = None) -> None:
+        self._aliases: list[PlayerAlias] = list(aliases) if aliases else []
+
+    def upsert(self, alias: PlayerAlias) -> int:
+        self._aliases.append(alias)
+        return len(self._aliases)
+
+    def upsert_batch(self, aliases: list[PlayerAlias]) -> int:
+        self._aliases.extend(aliases)
+        return len(aliases)
+
+    def find_by_name(self, alias_name: str) -> list[PlayerAlias]:
+        return [a for a in self._aliases if a.alias_name == alias_name]
+
+    def find_by_player(self, player_id: int) -> list[PlayerAlias]:
+        return [a for a in self._aliases if a.player_id == player_id]
+
+    def delete_by_player(self, player_id: int) -> int:
+        before = len(self._aliases)
+        self._aliases = [a for a in self._aliases if a.player_id != player_id]
+        return before - len(self._aliases)
+
+
+class TestResolverFirst:
+    def test_resolver_matches_by_alias(self) -> None:
+        alias_repo = _FakeAliasRepo(
+            [
+                PlayerAlias(
+                    alias_name="big mike",
+                    player_id=1,
+                    player_type=PlayerType.BATTER,
+                    source="manual",
+                ),
+            ]
+        )
+        resolver = PlayerNameResolver(alias_repo)
+
+        # "Big Mike" won't match any pool name via substring/fuzzy, but resolver knows it
+        result = resolve_player("Big Mike", POOL, resolver=resolver)
+        assert len(result) == 1
+        assert result[0].player_id == 1
+
+    def test_falls_through_when_resolver_returns_nothing(self) -> None:
+        alias_repo = _FakeAliasRepo()
+        resolver = PlayerNameResolver(alias_repo)
+
+        # No aliases registered — should fall through to substring match
+        result = resolve_player("Trout", POOL, resolver=resolver)
+        assert len(result) == 1
+        assert result[0].player_id == 1
+
+    def test_falls_through_when_resolver_match_not_in_pool(self) -> None:
+        alias_repo = _FakeAliasRepo(
+            [
+                PlayerAlias(
+                    alias_name="ghost player",
+                    player_id=9999,
+                    player_type=PlayerType.BATTER,
+                    source="manual",
+                ),
+            ]
+        )
+        resolver = PlayerNameResolver(alias_repo)
+
+        # Resolver matches id=9999 but nobody in pool has that id
+        result = resolve_player("Ghost Player", POOL, resolver=resolver)
         assert result == []

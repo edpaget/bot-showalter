@@ -1,8 +1,9 @@
 import logging
+import re
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
-from fantasy_baseball_manager.domain import ADP, Player
+from fantasy_baseball_manager.domain import ADP, Player, PlayerIdentity, PlayerType
 from fantasy_baseball_manager.name_utils import (
     build_player_lookups,
     normalize_name,
@@ -10,10 +11,14 @@ from fantasy_baseball_manager.name_utils import (
 )
 
 if TYPE_CHECKING:
+    from fantasy_baseball_manager.domain import NameResolver
     from fantasy_baseball_manager.repos import ADPRepo, PlayerRepo
+
 logger = logging.getLogger(__name__)
 
 _FIXED_COLUMNS = {"Rank", "Player", "Team", "Positions", "AVG"}
+_PITCHING_POSITIONS = {"SP", "RP", "P"}
+_BATTER_PITCHER_RE = re.compile(r"\(Batter\)|\(Pitcher\)", re.IGNORECASE)
 
 _PROVIDER_SLUGS: dict[str, str] = {
     "ESPN": "espn",
@@ -23,6 +28,26 @@ _PROVIDER_SLUGS: dict[str, str] = {
     "RTS": "rts",
     "FT": "ft",
 }
+
+
+def _infer_player_type(positions: str, raw_name: str) -> PlayerType:
+    """Infer batter/pitcher from CSV positions string and raw player name.
+
+    Parenthetical annotations like ``(Pitcher)`` or ``(Batter)`` in the player
+    name take priority.  Otherwise we check whether *all* listed positions are
+    pitching positions.
+    """
+    m = _BATTER_PITCHER_RE.search(raw_name)
+    if m:
+        return PlayerType.PITCHER if "pitcher" in m.group(0).lower() else PlayerType.BATTER
+
+    parts = [p.strip() for p in positions.split(",") if p.strip()]
+    filtered = [p for p in parts if p not in ("Util", "BN", "IL", "IL+", "NA", "DL")]
+    if not filtered:
+        return PlayerType.BATTER
+    if all(p in _PITCHING_POSITIONS for p in filtered):
+        return PlayerType.PITCHER
+    return PlayerType.BATTER
 
 
 def _resolve_player(
@@ -48,6 +73,22 @@ def _resolve_player(
 
     logger.debug("No player match for '%s' (team=%s)", raw_name, team)
     return None
+
+
+def _resolve_player_via_resolver(
+    row: dict[str, Any],
+    resolver: NameResolver,
+    season: int,
+) -> PlayerIdentity | None:
+    """Resolve a CSV row to a PlayerIdentity using the alias-based resolver."""
+    raw_name = row.get("Player") or ""
+    positions = row.get("Positions") or ""
+    player_type = _infer_player_type(positions, raw_name)
+
+    identity = resolver.resolve(raw_name, season=season, player_type=player_type)
+    if identity is not None:
+        resolver.register_alias(raw_name, identity, source="adp")
+    return identity
 
 
 def _discover_provider_columns(header: list[str]) -> list[tuple[str, str]]:
@@ -86,6 +127,7 @@ def ingest_fantasypros_adp(
     as_of: str | None = None,
     player_teams: dict[int, str] | None = None,
     player_repo: PlayerRepo | None = None,
+    resolver: NameResolver | None = None,
 ) -> ADPIngestResult:
     by_name_team, by_name = build_player_lookups(players, player_teams)
 
@@ -101,7 +143,16 @@ def ingest_fantasypros_adp(
     unmatched: list[str] = []
 
     for row in rows:
-        player_id = _resolve_player(row, by_name_team, by_name)
+        # Try resolver first, then fall back to old lookup
+        player_id: int | None = None
+        if resolver is not None:
+            identity = _resolve_player_via_resolver(row, resolver, season)
+            if identity is not None:
+                player_id = identity.player_id
+
+        if player_id is None:
+            player_id = _resolve_player(row, by_name_team, by_name)
+
         if player_id is None:
             raw_name = row.get("Player") or ""
             normalized = normalize_name(raw_name)

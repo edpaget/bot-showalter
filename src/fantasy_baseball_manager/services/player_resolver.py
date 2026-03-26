@@ -2,19 +2,34 @@ import difflib
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from fantasy_baseball_manager.domain import DraftBoardRow
+    from fantasy_baseball_manager.domain import DraftBoardRow, NameResolver
 
 
-def resolve_player(query: str, pool: list[DraftBoardRow]) -> list[DraftBoardRow]:
+def resolve_player(
+    query: str,
+    pool: list[DraftBoardRow],
+    *,
+    resolver: NameResolver | None = None,
+) -> list[DraftBoardRow]:
     """Resolve a player query against the available pool.
 
     Resolution order:
+    0. NameResolver lookup (if provided)
     1. Exact full name match (case-insensitive) — single result
     2. Substring match (case-insensitive) — all matches
     3. Fuzzy match via difflib (cutoff=0.6) — all matches
     """
     if not pool:
         return []
+
+    # 0. Resolver-first path
+    if resolver is not None:
+        identities = resolver.resolve_all(query)
+        if identities:
+            matched_ids = {i.player_id for i in identities}
+            matches = [p for p in pool if p.player_id in matched_ids]
+            if matches:
+                return matches
 
     query_lower = query.lower()
     names = {p.player_id: p.player_name.lower() for p in pool}

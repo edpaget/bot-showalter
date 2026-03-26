@@ -1,11 +1,13 @@
 from typing import TYPE_CHECKING
 
 from fantasy_baseball_manager.db.pool import SingleConnectionProvider
-from fantasy_baseball_manager.domain.identity import PlayerType
+from fantasy_baseball_manager.domain.identity import PlayerIdentity, PlayerType
 from fantasy_baseball_manager.domain.player import Player
 from fantasy_baseball_manager.domain.yahoo_player import YahooPlayerMap
+from fantasy_baseball_manager.repos.player_alias_repo import SqlitePlayerAliasRepo
 from fantasy_baseball_manager.repos.player_repo import SqlitePlayerRepo
 from fantasy_baseball_manager.repos.yahoo_player_map_repo import SqliteYahooPlayerMapRepo
+from fantasy_baseball_manager.services.player_name_resolver import PlayerNameResolver
 from fantasy_baseball_manager.yahoo.player_map import YahooPlayerMapper
 
 if TYPE_CHECKING:
@@ -319,3 +321,67 @@ class TestInferPlayerType:
 
     def test_empty_positions_is_batter(self) -> None:
         assert YahooPlayerMapper.infer_player_type([]) == "batter"
+
+
+class TestAliasRegistration:
+    def test_registers_alias_after_successful_resolve(self, conn: sqlite3.Connection) -> None:
+        provider = SingleConnectionProvider(conn)
+        player_repo = SqlitePlayerRepo(provider)
+        map_repo = SqliteYahooPlayerMapRepo(provider)
+        alias_repo = SqlitePlayerAliasRepo(provider)
+        name_resolver = PlayerNameResolver(alias_repo)
+
+        player_id = player_repo.upsert(Player(name_first="Mike", name_last="Trout", mlbam_id=545361))
+        conn.commit()
+
+        mapper = YahooPlayerMapper(map_repo, player_repo, name_resolver=name_resolver)
+        # No player_id/mlbam_id — forces name-based resolution through _persist()
+        result = mapper.resolve(
+            {
+                "player_key": "449.p.50001",
+                "name": "Mike Trout",
+                "editorial_team_abbr": "LAA",
+                "eligible_positions": ["CF", "LF"],
+            }
+        )
+        assert result is not None
+
+        # The alias should have been registered so future lookups work
+        identity = name_resolver.resolve("Mike Trout", player_type=PlayerType.BATTER)
+        assert identity is not None
+        assert identity.player_id == player_id
+        assert identity.player_type == PlayerType.BATTER
+
+
+class TestNameResolverFallback:
+    def test_resolver_fallback_when_yahoo_strategies_fail(self, conn: sqlite3.Connection) -> None:
+        provider = SingleConnectionProvider(conn)
+        player_repo = SqlitePlayerRepo(provider)
+        map_repo = SqliteYahooPlayerMapRepo(provider)
+        alias_repo = SqlitePlayerAliasRepo(provider)
+        name_resolver = PlayerNameResolver(alias_repo)
+
+        # Create a player with a name that won't match Yahoo's name strategies
+        player_id = player_repo.upsert(Player(name_first="Nickname", name_last="Guy", mlbam_id=999999))
+        conn.commit()
+
+        # Pre-register an alias so the name resolver can find "Some Alias"
+        name_resolver.register_alias("Some Alias", PlayerIdentity(player_id, PlayerType.BATTER), source="manual")
+
+        mapper = YahooPlayerMapper(map_repo, player_repo, name_resolver=name_resolver)
+        # No mlbam_id in yahoo data, and name "Some Alias" won't match "Nickname Guy"
+        result = mapper.resolve(
+            {
+                "player_key": "449.p.50002",
+                "name": "Some Alias",
+                "editorial_team_abbr": "???",
+                "eligible_positions": ["DH"],
+            }
+        )
+        assert result is not None
+        assert result.player_id == player_id
+
+        # Verify persisted
+        persisted = map_repo.get_by_yahoo_key("449.p.50002")
+        assert persisted is not None
+        assert persisted.player_id == player_id

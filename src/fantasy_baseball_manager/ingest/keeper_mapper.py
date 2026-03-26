@@ -10,7 +10,7 @@ from fantasy_baseball_manager.name_utils import build_player_lookups, normalize_
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-    from fantasy_baseball_manager.domain import Player
+    from fantasy_baseball_manager.domain import NameResolver, Player
     from fantasy_baseball_manager.repos import KeeperCostRepo
 
 logger = logging.getLogger(__name__)
@@ -31,6 +31,7 @@ def import_keeper_costs(
     league: str,
     default_source: str = "auction",
     cost_translator: Callable[[int], float] | None = None,
+    resolver: NameResolver | None = None,
 ) -> KeeperImportResult:
     _, by_name = build_player_lookups(players)
 
@@ -44,18 +45,26 @@ def import_keeper_costs(
             skipped += 1
             continue
 
-        normalized = normalize_name(raw_name)
-        candidates = by_name.get(normalized, [])
+        player_id: int | None = None
 
-        if len(candidates) != 1:
-            if len(candidates) > 1:
+        # Try resolver first, then fall back to name lookup
+        if resolver is not None:
+            identity = resolver.resolve(raw_name, season=season)
+            if identity is not None:
+                player_id = identity.player_id
+
+        if player_id is None:
+            normalized = normalize_name(raw_name)
+            candidates = by_name.get(normalized, [])
+            if len(candidates) == 1:
+                player_id = candidates[0]
+            elif len(candidates) > 1:
                 logger.debug("Ambiguous player name '%s' (%d matches), skipping", raw_name, len(candidates))
-            else:
-                logger.debug("No player match for '%s'", raw_name)
+
+        if player_id is None:
+            logger.debug("No player match for '%s'", raw_name)
             unmatched.append(raw_name)
             continue
-
-        player_id = candidates[0]
 
         if cost_translator is not None:
             round_str = str(row.get("Round", "")).strip()

@@ -53,6 +53,7 @@ from fantasy_baseball_manager.repos import (
     SqliteMinorLeagueBattingStatsRepo,
     SqliteModelRunRepo,
     SqlitePitchingStatsRepo,
+    SqlitePlayerAliasRepo,
     SqlitePlayerRepo,
     SqlitePositionAppearanceRepo,
     SqliteProjectionRepo,
@@ -83,6 +84,7 @@ from fantasy_baseball_manager.services import (
     InjuryProfiler,
     LeagueEnvironmentService,
     PlayerEligibilityService,
+    PlayerNameResolver,
     ProjectionEvaluator,
     ReplacementPaddingService,
     StatcastColumnProfiler,
@@ -514,6 +516,14 @@ class IngestContainer:
         return LahmanTeamsSource()
 
     @functools.cached_property
+    def player_alias_repo(self) -> SqlitePlayerAliasRepo:
+        return SqlitePlayerAliasRepo(SingleConnectionProvider(self._conn))
+
+    @functools.cached_property
+    def player_name_resolver(self) -> PlayerNameResolver:
+        return PlayerNameResolver(self.player_alias_repo)
+
+    @functools.cached_property
     def adp_repo(self) -> SqliteADPRepo:  # pragma: no cover
         return SqliteADPRepo(SingleConnectionProvider(self._conn))
 
@@ -893,6 +903,7 @@ class KeeperContext:
     eligibility_service: PlayerEligibilityService
     adp_repo: SqliteADPRepo
     league_keeper_repo: SqliteLeagueKeeperRepo
+    player_name_resolver: PlayerNameResolver
 
 
 @contextmanager
@@ -906,6 +917,7 @@ def build_keeper_context(data_dir: str) -> Iterator[KeeperContext]:  # pragma: n
             position_repo,
             pitching_stats_repo=pitching_stats_repo,
         )
+        alias_repo = SqlitePlayerAliasRepo(SingleConnectionProvider(conn))
         yield KeeperContext(
             conn=conn,
             keeper_repo=SqliteKeeperCostRepo(SingleConnectionProvider(conn)),
@@ -915,6 +927,7 @@ def build_keeper_context(data_dir: str) -> Iterator[KeeperContext]:  # pragma: n
             eligibility_service=eligibility_service,
             adp_repo=SqliteADPRepo(SingleConnectionProvider(conn)),
             league_keeper_repo=SqliteLeagueKeeperRepo(SingleConnectionProvider(conn)),
+            player_name_resolver=PlayerNameResolver(alias_repo),
         )
     finally:
         conn.close()

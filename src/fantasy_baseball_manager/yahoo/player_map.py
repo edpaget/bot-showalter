@@ -1,11 +1,11 @@
 import logging
 from typing import TYPE_CHECKING, Any
 
-from fantasy_baseball_manager.domain import PlayerType, YahooPlayerMap
+from fantasy_baseball_manager.domain import PlayerIdentity, PlayerType, YahooPlayerMap
 from fantasy_baseball_manager.name_utils import normalize_name, strip_accents, strip_name_decorations
 
 if TYPE_CHECKING:
-    from fantasy_baseball_manager.domain import Player
+    from fantasy_baseball_manager.domain import NameResolver, Player
     from fantasy_baseball_manager.repos import PlayerRepo, YahooPlayerMapRepo
 logger = logging.getLogger(__name__)
 
@@ -17,9 +17,12 @@ class YahooPlayerMapper:
         self,
         map_repo: YahooPlayerMapRepo,
         player_repo: PlayerRepo,
+        *,
+        name_resolver: NameResolver | None = None,
     ) -> None:
         self._map_repo = map_repo
         self._player_repo = player_repo
+        self._name_resolver = name_resolver
 
     def resolve(self, yahoo_player_data: dict[str, Any]) -> YahooPlayerMap | None:
         yahoo_key: str = yahoo_player_data["player_key"]
@@ -80,6 +83,14 @@ class YahooPlayerMapper:
                 if matched is not None:
                     return self._persist(matched, yahoo_key, player_type, name, team, positions_str)
 
+        # Strategy 4: NameResolver fallback
+        if self._name_resolver is not None:
+            identity = self._name_resolver.resolve(name, player_type=player_type)
+            if identity is not None:
+                player = self._player_repo.get_by_id(identity.player_id)
+                if player is not None:
+                    return self._persist(player, yahoo_key, player_type, name, team, positions_str)
+
         logger.warning(
             "Could not resolve Yahoo player: key=%s name=%s team=%s positions=%s",
             yahoo_key,
@@ -119,6 +130,8 @@ class YahooPlayerMapper:
             yahoo_positions=positions_str,
         )
         self._map_repo.upsert(mapping)
+        if self._name_resolver is not None and player.id is not None:
+            self._name_resolver.register_alias(name, PlayerIdentity(player.id, player_type), source="yahoo")
         return self._map_repo.get_by_yahoo_key(yahoo_key)
 
     @staticmethod

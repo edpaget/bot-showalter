@@ -76,6 +76,10 @@ def build_player_lookups(
 ) -> tuple[dict[tuple[str, str], int], dict[str, list[int]]]:
     """Build lookup dicts for matching player names.
 
+    .. deprecated::
+        Use :class:`~fantasy_baseball_manager.services.player_name_resolver.PlayerNameResolver`
+        for name resolution via the persistent alias table instead.
+
     Returns (by_name_team, by_name) where:
     - by_name_team maps (normalized_name, team_abbrev) → player_id
     - by_name maps normalized_name → [player_ids]

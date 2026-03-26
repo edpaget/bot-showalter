@@ -1,22 +1,44 @@
 from typing import TYPE_CHECKING
 
 from fantasy_baseball_manager.db.pool import SingleConnectionProvider
+from fantasy_baseball_manager.domain.identity import PlayerType
+from fantasy_baseball_manager.domain.player_alias import PlayerAlias
 from fantasy_baseball_manager.ingest.adp_mapper import (
     ADPIngestResult,
     _discover_provider_columns,
+    _infer_player_type,
     _split_raw_name,
     ingest_fantasypros_adp,
 )
 from fantasy_baseball_manager.mlb_api import fetch_mlb_active_teams
 from fantasy_baseball_manager.name_utils import normalize_name
 from fantasy_baseball_manager.repos.adp_repo import SqliteADPRepo
+from fantasy_baseball_manager.repos.player_alias_repo import SqlitePlayerAliasRepo
 from fantasy_baseball_manager.repos.player_repo import SqlitePlayerRepo
+from fantasy_baseball_manager.services.player_name_resolver import PlayerNameResolver
 from tests.helpers import seed_player
 
 if TYPE_CHECKING:
     import sqlite3
 
     import pytest
+
+
+def _make_resolver(conn: sqlite3.Connection) -> tuple[PlayerNameResolver, SqlitePlayerAliasRepo]:
+    provider = SingleConnectionProvider(conn)
+    alias_repo = SqlitePlayerAliasRepo(provider)
+    resolver = PlayerNameResolver(alias_repo)
+    return resolver, alias_repo
+
+
+def _seed_aliases(alias_repo: SqlitePlayerAliasRepo, ids: dict[str, int]) -> None:
+    """Seed the alias table with the standard test players."""
+    alias_repo.upsert(PlayerAlias(alias_name="mike trout", player_id=ids["trout"], player_type=PlayerType.BATTER))
+    alias_repo.upsert(PlayerAlias(alias_name="aaron judge", player_id=ids["judge"], player_type=PlayerType.BATTER))
+    alias_repo.upsert(PlayerAlias(alias_name="shohei ohtani", player_id=ids["ohtani"], player_type=PlayerType.BATTER))
+    alias_repo.upsert(PlayerAlias(alias_name="shohei ohtani", player_id=ids["ohtani"], player_type=PlayerType.PITCHER))
+    alias_repo.upsert(PlayerAlias(alias_name="bobby witt", player_id=ids["witt"], player_type=PlayerType.BATTER))
+    alias_repo.upsert(PlayerAlias(alias_name="ronald acuna", player_id=ids["acuna"], player_type=PlayerType.BATTER))
 
 
 def _seed_players(conn: sqlite3.Connection) -> dict[str, int]:
@@ -391,3 +413,101 @@ class TestIngestFantasyprosADP:
         assert len(adps) == 1
         assert adps[0].provider == "fantasypros"
         assert adps[0].overall_pick == 1.0
+
+
+class TestInferPlayerType:
+    def test_pitcher_positions(self) -> None:
+        assert _infer_player_type("SP,RP", "") == PlayerType.PITCHER
+
+    def test_batter_positions(self) -> None:
+        assert _infer_player_type("OF,DH", "") == PlayerType.BATTER
+
+    def test_mixed_positions_is_batter(self) -> None:
+        assert _infer_player_type("SP,DH", "") == PlayerType.BATTER
+
+    def test_parenthetical_pitcher_overrides(self) -> None:
+        assert _infer_player_type("DH", "Shohei Ohtani (Pitcher)") == PlayerType.PITCHER
+
+    def test_parenthetical_batter_overrides(self) -> None:
+        assert _infer_player_type("SP", "Shohei Ohtani (Batter)") == PlayerType.BATTER
+
+    def test_empty_positions_defaults_to_batter(self) -> None:
+        assert _infer_player_type("", "") == PlayerType.BATTER
+
+    def test_dh_only_is_batter(self) -> None:
+        assert _infer_player_type("DH", "") == PlayerType.BATTER
+
+    def test_p_position(self) -> None:
+        assert _infer_player_type("P", "") == PlayerType.PITCHER
+
+
+class TestIngestWithResolver:
+    def test_basic_ingest_via_resolver(self, conn: sqlite3.Connection) -> None:
+        ids = _seed_players(conn)
+        resolver, alias_repo = _make_resolver(conn)
+        _seed_aliases(alias_repo, ids)
+        repo = SqliteADPRepo(SingleConnectionProvider(conn))
+        rows = [
+            _make_row("1", "Mike Trout", "LAA", "CF,RF,DH", "1.0", ESPN="1", Yahoo="1"),
+        ]
+        result = ingest_fantasypros_adp(rows, repo, [], season=2026, resolver=resolver)
+        assert result.loaded == 3  # AVG + ESPN + Yahoo
+        assert result.skipped == 0
+        assert result.unmatched == []
+
+        adps = repo.get_by_player_season(ids["trout"], 2026)
+        assert len(adps) == 3
+        providers = {a.provider for a in adps}
+        assert providers == {"fantasypros", "espn", "yahoo"}
+
+    def test_two_way_player_via_resolver(self, conn: sqlite3.Connection) -> None:
+        ids = _seed_players(conn)
+        resolver, alias_repo = _make_resolver(conn)
+        _seed_aliases(alias_repo, ids)
+        repo = SqliteADPRepo(SingleConnectionProvider(conn))
+        rows = [
+            _make_row("1", "Shohei Ohtani", "LAD", "SP,DH", "1.0", Yahoo="", CBS="2", ESPN="1"),
+            _make_row("3", "Shohei Ohtani (Batter)", "LAD", "DH", "2.0", Yahoo="2", CBS="", ESPN=""),
+            _make_row("95", "Shohei Ohtani (Pitcher)", "LAD", "SP", "92.0", Yahoo="92", CBS="", ESPN=""),
+        ]
+        result = ingest_fantasypros_adp(rows, repo, [], season=2026, resolver=resolver)
+        assert result.unmatched == []
+
+        adps = repo.get_by_player_season(ids["ohtani"], 2026)
+        assert len(adps) == 7
+
+    def test_unmatched_via_resolver(self, conn: sqlite3.Connection) -> None:
+        ids = _seed_players(conn)
+        resolver, alias_repo = _make_resolver(conn)
+        _seed_aliases(alias_repo, ids)
+        repo = SqliteADPRepo(SingleConnectionProvider(conn))
+        rows = [
+            _make_row("1", "Nonexistent Player", "XXX", "OF", "50.0"),
+        ]
+        result = ingest_fantasypros_adp(rows, repo, [], season=2026, resolver=resolver)
+        assert result.loaded == 0
+        assert result.unmatched == ["Nonexistent Player"]
+
+    def test_alias_registered_after_resolution(self, conn: sqlite3.Connection) -> None:
+        ids = _seed_players(conn)
+        resolver, alias_repo = _make_resolver(conn)
+        _seed_aliases(alias_repo, ids)
+        repo = SqliteADPRepo(SingleConnectionProvider(conn))
+        rows = [
+            _make_row("5", "Ronald Acuña Jr.", "ATL", "CF,RF,DH", "5.0"),
+        ]
+        result = ingest_fantasypros_adp(rows, repo, [], season=2026, resolver=resolver)
+        assert result.loaded == 1
+        assert result.unmatched == []
+
+        # The raw name (with accent + suffix) should have been registered as an alias
+        aliases = alias_repo.find_by_name(normalize_name("Ronald Acuña Jr."))
+        assert any(a.player_id == ids["acuna"] and a.source == "adp" for a in aliases)
+
+    def test_empty_rows_via_resolver(self, conn: sqlite3.Connection) -> None:
+        ids = _seed_players(conn)
+        resolver, alias_repo = _make_resolver(conn)
+        _seed_aliases(alias_repo, ids)
+        repo = SqliteADPRepo(SingleConnectionProvider(conn))
+        result = ingest_fantasypros_adp([], repo, [], season=2026, resolver=resolver)
+        assert result == ADPIngestResult(loaded=0, skipped=0, unmatched=[])

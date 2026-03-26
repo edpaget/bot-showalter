@@ -56,7 +56,7 @@ _ALLOWED_METHODS = frozenset(
 # Domain files that define Protocol contracts rather than pure data.
 # These are exempt from the frozen-dataclass and no-custom-methods rules
 # because Protocol classes inherently declare method signatures.
-_PROTOCOL_FILES: frozenset[str] = frozenset({"model_protocol.py"})
+_PROTOCOL_FILES: frozenset[str] = frozenset({"model_protocol.py", "name_resolver_protocol.py"})
 
 
 def _domain_py_files() -> list[Path]:
