@@ -314,7 +314,7 @@ def plan_snake_draft(
     draft_slot: int,
     tiers: list[PlayerTier] | None = None,
     my_keepers: list[tuple[int, str]] | None = None,
-    league_keeper_ids: set[int] | None = None,
+    league_keeper_ids: set[tuple[int, str]] | None = None,
     keepers_per_team: int = 0,
 ) -> SnakeDraftPlan:
     """Produce a round-by-round snake draft plan for the given draft slot."""
@@ -328,7 +328,7 @@ def plan_snake_draft(
     # Build pool — remove league keepers
     pool_valuations = valuations
     if league_keeper_ids:
-        pool_valuations = [v for v in pool_valuations if v.player_id not in league_keeper_ids]
+        pool_valuations = [v for v in pool_valuations if (v.player_id, v.player_type) not in league_keeper_ids]
     pool = _group_by_position(pool_valuations)
 
     # Build tier lookup
@@ -469,7 +469,7 @@ def simulate_drafts(
     draft_slot: int,
     n_simulations: int = 1000,
     my_keepers: list[tuple[int, str]] | None = None,
-    league_keeper_ids: set[int] | None = None,
+    league_keeper_ids: set[tuple[int, str]] | None = None,
     keepers_per_team: int = 0,
     seed: int | None = None,
 ) -> BatchSimulationResult:
@@ -482,14 +482,14 @@ def simulate_drafts(
         draft_slot: 1-indexed draft position.
         n_simulations: Number of simulations to run.
         my_keepers: List of (player_id, position) tuples for user's keepers.
-        league_keeper_ids: Set of player_ids kept by any team (removed from pool).
+        league_keeper_ids: Set of (player_id, player_type) tuples kept by any team (removed from pool).
         keepers_per_team: Number of keepers per team (reduces rounds).
         seed: Random seed for reproducibility.
     """
     # Filter pool for keepers
     filtered_valuations = valuations
     if league_keeper_ids:
-        filtered_valuations = [v for v in filtered_valuations if v.player_id not in league_keeper_ids]
+        filtered_valuations = [v for v in filtered_valuations if (v.player_id, v.player_type) not in league_keeper_ids]
 
     # Build draft board
     raw_board = build_draft_board(filtered_valuations, league, player_names)
@@ -542,8 +542,14 @@ def simulate_drafts(
     # Compute keeper value
     keeper_total = 0.0
     if my_keepers:
-        val_lookup = {v.player_id: v.value for v in valuations}
-        keeper_total = sum(val_lookup.get(pid, 0.0) for pid, _pos in my_keepers)
+        val_lookup = {(v.player_id, v.player_type): v.value for v in valuations}
+        keeper_total = sum(
+            val_lookup.get(
+                (pid, "pitcher" if position_from_raw(pos) in _PITCHER_TYPES else "batter"),
+                0.0,
+            )
+            for pid, pos in my_keepers
+        )
 
     # Set up bot factories
     num_opponents = sim_league.teams - 1

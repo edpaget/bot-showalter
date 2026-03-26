@@ -737,7 +737,7 @@ def plan_command(
                     continue
                 my_keepers_list.append((pid, pos.strip()))
 
-        league_keeper_ids: set[int] | None = None
+        league_keeper_ids: set[tuple[int, str]] | None = None
         if league_keepers is not None:
             with open(league_keepers, newline="") as f:
                 reader = csv.DictReader(f)
@@ -819,7 +819,7 @@ def simulate_command(
                     continue
                 my_keepers_list.append((pid, pos.strip()))
 
-        league_keeper_ids: set[int] | None = None
+        league_keeper_ids: set[tuple[int, str]] | None = None
         if league_keepers is not None:
             with open(league_keepers, newline="") as f:
                 reader = csv.DictReader(f)

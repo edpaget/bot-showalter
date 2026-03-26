@@ -336,12 +336,12 @@ def _compute_sensitivity(
 
 
 def compute_adjusted_draft_pool(
-    league_keeper_ids: set[int],
+    league_keeper_ids: set[tuple[int, str]],
     valuations: list[Valuation],
     league: LeagueSettings,
 ) -> tuple[list[Valuation], dict[str, float]]:
     """Remove kept players from the pool and compute replacement-level baselines."""
-    filtered = [v for v in valuations if v.player_id not in league_keeper_ids]
+    filtered = [v for v in valuations if (v.player_id, v.player_type) not in league_keeper_ids]
 
     by_position: dict[str, list[Valuation]] = defaultdict(list)
     for v in filtered:
@@ -372,8 +372,8 @@ def _estimated_draft_value(
     league: LeagueSettings,
 ) -> float:
     """Estimate total value from drafting remaining roster slots."""
-    keeper_ids = {p.player_id for p in keeper_set.players}
-    available = [v for v in base_pool if v.player_id not in keeper_ids]
+    keeper_ids = {(p.player_id, p.player_type) for p in keeper_set.players}
+    available = [v for v in base_pool if (v.player_id, v.player_type) not in keeper_ids]
 
     # Compute unfilled slots per position
     all_positions = dict(league.positions)
@@ -390,7 +390,7 @@ def _estimated_draft_value(
         by_position[v.position].append(v.value)
 
     total_value = 0.0
-    used_ids: set[int] = set()
+    used_ids: set[tuple[int, str]] = set()
 
     # Fill position-specific slots first
     for pos, slots_needed in unfilled.items():
@@ -402,8 +402,8 @@ def _estimated_draft_value(
         # Mark consumed players as used from available pool
         consumed = 0
         for v in available:
-            if v.position == pos and v.player_id not in used_ids:
-                used_ids.add(v.player_id)
+            if v.position == pos and (v.player_id, v.player_type) not in used_ids:
+                used_ids.add((v.player_id, v.player_type))
                 consumed += 1
                 if consumed >= min(slots_needed, len(pos_values)):
                     break
@@ -411,7 +411,7 @@ def _estimated_draft_value(
     # Fill UTIL slots with best remaining batters
     util_slots = max(0, league.roster_util - keeper_set.positions_filled.get("UTIL", 0))
     if util_slots > 0:
-        remaining = [v for v in available if v.player_id not in used_ids and v.player_type == "batter"]
+        remaining = [v for v in available if (v.player_id, v.player_type) not in used_ids and v.player_type == "batter"]
         for v in remaining[:util_slots]:
             total_value += v.value
 
@@ -421,7 +421,7 @@ def _estimated_draft_value(
 def solve_keepers_with_pool(
     candidates: list[KeeperDecision],
     constraints: KeeperConstraints,
-    league_keeper_ids: set[int],
+    league_keeper_ids: set[tuple[int, str]],
     valuations: list[Valuation],
     league: LeagueSettings,
 ) -> KeeperSolution:
@@ -524,22 +524,30 @@ def keeper_trade_impact(
 def parse_league_keepers(
     rows: list[dict[str, str]],
     players: list[Player],
-) -> tuple[set[int], list[str]]:
-    """Match player names from CSV rows to player IDs."""
+) -> tuple[set[tuple[int, str]], list[str]]:
+    """Match player names from CSV rows to player IDs.
+
+    Returns a set of (player_id, player_type) tuples. Since keeper CSVs
+    typically lack player_type info, both batter and pitcher identities
+    are included for each matched player — keeping a player removes all
+    their identities from the draft pool.
+    """
     name_to_id: dict[str, int] = {}
     for p in players:
         full_name = f"{p.name_first} {p.name_last}".lower()
         if p.id is not None:
             name_to_id[full_name] = p.id
 
-    matched: set[int] = set()
+    matched: set[tuple[int, str]] = set()
     unmatched: list[str] = []
 
     for row in rows:
         name = row["player_name"].strip().lower()
         pid = name_to_id.get(name)
         if pid is not None:
-            matched.add(pid)
+            # Add both types so two-way players are fully excluded
+            matched.add((pid, "batter"))
+            matched.add((pid, "pitcher"))
         else:
             unmatched.append(row["player_name"].strip())
 

@@ -505,7 +505,7 @@ class TestComputeAdjustedDraftPool:
         ]
         league = _league(teams=1)
 
-        pool, _levels = compute_adjusted_draft_pool({1}, valuations, league)
+        pool, _levels = compute_adjusted_draft_pool({(1, "batter")}, valuations, league)
 
         pool_ids = {v.player_id for v in pool}
         assert 1 not in pool_ids
@@ -536,7 +536,7 @@ class TestComputeAdjustedDraftPool:
         league = _league(teams=2, positions={"SS": 1})
 
         _pool_before, levels_before = compute_adjusted_draft_pool(set(), valuations, league)
-        _pool_after, levels_after = compute_adjusted_draft_pool({1}, valuations, league)
+        _pool_after, levels_after = compute_adjusted_draft_pool({(1, "batter")}, valuations, league)
 
         # Before: replacement = rank 2 of [40, 30, 20, 10] → 20.0
         # After: replacement = rank 2 of [30, 20, 10] → 10.0
@@ -612,7 +612,7 @@ class TestSolveKeepersWithPool:
             _valuation(200 + i, "SS", 28.0 - i * 2.0) for i in range(15)
         ]
         # League keeps 10 of the top SS
-        league_keeper_ids = {200 + i for i in range(10)}
+        league_keeper_ids = {(200 + i, "batter") for i in range(10)}
 
         league = _league(
             teams=12,
@@ -712,7 +712,7 @@ class TestParseLeagueKeepers:
 
         matched, unmatched = parse_league_keepers(rows, players)
 
-        assert matched == {1, 2}
+        assert matched == {(1, "batter"), (1, "pitcher"), (2, "batter"), (2, "pitcher")}
         assert unmatched == []
 
     def test_returns_unmatched_names(self) -> None:
@@ -724,7 +724,7 @@ class TestParseLeagueKeepers:
 
         matched, unmatched = parse_league_keepers(rows, players)
 
-        assert matched == {1}
+        assert matched == {(1, "batter"), (1, "pitcher")}
         assert unmatched == ["Nobody Real"]
 
     def test_case_insensitive(self) -> None:
@@ -733,7 +733,7 @@ class TestParseLeagueKeepers:
 
         matched, unmatched = parse_league_keepers(rows, players)
 
-        assert matched == {1}
+        assert matched == {(1, "batter"), (1, "pitcher")}
 
     def test_empty_rows(self) -> None:
         players = [Player(name_first="Mike", name_last="Trout", id=1)]

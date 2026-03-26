@@ -386,7 +386,7 @@ class TestKeptPlayersRemovedFromPool:
             league,
             names,
             draft_slot=1,
-            league_keeper_ids={of_top_pid},
+            league_keeper_ids={(of_top_pid, PlayerType.BATTER)},
             keepers_per_team=1,
         )
         # The top OF (value 48.0) should be removed; next OF is value 47.0
@@ -409,7 +409,7 @@ class TestFewerRoundsInKeeperMode:
             names,
             draft_slot=1,
             my_keepers=[(ss_pid, "ss")],
-            league_keeper_ids={ss_pid},
+            league_keeper_ids={(ss_pid, PlayerType.BATTER)},
             keepers_per_team=1,
         )
         assert len(plan_redraft.rounds) == total_slots
@@ -513,7 +513,7 @@ class TestSimulateDraftsKeepers:
             names,
             draft_slot=1,
             n_simulations=10,
-            league_keeper_ids={1},
+            league_keeper_ids={(1, PlayerType.BATTER)},
             seed=42,
         )
         # Player 1 should not appear in frequencies with pct > 0
@@ -534,7 +534,7 @@ class TestSimulateDraftsKeepers:
             draft_slot=1,
             n_simulations=10,
             my_keepers=[(1, "C")],
-            league_keeper_ids={1},
+            league_keeper_ids={(1, PlayerType.BATTER)},
             keepers_per_team=1,
             seed=42,
         )
@@ -552,7 +552,7 @@ class TestSimulateDraftsKeepers:
             draft_slot=1,
             n_simulations=5,
             my_keepers=[(1, "C")],
-            league_keeper_ids={1},
+            league_keeper_ids={(1, PlayerType.BATTER)},
             keepers_per_team=1,
             seed=42,
         )
@@ -614,7 +614,7 @@ class TestSimulateDraftsExtraReductions:
             draft_slot=1,
             n_simulations=5,
             my_keepers=[(1, "C")],
-            league_keeper_ids={1},
+            league_keeper_ids={(1, PlayerType.BATTER)},
             keepers_per_team=3,
             seed=42,
         )
@@ -627,7 +627,7 @@ class TestSimulateDraftsExtraReductions:
             draft_slot=1,
             n_simulations=5,
             my_keepers=[(1, "C")],
-            league_keeper_ids={1},
+            league_keeper_ids={(1, PlayerType.BATTER)},
             keepers_per_team=1,
             seed=42,
         )
