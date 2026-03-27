@@ -25,6 +25,7 @@ if TYPE_CHECKING:
 def print_keeper_decisions(decisions: list[KeeperDecision]) -> None:
     table = Table(title="Keeper Decisions", show_edge=False, pad_edge=False)
     table.add_column("Player", justify="left")
+    table.add_column("Type", justify="left")
     table.add_column("Pos", justify="left")
     table.add_column("Cost", justify="right")
     table.add_column("Value", justify="right")
@@ -37,6 +38,7 @@ def print_keeper_decisions(decisions: list[KeeperDecision]) -> None:
         cost_str = f"Rd {d.original_round} (~${d.cost:.0f})" if d.original_round is not None else f"${d.cost:.0f}"
         table.add_row(
             d.player_name,
+            d.player_type,
             d.position,
             cost_str,
             f"${d.projected_value:.0f}",

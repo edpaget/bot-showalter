@@ -254,6 +254,7 @@ type PickValueType {
 type PlayerRecommendationType {
   playerId: Int!
   playerName: String!
+  playerType: String!
   categoryImpact: Float!
   tradeoffCategories: [String!]!
 }
@@ -273,6 +274,7 @@ type PlayerTierType {
   playerId: Int!
   playerName: String!
   position: Position!
+  playerType: String!
   tier: Int!
   value: Float!
   rank: Int!
@@ -309,6 +311,7 @@ type ProjectedKeeperType {
   playerId: Int!
   playerName: String!
   position: String!
+  playerType: String!
   value: Float!
   categoryScores: JSON!
 }
@@ -360,6 +363,7 @@ type ReachPickType {
   playerId: Int!
   playerName: String!
   position: String!
+  playerType: String!
   adp: Float!
   pickNumber: Int!
   picksAheadOfAdp: Float!
@@ -415,6 +419,7 @@ type TradeTargetType {
   playerId: Int!
   playerName: String!
   position: String!
+  playerType: String!
   value: Float!
   owningTeamName: String!
   owningTeamKey: String!

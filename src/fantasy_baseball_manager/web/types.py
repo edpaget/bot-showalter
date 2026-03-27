@@ -156,6 +156,7 @@ class PlayerTierType:
     player_id: int
     player_name: str
     position: Position
+    player_type: str
     tier: int
     value: float
     rank: int
@@ -166,6 +167,7 @@ class PlayerTierType:
             player_id=pt.player_id,
             player_name=pt.player_name,
             position=position_from_raw(pt.position),
+            player_type=pt.player_type,
             tier=pt.tier,
             value=pt.value,
             rank=pt.rank,
@@ -414,6 +416,7 @@ class CategoryBalanceType:
 class PlayerRecommendationType:
     player_id: int
     player_name: str
+    player_type: str
     category_impact: float
     tradeoff_categories: list[str]
 
@@ -422,6 +425,7 @@ class PlayerRecommendationType:
         return PlayerRecommendationType(
             player_id=rec.player_id,
             player_name=rec.player_name,
+            player_type=rec.player_type,
             category_impact=rec.category_impact,
             tradeoff_categories=list(rec.tradeoff_categories),
         )
@@ -478,6 +482,7 @@ class ReachPickType:
     player_id: int
     player_name: str
     position: str
+    player_type: str
     adp: float
     pick_number: int
     picks_ahead_of_adp: float
@@ -489,6 +494,7 @@ class ReachPickType:
             player_id=rp.player_id,
             player_name=rp.player_name,
             position=rp.position,
+            player_type=rp.player_type or "",
             adp=rp.adp,
             pick_number=rp.pick_number,
             picks_ahead_of_adp=rp.picks_ahead_of_adp,
@@ -932,6 +938,7 @@ class ProjectedKeeperType:
     player_id: int
     player_name: str
     position: str
+    player_type: str
     value: float
     category_scores: strawberry.scalars.JSON
 
@@ -941,6 +948,7 @@ class ProjectedKeeperType:
             player_id=pk.player_id,
             player_name=pk.player_name,
             position=pk.position,
+            player_type=pk.player_type,
             value=pk.value,
             category_scores=cast("Any", dict(pk.category_scores)),
         )
@@ -972,6 +980,7 @@ class TradeTargetType:
     player_id: int
     player_name: str
     position: str
+    player_type: str
     value: float
     owning_team_name: str
     owning_team_key: str
@@ -983,6 +992,7 @@ class TradeTargetType:
             player_id=target.player_id,
             player_name=target.player_name,
             position=target.position,
+            player_type=target.player_type,
             value=target.value,
             owning_team_name=target.owning_team_name,
             owning_team_key=target.owning_team_key,

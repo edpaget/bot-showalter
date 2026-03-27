@@ -173,6 +173,7 @@ export const CATEGORY_NEEDS_QUERY = gql`
       bestAvailable {
         playerId
         playerName
+        playerType
         categoryImpact
         tradeoffCategories
       }
@@ -222,6 +223,7 @@ export const ARBITRAGE_QUERY = gql`
         playerId
         playerName
         position
+        playerType
         adp
         pickNumber
         picksAheadOfAdp
@@ -455,6 +457,7 @@ export const YAHOO_KEEPER_OVERVIEW_QUERY = gql`
           playerId
           playerName
           position
+          playerType
           value
           categoryScores
         }
@@ -463,6 +466,7 @@ export const YAHOO_KEEPER_OVERVIEW_QUERY = gql`
         playerId
         playerName
         position
+        playerType
         value
         owningTeamName
         owningTeamKey
@@ -559,6 +563,7 @@ export const PLAN_KEEPER_DRAFT_QUERY = gql`
           bestAvailable {
             playerId
             playerName
+            playerType
             categoryImpact
             tradeoffCategories
           }

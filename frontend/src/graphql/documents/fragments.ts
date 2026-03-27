@@ -77,6 +77,7 @@ export const PICK_RESULT_FRAGMENT = gql`
         playerId
         playerName
         position
+        playerType
         adp
         pickNumber
         picksAheadOfAdp
@@ -96,6 +97,7 @@ export const PICK_RESULT_FRAGMENT = gql`
       bestAvailable {
         playerId
         playerName
+        playerType
         categoryImpact
         tradeoffCategories
       }

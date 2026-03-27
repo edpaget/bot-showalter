@@ -30,6 +30,7 @@ class ReachPick:
     pick_number: int
     picks_ahead_of_adp: float
     drafter_team: int
+    player_type: PlayerType | None = None
 
 
 @dataclass(frozen=True)

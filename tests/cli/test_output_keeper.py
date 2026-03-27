@@ -9,6 +9,7 @@ from fantasy_baseball_manager.domain.category_tracker import (
     RosterAnalysis,
     TeamCategoryProjection,
 )
+from fantasy_baseball_manager.domain.identity import PlayerType
 from fantasy_baseball_manager.domain.keeper import (
     LeagueKeeperOverview,
     ProjectedKeeper,
@@ -50,6 +51,7 @@ class TestPrintKeeperDraftNeeds:
             player_id=1,
             player_name="Mike Trout",
             position="OF",
+            player_type=PlayerType.BATTER,
             value=30.0,
             category_scores={"HR": 5.0},
         )

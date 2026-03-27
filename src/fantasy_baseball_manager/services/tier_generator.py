@@ -64,6 +64,7 @@ def generate_tiers(
                     player_id=v.player_id,
                     player_name=name,
                     position=position,
+                    player_type=v.player_type,
                     tier=tier_assignments[rank_idx],
                     value=v.value,
                     rank=rank_idx + 1,

@@ -2747,8 +2747,24 @@ class TestPrintDraftBoardWithAge:
 class TestPrintDraftTiersWithADP:
     def test_adp_column_shown(self, capsys: pytest.CaptureFixture[str]) -> None:
         tiers = [
-            PlayerTier(player_id=1, player_name="Player A", position="OF", tier=1, value=40.0, rank=1),
-            PlayerTier(player_id=2, player_name="Player B", position="OF", tier=2, value=30.0, rank=2),
+            PlayerTier(
+                player_id=1,
+                player_name="Player A",
+                position="OF",
+                player_type=PlayerType.BATTER,
+                tier=1,
+                value=40.0,
+                rank=1,
+            ),
+            PlayerTier(
+                player_id=2,
+                player_name="Player B",
+                position="OF",
+                player_type=PlayerType.BATTER,
+                tier=2,
+                value=30.0,
+                rank=2,
+            ),
         ]
         adp_map = {
             1: ADP(player_id=1, season=2025, provider="espn", overall_pick=5.0, rank=5, positions="OF"),
@@ -2768,7 +2784,7 @@ class TestPrintCategoryNeedsWithTradeoffs:
                 category="sb",
                 current_rank=10,
                 target_rank=5,
-                best_available=(PlayerRecommendation(1, "Fast Guy", 2.5, ("hr", "rbi")),),
+                best_available=(PlayerRecommendation(1, "Fast Guy", PlayerType.BATTER, 2.5, ("hr", "rbi")),),
             ),
         ]
         print_category_needs(needs, num_teams=12)

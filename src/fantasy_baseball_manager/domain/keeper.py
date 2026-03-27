@@ -62,6 +62,7 @@ class ProjectedKeeper:
     player_id: int
     player_name: str
     position: str
+    player_type: PlayerType
     value: float
     category_scores: dict[str, float]
 
@@ -81,6 +82,7 @@ class TradeTarget:
     player_id: int
     player_name: str
     position: str
+    player_type: PlayerType
     value: float
     owning_team_name: str
     owning_team_key: str

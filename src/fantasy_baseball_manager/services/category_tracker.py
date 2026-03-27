@@ -375,6 +375,7 @@ def identify_needs(
                 PlayerRecommendation(
                     player_id=candidate.player_id,
                     player_name=names.get(candidate.player_id, ""),
+                    player_type=candidate.player_type,
                     category_impact=impact,
                     tradeoff_categories=tuple(tradeoffs),
                 )

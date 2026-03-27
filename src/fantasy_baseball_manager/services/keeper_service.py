@@ -224,10 +224,10 @@ def build_league_keeper_overview(
     all_category_names: set[str] = set()
     team_projections: list[TeamKeeperProjection] = []
     # Track per-team ranked candidates for trade target identification
-    team_ranked: dict[str, list[tuple[int, float, str, str, dict[str, float]]]] = {}
+    team_ranked: dict[str, list[tuple[int, float, str, str, dict[str, float], PlayerType]]] = {}
 
     for roster in rosters:
-        candidates: list[tuple[int, float, str, str, dict[str, float]]] = []
+        candidates: list[tuple[int, float, str, str, dict[str, float], PlayerType]] = []
         for entry in roster.entries:
             if entry.player_id is None:
                 continue
@@ -235,9 +235,10 @@ def build_league_keeper_overview(
             value = val.value if val is not None else 0.0
             position = val.position if val is not None else "UTIL"
             cat_scores = val.category_scores if val is not None else {}
+            player_type = val.player_type if val is not None else PlayerType.BATTER
             player = player_lookup.get(entry.player_id)
             name = f"{player.name_first} {player.name_last}" if player is not None else entry.player_name
-            candidates.append((entry.player_id, value, position, name, cat_scores))
+            candidates.append((entry.player_id, value, position, name, cat_scores, player_type))
 
         candidates.sort(key=lambda x: x[1], reverse=True)
         team_ranked[roster.team_key] = candidates
@@ -248,10 +249,11 @@ def build_league_keeper_overview(
                 player_id=pid,
                 player_name=name,
                 position=pos,
+                player_type=ptype,
                 value=val,
                 category_scores=cats,
             )
-            for pid, val, pos, name, cats in keeper_candidates
+            for pid, val, pos, name, cats, ptype in keeper_candidates
         )
 
         category_totals: dict[str, float] = {}
@@ -284,7 +286,7 @@ def build_league_keeper_overview(
         if roster.team_key == user_team_key:
             continue
         ranked = team_ranked.get(roster.team_key, [])
-        for rank_idx, (pid, value, pos, name, _cats) in enumerate(ranked, 1):
+        for rank_idx, (pid, value, pos, name, _cats, ptype) in enumerate(ranked, 1):
             if rank_idx <= max_keepers:
                 continue
             if value > user_worst:
@@ -293,6 +295,7 @@ def build_league_keeper_overview(
                         player_id=pid,
                         player_name=name,
                         position=pos,
+                        player_type=ptype,
                         value=value,
                         owning_team_name=team_names.get(roster.team_key, roster.team_key),
                         owning_team_key=roster.team_key,

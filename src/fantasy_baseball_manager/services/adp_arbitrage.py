@@ -83,6 +83,7 @@ def detect_reaches(
                 player_id=pick.player_id,
                 player_name=pick.player_name,
                 position=pick.position,
+                player_type=pick.player_type,
                 adp=adp,
                 pick_number=pick.pick_number,
                 picks_ahead_of_adp=ahead,

@@ -1,5 +1,6 @@
 import pytest
 
+from fantasy_baseball_manager.domain.identity import PlayerType
 from fantasy_baseball_manager.domain.keeper import (
     KeeperCost,
     LeagueKeeperOverview,
@@ -51,6 +52,7 @@ class TestLeagueKeeperDomainModels:
             player_id=1,
             player_name="Mike Trout",
             position="OF",
+            player_type=PlayerType.BATTER,
             value=35.0,
             category_scores={"hr": 1.5, "obp": 0.8},
         )
@@ -63,6 +65,7 @@ class TestLeagueKeeperDomainModels:
             player_id=1,
             player_name="Mike Trout",
             position="OF",
+            player_type=PlayerType.BATTER,
             value=35.0,
             category_scores={"hr": 1.5},
         )
@@ -83,6 +86,7 @@ class TestLeagueKeeperDomainModels:
             player_id=2,
             player_name="Shohei Ohtani",
             position="DH",
+            player_type=PlayerType.BATTER,
             value=40.0,
             owning_team_name="Team Two",
             owning_team_key="422.l.1.t.2",

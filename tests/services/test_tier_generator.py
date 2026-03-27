@@ -207,10 +207,42 @@ class TestTierSummary:
     def test_summary_counts_per_position_per_tier(self) -> None:
         """4 OF players split into 2 tiers → correct counts."""
         tiers = [
-            PlayerTier(player_id=1, player_name="A One", position="OF", tier=1, value=40.0, rank=1),
-            PlayerTier(player_id=2, player_name="B Two", position="OF", tier=1, value=38.0, rank=2),
-            PlayerTier(player_id=3, player_name="C Three", position="OF", tier=2, value=10.0, rank=3),
-            PlayerTier(player_id=4, player_name="D Four", position="OF", tier=2, value=8.0, rank=4),
+            PlayerTier(
+                player_id=1,
+                player_name="A One",
+                position="OF",
+                player_type=PlayerType.BATTER,
+                tier=1,
+                value=40.0,
+                rank=1,
+            ),
+            PlayerTier(
+                player_id=2,
+                player_name="B Two",
+                position="OF",
+                player_type=PlayerType.BATTER,
+                tier=1,
+                value=38.0,
+                rank=2,
+            ),
+            PlayerTier(
+                player_id=3,
+                player_name="C Three",
+                position="OF",
+                player_type=PlayerType.BATTER,
+                tier=2,
+                value=10.0,
+                rank=3,
+            ),
+            PlayerTier(
+                player_id=4,
+                player_name="D Four",
+                position="OF",
+                player_type=PlayerType.BATTER,
+                tier=2,
+                value=8.0,
+                rank=4,
+            ),
         ]
         report = tier_summary(tiers)
         entries_by_tier = {e.tier: e for e in report.entries}
@@ -220,8 +252,24 @@ class TestTierSummary:
     def test_summary_total_and_avg_value(self) -> None:
         """Verify total_value and avg_value are correct for a known tier."""
         tiers = [
-            PlayerTier(player_id=1, player_name="A One", position="OF", tier=1, value=40.0, rank=1),
-            PlayerTier(player_id=2, player_name="B Two", position="OF", tier=1, value=30.0, rank=2),
+            PlayerTier(
+                player_id=1,
+                player_name="A One",
+                position="OF",
+                player_type=PlayerType.BATTER,
+                tier=1,
+                value=40.0,
+                rank=1,
+            ),
+            PlayerTier(
+                player_id=2,
+                player_name="B Two",
+                position="OF",
+                player_type=PlayerType.BATTER,
+                tier=1,
+                value=30.0,
+                rank=2,
+            ),
         ]
         report = tier_summary(tiers)
         assert len(report.entries) == 1
@@ -232,8 +280,24 @@ class TestTierSummary:
     def test_summary_best_player(self) -> None:
         """Best player is the highest-value player in that position+tier."""
         tiers = [
-            PlayerTier(player_id=1, player_name="A One", position="OF", tier=1, value=40.0, rank=1),
-            PlayerTier(player_id=2, player_name="B Two", position="OF", tier=1, value=30.0, rank=2),
+            PlayerTier(
+                player_id=1,
+                player_name="A One",
+                position="OF",
+                player_type=PlayerType.BATTER,
+                tier=1,
+                value=40.0,
+                rank=1,
+            ),
+            PlayerTier(
+                player_id=2,
+                player_name="B Two",
+                position="OF",
+                player_type=PlayerType.BATTER,
+                tier=1,
+                value=30.0,
+                rank=2,
+            ),
         ]
         report = tier_summary(tiers)
         assert report.entries[0].best_player == "A One"
@@ -248,9 +312,33 @@ class TestTierSummary:
     def test_summary_multiple_positions(self) -> None:
         """OF and SP both appear in report, entries cover all combos."""
         tiers = [
-            PlayerTier(player_id=1, player_name="A One", position="OF", tier=1, value=40.0, rank=1),
-            PlayerTier(player_id=2, player_name="B Two", position="OF", tier=2, value=20.0, rank=2),
-            PlayerTier(player_id=3, player_name="C Three", position="SP", tier=1, value=35.0, rank=1),
+            PlayerTier(
+                player_id=1,
+                player_name="A One",
+                position="OF",
+                player_type=PlayerType.BATTER,
+                tier=1,
+                value=40.0,
+                rank=1,
+            ),
+            PlayerTier(
+                player_id=2,
+                player_name="B Two",
+                position="OF",
+                player_type=PlayerType.BATTER,
+                tier=2,
+                value=20.0,
+                rank=2,
+            ),
+            PlayerTier(
+                player_id=3,
+                player_name="C Three",
+                position="SP",
+                player_type=PlayerType.PITCHER,
+                tier=1,
+                value=35.0,
+                rank=1,
+            ),
         ]
         report = tier_summary(tiers)
         assert report.positions == ["OF", "SP"]

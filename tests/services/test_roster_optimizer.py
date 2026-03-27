@@ -201,9 +201,33 @@ class TestTiersPopulated:
         league = _league()
         valuations, names = _make_valuations()
         tiers = [
-            PlayerTier(player_id=1, player_name="Catcher A", position="c", tier=1, value=10.0, rank=1),
-            PlayerTier(player_id=2, player_name="Catcher B", position="c", tier=2, value=5.0, rank=2),
-            PlayerTier(player_id=7, player_name="Short A", position="ss", tier=1, value=10.0, rank=1),
+            PlayerTier(
+                player_id=1,
+                player_name="Catcher A",
+                position="c",
+                player_type=PlayerType.BATTER,
+                tier=1,
+                value=10.0,
+                rank=1,
+            ),
+            PlayerTier(
+                player_id=2,
+                player_name="Catcher B",
+                position="c",
+                player_type=PlayerType.BATTER,
+                tier=2,
+                value=5.0,
+                rank=2,
+            ),
+            PlayerTier(
+                player_id=7,
+                player_name="Short A",
+                position="ss",
+                player_type=PlayerType.BATTER,
+                tier=1,
+                value=10.0,
+                rank=1,
+            ),
         ]
         result = optimize_auction_budget(valuations, league, names, tiers=tiers)
         tier_set = [a for a in result if a.target_tier is not None]

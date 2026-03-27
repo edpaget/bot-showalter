@@ -6,6 +6,7 @@ from fantasy_baseball_manager.domain.category_tracker import (
     RosterAnalysis,
     TeamCategoryProjection,
 )
+from fantasy_baseball_manager.domain.identity import PlayerType
 
 
 class TestTeamCategoryProjection:
@@ -64,6 +65,7 @@ class TestPlayerRecommendation:
         rec = PlayerRecommendation(
             player_id=1,
             player_name="Mike Trout",
+            player_type=PlayerType.BATTER,
             category_impact=5.0,
             tradeoff_categories=(),
         )
@@ -74,6 +76,7 @@ class TestPlayerRecommendation:
         rec = PlayerRecommendation(
             player_id=42,
             player_name="Juan Soto",
+            player_type=PlayerType.BATTER,
             category_impact=3.5,
             tradeoff_categories=("avg", "obp"),
         )
@@ -98,6 +101,7 @@ class TestCategoryNeed:
         rec = PlayerRecommendation(
             player_id=1,
             player_name="Test Player",
+            player_type=PlayerType.BATTER,
             category_impact=2.0,
             tradeoff_categories=(),
         )
